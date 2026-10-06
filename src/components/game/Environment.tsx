@@ -535,12 +535,12 @@ function Clouds({ biome }: { biome: Biome }) {
   })
   return (
     <>
-      <group ref={g1} position={[0, 14, 8]}>
+      <group ref={g1} position={[0, 58, 8]}>
         <Cloud seed={1} position={[-6, 0, -8]} opacity={biome === 'desert' ? 0.28 : 0.4} speed={0.05} scale={1.4} color={tint} />
         <Cloud seed={2} position={[5, 0.5, 4]} opacity={biome === 'desert' ? 0.24 : 0.32} speed={0.04} scale={1.8} color={tint} />
         <Cloud seed={3} position={[0, -0.3, 12]} opacity={0.26} speed={0.03} scale={2} color="#ffffff" />
       </group>
-      <group ref={g2} position={[0, 18, 12]}>
+      <group ref={g2} position={[0, 62, 12]}>
         <Cloud seed={4} position={[8, 0, -15]} opacity={biome === 'desert' ? 0.18 : 0.22} speed={0.02} scale={2.5} color={tint} />
         <Cloud seed={5} position={[-7, 0.4, 8]} opacity={0.2} speed={0.03} scale={2.2} color="#ffffff" />
       </group>
@@ -573,8 +573,8 @@ export function Environment() {
       />
       <pointLight position={[0, 5, 2]} intensity={desert ? 0.28 : 0.48} color={desert ? '#ffaa55' : '#7ad7ff'} />
       {/* Light distance haze on props/ground only — sky materials set fog={false} */}
-      {desert && <fog attach="fog" args={['#e8d0a8', 90, 200]} />}
-      {!desert && <fog attach="fog" args={['#8eb8a8', 95, 210]} />}
+      {desert && <fog attach="fog" args={['#e8d0a8', 55, 120]} />}
+      {!desert && <fog attach="fog" args={['#8eb8a8', 55, 120]} />}
       <Ground biome={biome} />
       <ScrollingWorld biome={biome} />
       <Clouds biome={biome} />

@@ -1,6 +1,6 @@
-import { useMemo, useRef } from 'react'
-import { useFrame } from '@react-three/fiber'
-import { Cloud, Sky, Environment as DreiEnv, shaderMaterial } from '@react-three/drei'
+import { useEffect, useMemo, useRef } from 'react'
+import { useFrame, useThree } from '@react-three/fiber'
+import { Cloud, Environment as DreiEnv, shaderMaterial } from '@react-three/drei'
 import { extend, type ThreeElement } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useGameStore, type Biome } from '../../store/gameStore'
@@ -109,7 +109,7 @@ function Ground({ biome }: { biome: Biome }) {
   // Huge continuous plane under the whole playfield — no gaps / floating islands
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, GROUND_Y, 0]} receiveShadow>
-      <planeGeometry args={[90, 120, 96, 96]} />
+      <planeGeometry args={[90, 72, 96, 72]} />
       <groundMat
         ref={ref}
         uDeep={colors.deep}
@@ -282,6 +282,218 @@ function ScrollingWorld({ biome }: { biome: Biome }) {
   )
 }
 
+
+
+/** Procedural CC0-style sky texture (canvas) — detail packed into the upper band
+ *  (scene.background maps texture-top → screen-top, which is the only visible sky strip). */
+function makeSkyCanvas(desert: boolean): HTMLCanvasElement {
+  const c = document.createElement('canvas')
+  c.width = 1024
+  c.height = 1024
+  const ctx = c.getContext('2d')!
+
+  // Vertical gradient: top = zenith (screen top), quickly into mid/haze (visible band),
+  // lower half mostly covered by ground but still painted for backdrop UVs.
+  const g = ctx.createLinearGradient(0, 0, 0, 1024)
+  if (desert) {
+    g.addColorStop(0.0, 'rgb(55, 95, 165)')
+    g.addColorStop(0.12, 'rgb(120, 155, 200)')
+    g.addColorStop(0.28, 'rgb(210, 185, 150)')
+    g.addColorStop(0.42, 'rgb(245, 195, 120)')
+    g.addColorStop(0.65, 'rgb(235, 175, 100)')
+    g.addColorStop(1.0, 'rgb(200, 145, 85)')
+  } else {
+    g.addColorStop(0.0, 'rgb(35, 95, 175)')
+    g.addColorStop(0.15, 'rgb(70, 145, 200)')
+    g.addColorStop(0.32, 'rgb(120, 185, 195)')
+    g.addColorStop(0.5, 'rgb(150, 205, 185)')
+    g.addColorStop(1.0, 'rgb(100, 155, 120)')
+  }
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, 1024, 1024)
+
+  // Soft clouds in the UPPER visible band
+  const nClouds = desert ? 36 : 48
+  for (let i = 0; i < nClouds; i++) {
+    const x = Math.random() * 1024
+    const y = Math.random() * 340 + 20
+    const rx = 50 + Math.random() * 160
+    const ry = 18 + Math.random() * 36
+    const grd = ctx.createRadialGradient(x, y, 2, x, y, rx)
+    const a = desert ? 0.22 + Math.random() * 0.22 : 0.28 + Math.random() * 0.32
+    const tint = desert ? '255,245,230' : '255,255,255'
+    grd.addColorStop(0, `rgba(${tint},${a})`)
+    grd.addColorStop(1, `rgba(${tint},0)`)
+    ctx.fillStyle = grd
+    ctx.beginPath()
+    ctx.ellipse(x, y, rx, ry, (Math.random() - 0.5) * 0.5, 0, Math.PI * 2)
+    ctx.fill()
+  }
+
+  // Big readable sun + corona in the UPPER visible band (screen-top)
+  const sx = desert ? 820 : 740
+  const sy = desert ? 140 : 110
+  const sunR = desert ? 95 : 62
+  const haze = ctx.createRadialGradient(sx, sy, 0, sx, sy, desert ? 420 : 280)
+  if (desert) {
+    haze.addColorStop(0, 'rgba(255,240,170,0.95)')
+    haze.addColorStop(0.18, 'rgba(255,190,90,0.45)')
+    haze.addColorStop(0.45, 'rgba(255,160,70,0.18)')
+    haze.addColorStop(1, 'rgba(255,180,80,0)')
+  } else {
+    haze.addColorStop(0, 'rgba(255,252,240,0.75)')
+    haze.addColorStop(0.25, 'rgba(210,235,255,0.22)')
+    haze.addColorStop(1, 'rgba(255,255,255,0)')
+  }
+  ctx.fillStyle = haze
+  ctx.fillRect(0, 0, 1024, 1024)
+  const core = ctx.createRadialGradient(sx, sy, 0, sx, sy, sunR)
+  core.addColorStop(0, '#ffffff')
+  core.addColorStop(0.35, desert ? '#ffe08a' : '#fff6d0')
+  core.addColorStop(0.7, desert ? '#ffb040' : '#ffe8a0')
+  core.addColorStop(1, 'rgba(255,180,80,0)')
+  ctx.fillStyle = core
+  ctx.beginPath()
+  ctx.arc(sx, sy, sunR, 0, Math.PI * 2)
+  ctx.fill()
+
+  return c
+}
+
+const SkyBackdropMat = shaderMaterial(
+  {
+    uTime: 0,
+    uMode: 1,
+    uMap: new THREE.Texture(),
+  },
+  /* glsl */ `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  /* glsl */ `
+    uniform float uTime;
+    uniform float uMode;
+    uniform sampler2D uMap;
+    varying vec2 vUv;
+
+    float hash(vec2 p) {
+      return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+    }
+    float noise(vec2 p) {
+      vec2 i = floor(p);
+      vec2 f = fract(p);
+      float a = hash(i), b = hash(i + vec2(1.0, 0.0));
+      float c = hash(i + vec2(0.0, 1.0)), d = hash(i + vec2(1.0, 1.0));
+      vec2 u = f * f * (3.0 - 2.0 * f);
+      return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+    }
+    float fbm(vec2 p) {
+      float v = 0.0; float a = 0.5;
+      for (int i = 0; i < 5; i++) { v += a * noise(p); p *= 2.05; a *= 0.5; }
+      return v;
+    }
+
+    void main() {
+      vec3 base = texture2D(uMap, vUv).rgb;
+      // drifting soft cloud overlay on the painted sky
+      vec2 cuv = vUv * vec2(3.5, 2.2) + vec2(uTime * 0.01, uTime * 0.004);
+      float clouds = fbm(cuv);
+      float amt = uMode < 1.5 ? 0.22 : 0.35;
+      clouds = smoothstep(0.42, 0.75, clouds) * amt * smoothstep(0.05, 0.55, vUv.y);
+      vec3 cloudCol = uMode < 1.5 ? vec3(1.0, 0.96, 0.9) : vec3(0.95, 0.98, 1.0);
+      vec3 col = mix(base, cloudCol, clouds);
+      // horizon warm lift
+      float horiz = smoothstep(0.35, 0.0, vUv.y);
+      if (uMode < 1.5) col = mix(col, vec3(1.0, 0.82, 0.55), horiz * 0.35);
+      else col = mix(col, vec3(0.55, 0.8, 0.7), horiz * 0.25);
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `,
+)
+extend({ SkyBackdropMat })
+
+declare module '@react-three/fiber' {
+  interface ThreeElements {
+    skyBackdropMat: ThreeElement<typeof SkyBackdropMat>
+  }
+}
+
+function SkyBackdrop({ biome }: { biome: Biome }) {
+  const mat = useRef<any>(null)
+  const { scene } = useThree()
+  const desert = biome === 'desert'
+  const map = useMemo(() => {
+    const tex = new THREE.CanvasTexture(makeSkyCanvas(desert))
+    tex.colorSpace = THREE.SRGBColorSpace
+    tex.needsUpdate = true
+    return tex
+  }, [desert])
+
+  // Fog-free scene background (shows in gaps / above horizon)
+  useEffect(() => {
+    scene.background = map
+    return () => {
+      if (scene.background === map) scene.background = null
+    }
+  }, [scene, map])
+
+  useFrame((_, rawDt) => {
+    if (mat.current) mat.current.uTime += gameDt(rawDt)
+  })
+
+  // Tall horizon billboard facing the camera (-Z); fills sky above the far ground edge
+  return (
+    <mesh
+      position={[0, 18, 36]}
+      rotation={[0, Math.PI, 0]}
+      frustumCulled={false}
+      renderOrder={-20}
+    >
+      <planeGeometry args={[160, 80]} />
+      <skyBackdropMat
+        ref={mat}
+        fog={false}
+        depthWrite={false}
+        depthTest={false}
+        toneMapped={false}
+        uMode={desert ? 1 : 2}
+        uMap={map}
+        uTime={0}
+      />
+    </mesh>
+  )
+}
+
+
+function SkySun({ biome }: { biome: Biome }) {
+  const desert = biome === 'desert'
+  // Sit in the visible sky strip just above the far ground edge
+  return (
+    <group position={desert ? [16, 12, 28] : [12, 13, 28]}>
+      <mesh renderOrder={-15}>
+        <sphereGeometry args={[desert ? 2.6 : 1.8, 24, 24]} />
+        <meshBasicMaterial color={desert ? '#ffe566' : '#fff8e0'} toneMapped={false} fog={false} depthWrite={false} depthTest={false} />
+      </mesh>
+      <mesh renderOrder={-16}>
+        <sphereGeometry args={[desert ? 6.0 : 4.2, 24, 24]} />
+        <meshBasicMaterial
+          color={desert ? '#ffb14a' : '#cfe6ff'}
+          transparent
+          opacity={desert ? 0.4 : 0.28}
+          toneMapped={false}
+          fog={false}
+          depthWrite={false}
+          depthTest={false}
+        />
+      </mesh>
+      <pointLight intensity={desert ? 1.2 : 0.65} distance={70} color={desert ? '#ffc878' : '#e8f0ff'} />
+    </group>
+  )
+}
+
 function Clouds({ biome }: { biome: Biome }) {
   const g1 = useRef<THREE.Group>(null)
   const g2 = useRef<THREE.Group>(null)
@@ -313,19 +525,19 @@ function SideBands({ biome }: { biome: Biome }) {
     return (
       <>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-18, y, 0]} receiveShadow>
-          <planeGeometry args={[16, 120]} />
+          <planeGeometry args={[16, 72]} />
           <meshStandardMaterial color="#d2b07a" roughness={0.95} />
         </mesh>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[18, y, 0]} receiveShadow>
-          <planeGeometry args={[16, 120]} />
+          <planeGeometry args={[16, 72]} />
           <meshStandardMaterial color="#c9a66e" roughness={0.95} />
         </mesh>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-12, y + 0.01, 0]} receiveShadow>
-          <planeGeometry args={[5, 120]} />
+          <planeGeometry args={[5, 72]} />
           <meshStandardMaterial color="#b8955c" roughness={1} />
         </mesh>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[12, y + 0.01, 0]} receiveShadow>
-          <planeGeometry args={[5, 120]} />
+          <planeGeometry args={[5, 72]} />
           <meshStandardMaterial color="#a8844e" roughness={1} />
         </mesh>
       </>
@@ -334,19 +546,19 @@ function SideBands({ biome }: { biome: Biome }) {
   return (
     <>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-18, y, 0]} receiveShadow>
-        <planeGeometry args={[16, 120]} />
+        <planeGeometry args={[16, 72]} />
         <meshStandardMaterial color="#2d5a32" roughness={0.9} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[18, y, 0]} receiveShadow>
-        <planeGeometry args={[16, 120]} />
+        <planeGeometry args={[16, 72]} />
         <meshStandardMaterial color="#274f2c" roughness={0.9} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-12, y + 0.01, 0]} receiveShadow>
-        <planeGeometry args={[5, 120]} />
+        <planeGeometry args={[5, 72]} />
         <meshStandardMaterial color="#3d7a40" roughness={1} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[12, y + 0.01, 0]} receiveShadow>
-        <planeGeometry args={[5, 120]} />
+        <planeGeometry args={[5, 72]} />
         <meshStandardMaterial color="#356b38" roughness={1} />
       </mesh>
     </>
@@ -359,22 +571,15 @@ export function Environment() {
 
   return (
     <>
-      <Sky
-        sunPosition={desert ? [50, 22, 10] : [30, 35, 20]}
-        turbidity={desert ? 6 : 2.5}
-        rayleigh={desert ? 0.7 : 1.3}
-        mieCoefficient={desert ? 0.012 : 0.004}
-        mieDirectionalG={0.85}
-        inclination={desert ? 0.52 : 0.48}
-        azimuth={0.25}
-      />
-      <DreiEnv preset={desert ? 'dawn' : 'forest'} environmentIntensity={desert ? 0.85 : 0.65} />
-      <hemisphereLight args={desert ? ['#ffd9a0', '#8a6a3a', 0.9] : ['#a8e0ff', '#1e4a28', 0.9]} />
-      <ambientLight intensity={desert ? 0.65 : 0.45} />
+      <SkyBackdrop biome={biome} />
+      <SkySun biome={biome} />
+      <DreiEnv preset={desert ? 'dawn' : 'forest'} environmentIntensity={desert ? 0.7 : 0.55} />
+      <hemisphereLight args={desert ? ['#ffd9a0', '#8a6a3a', 0.85] : ['#a8e0ff', '#1e4a28', 0.85]} />
+      <ambientLight intensity={desert ? 0.6 : 0.42} />
       <directionalLight
         castShadow
-        position={desert ? [10, 16, 4] : [6, 18, 8]}
-        intensity={desert ? 2.9 : 2.3}
+        position={desert ? [12, 18, 6] : [6, 20, 8]}
+        intensity={desert ? 2.6 : 2.15}
         color={desert ? '#ffd7a0' : '#fff4d6'}
         shadow-mapSize={[1024, 1024]}
         shadow-camera-far={60}
@@ -383,9 +588,10 @@ export function Environment() {
         shadow-camera-top={20}
         shadow-camera-bottom={-20}
       />
-      <pointLight position={[0, 5, 2]} intensity={desert ? 0.35 : 0.55} color={desert ? '#ffaa55' : '#7ad7ff'} />
-      {desert && <fog attach="fog" args={['#e8c898', 34, 72]} />}
-      {!desert && <fog attach="fog" args={['#6a9a72', 36, 75]} />}
+      <pointLight position={[0, 5, 2]} intensity={desert ? 0.28 : 0.48} color={desert ? '#ffaa55' : '#7ad7ff'} />
+      {/* Light distance haze on props/ground only — sky materials set fog={false} */}
+      {desert && <fog attach="fog" args={['#f0d8b0', 62, 140]} />}
+      {!desert && <fog attach="fog" args={['#9ec4c8', 65, 145]} />}
       <Ground biome={biome} />
       <SideBands biome={biome} />
       <ScrollingWorld biome={biome} />

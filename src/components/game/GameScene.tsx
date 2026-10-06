@@ -18,7 +18,6 @@ export function GameScene() {
   const touchStart = useRef<{ x: number; y: number; px: number; py: number } | null>(null)
   const keys = useRef(new Set<string>())
   const gameState = useGameStore((s) => s.gameState)
-  const biome = useGameStore((s) => s.biome)
   useAudio()
 
   useEffect(() => {
@@ -91,18 +90,17 @@ export function GameScene() {
     const shake = s.screenShake
     const ox = (Math.random() - 0.5) * shake * 0.35
     const oy = (Math.random() - 0.5) * shake * 0.25
-    const targetZ = s.playerY * 0.15
-    camera.position.set(ox, 11.5 + oy, targetZ - 9.5)
-    camera.lookAt(0, 0, targetZ + 3.5)
+    // Near-fixed framing: enough tilt for a sky band, playfield scaled so maxY ≈ top
+    const targetZ = s.playerY * 0.04
+    camera.position.set(ox, 10.6 + oy, targetZ - 11.2)
+    camera.lookAt(0, -0.35, targetZ + 3.8)
     camera.rotateZ(ox * 0.015)
   })
 
   const showActors = gameState !== 'menu'
-  const bg = biome === 'desert' ? '#e8c898' : '#6a9a72'
 
   return (
     <>
-      <color attach="background" args={[bg]} />
       <Suspense fallback={null}>
         <Environment />
         {showActors && (

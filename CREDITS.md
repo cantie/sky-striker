@@ -35,6 +35,9 @@ All SFX and the looping ambient bed are from Kenney CC0 packs (downloaded via Op
 - **Music Jingles** — `jingle_start.ogg`, `jingle_win.ogg`  
   https://kenney.nl/assets/music-jingles
 
+## Procedural sky
+Desert/jungle sky backdrop uses an in-engine canvas texture + shader overlay (original, CC0).
+
 ## Libraries
 - Three.js, React Three Fiber, drei, postprocessing — MIT
 - Zustand, Vite, React — MIT

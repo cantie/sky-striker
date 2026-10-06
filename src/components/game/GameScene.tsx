@@ -21,12 +21,38 @@ const HALF_W = (BOUNDS.maxX - BOUNDS.minX) / 2 + 1.1
 const HALF_H = (BOUNDS.maxY - BOUNDS.minY) / 2 + 1.4
 const CAMERA_Y = 50
 
+/** World +Z offset so the plane sits slightly above the finger/cursor (screen-up). */
+const POINTER_OFFSET_Z = 1.2
+
 export function GameScene() {
   const { camera, gl, size } = useThree()
-  const touchStart = useRef<{ x: number; y: number; px: number; py: number } | null>(null)
   const keys = useRef(new Set<string>())
+  const sizeRef = useRef(size)
+  sizeRef.current = size
+  const pointerActive = useRef(false)
   const gameState = useGameStore((s) => s.gameState)
   useAudio()
+
+  /** Map CSS client coords → world X / Z (playerY). Ortho: +X right, +Z screen-up. */
+  const pointerToWorld = (clientX: number, clientY: number) => {
+    const { width, height } = sizeRef.current
+    const rect = gl.domElement.getBoundingClientRect()
+    const zoom = Math.min(width / (2 * HALF_W), height / (2 * HALF_H))
+    const ndcX = ((clientX - rect.left) / rect.width) * 2 - 1
+    const ndcY = -(((clientY - rect.top) / rect.height) * 2 - 1)
+    const halfW = width / (2 * zoom)
+    const halfH = height / (2 * zoom)
+    // Plane sits POINTER_OFFSET_Z above the finger on the playfield (+Z / screen-up)
+    return {
+      x: ndcX * halfW,
+      z: PLAYFIELD_MID_Z + ndcY * halfH + POINTER_OFFSET_Z,
+    }
+  }
+
+  const setFromPointer = (clientX: number, clientY: number) => {
+    const { x, z } = pointerToWorld(clientX, clientY)
+    useGameStore.getState().setPlayerPosition(x, z)
+  }
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -51,37 +77,50 @@ export function GameScene() {
 
   useEffect(() => {
     const canvas = gl.domElement
-    const onStart = (e: TouchEvent) => {
+    const onTouchStart = (e: TouchEvent) => {
       e.preventDefault()
       if (useGameStore.getState().gameState !== 'playing') return
+      pointerActive.current = true
       const t = e.touches[0]
-      const { playerX, playerY } = useGameStore.getState()
-      touchStart.current = { x: t.clientX, y: t.clientY, px: playerX, py: playerY }
+      setFromPointer(t.clientX, t.clientY)
     }
-    const onMove = (e: TouchEvent) => {
+    const onTouchMove = (e: TouchEvent) => {
       e.preventDefault()
-      if (!touchStart.current || useGameStore.getState().gameState !== 'playing') return
+      if (!pointerActive.current || useGameStore.getState().gameState !== 'playing') return
       const t = e.touches[0]
-      // Top-down: +X = screen-right, +Z (playerY) = screen-up
-      const dx = (t.clientX - touchStart.current.x) * 0.018
-      const dy = -(t.clientY - touchStart.current.y) * 0.018
-      useGameStore.getState().setPlayerPosition(touchStart.current.px + dx, touchStart.current.py + dy + 0.6)
+      setFromPointer(t.clientX, t.clientY)
     }
-    const onEnd = (e: TouchEvent) => { e.preventDefault(); touchStart.current = null }
-    const onMouse = (e: MouseEvent) => {
+    const onTouchEnd = (e: TouchEvent) => {
+      e.preventDefault()
+      if (e.touches.length === 0) pointerActive.current = false
+    }
+    const onMouseDown = (e: MouseEvent) => {
       if (useGameStore.getState().gameState !== 'playing') return
-      if (!(e.buttons & 1)) return
-      useGameStore.getState().movePlayer(e.movementX * 0.018, -e.movementY * 0.018)
+      if (e.button !== 0) return
+      pointerActive.current = true
+      setFromPointer(e.clientX, e.clientY)
     }
-    canvas.addEventListener('touchstart', onStart, { passive: false })
-    canvas.addEventListener('touchmove', onMove, { passive: false })
-    canvas.addEventListener('touchend', onEnd, { passive: false })
-    canvas.addEventListener('mousemove', onMouse)
+    const onMouseMove = (e: MouseEvent) => {
+      if (useGameStore.getState().gameState !== 'playing') return
+      if (!(e.buttons & 1) || !pointerActive.current) return
+      setFromPointer(e.clientX, e.clientY)
+    }
+    const onMouseUp = () => { pointerActive.current = false }
+    canvas.addEventListener('touchstart', onTouchStart, { passive: false })
+    canvas.addEventListener('touchmove', onTouchMove, { passive: false })
+    canvas.addEventListener('touchend', onTouchEnd, { passive: false })
+    canvas.addEventListener('touchcancel', onTouchEnd, { passive: false })
+    canvas.addEventListener('mousedown', onMouseDown)
+    canvas.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
     return () => {
-      canvas.removeEventListener('touchstart', onStart)
-      canvas.removeEventListener('touchmove', onMove)
-      canvas.removeEventListener('touchend', onEnd)
-      canvas.removeEventListener('mousemove', onMouse)
+      canvas.removeEventListener('touchstart', onTouchStart)
+      canvas.removeEventListener('touchmove', onTouchMove)
+      canvas.removeEventListener('touchend', onTouchEnd)
+      canvas.removeEventListener('touchcancel', onTouchEnd)
+      canvas.removeEventListener('mousedown', onMouseDown)
+      canvas.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
     }
   }, [gl])
 

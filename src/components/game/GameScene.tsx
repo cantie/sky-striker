@@ -92,8 +92,9 @@ export function GameScene() {
     const oy = (Math.random() - 0.5) * shake * 0.25
     // Near-fixed framing: enough tilt for a sky band, playfield scaled so maxY ≈ top
     const targetZ = s.playerY * 0.04
+    // lookAt Y raised so ~top 20% is sky above the far ground edge
     camera.position.set(ox, 10.6 + oy, targetZ - 11.2)
-    camera.lookAt(0, -0.35, targetZ + 3.8)
+    camera.lookAt(0, 2.0, targetZ + 3.8)
     camera.rotateZ(ox * 0.015)
   })
 

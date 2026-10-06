@@ -8,115 +8,145 @@ import { GlbModel, MODEL_PATHS } from './Model'
 import { gameDt } from '../../game/speed'
 
 /** World Y where the continuous ground plane sits; props sit on top of this. */
-export const GROUND_Y = -2.2
+export const GROUND_Y = -2.05
 
-const GroundMat = shaderMaterial(
-  {
-    uTime: 0,
-    uScroll: 0,
-    uDeep: new THREE.Color('#2088c8'),
-    uShallow: new THREE.Color('#5ed0f0'),
-    uFoam: new THREE.Color('#e8f8ff'),
-    uMode: 0, // 0 ocean leftover, 1 desert, 2 jungle
-  },
-  /* glsl */ `
-    uniform float uTime;
-    uniform float uScroll;
-    uniform float uMode;
-    varying vec2 vUv;
-    varying float vWave;
-    void main() {
-      vUv = uv;
-      vec3 p = position;
-      // Scroll world-space ripples with the map so dunes/floor move under the ship
-      float sz = p.y + uScroll * 40.0;
-      float sx = p.x;
-      float w = 0.0;
-      if (uMode < 0.5) {
-        w = sin(sx * 0.35 + uTime * 1.2) * 0.08 + cos(sz * 0.28 + uTime * 0.9) * 0.06;
-      } else if (uMode < 1.5) {
-        // sand dunes — low amplitude so props stay planted
-        w = sin(sx * 0.22 + uTime * 0.12) * 0.12 + cos(sz * 0.18) * 0.09 + sin(sx * 0.55 + sz * 0.3) * 0.05;
-      } else {
-        // jungle floor undulation
-        w = sin(sx * 0.4 + uTime * 0.15) * 0.04 + cos(sz * 0.35) * 0.035;
-      }
-      p.z += w;
-      vWave = w;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-    }
-  `,
-  /* glsl */ `
-    uniform vec3 uDeep;
-    uniform vec3 uShallow;
-    uniform vec3 uFoam;
-    uniform float uMode;
-    uniform float uScroll;
-    varying vec2 vUv;
-    varying float vWave;
-    void main() {
-      vec3 col;
-      vec2 uv = vUv + vec2(0.0, uScroll * 0.85);
-      if (uMode < 0.5) {
-        float foam = smoothstep(0.05, 0.12, vWave);
-        col = mix(uDeep, uShallow, uv.y * 0.35 + 0.4 + vWave * 2.0);
-        col = mix(col, uFoam, foam * 0.55);
-        float sparkle = pow(max(0.0, sin(uv.x * 40.0 + vWave * 20.0) * sin(uv.y * 30.0)), 8.0) * 0.15;
-        col += sparkle;
-      } else if (uMode < 1.5) {
-        // warm sand / dunes with scrolling grain
-        float dune = smoothstep(-0.04, 0.14, vWave);
-        col = mix(uDeep, uShallow, dune);
-        col = mix(col, uFoam, pow(max(0.0, vWave), 1.5) * 0.3);
-        col += vec3(0.045, 0.022, 0.0) * sin(uv.x * 28.0 + uv.y * 14.0);
-        // subtle stripe bands for scroll readability (parallax depth cue)
-        float band = sin(uv.y * 18.0) * 0.018;
-        col += vec3(band, band * 0.7, band * 0.3);
-      } else {
-        // jungle floor
-        float moss = smoothstep(-0.02, 0.06, vWave);
-        col = mix(uDeep, uShallow, moss + uv.x * 0.12);
-        float litter = fract(sin(dot(uv, vec2(12.9898, 78.233))) * 43758.5453);
-        col = mix(col, uFoam, litter * 0.14);
-        float band = sin(uv.y * 22.0) * 0.015;
-        col += vec3(band * 0.4, band, band * 0.35);
-      }
-      gl_FragColor = vec4(col, 1.0);
-    }
-  `,
-)
-extend({ GroundMat })
+/** Procedural biome ground albedo — high-contrast grain so the floor reads as terrain, not sky fill. */
+function makeGroundCanvas(desert: boolean): HTMLCanvasElement {
+  const c = document.createElement('canvas')
+  c.width = 1024
+  c.height = 1024
+  const ctx = c.getContext('2d')!
 
-declare module '@react-three/fiber' {
-  interface ThreeElements {
-    groundMat: ThreeElement<typeof GroundMat>
+  if (desert) {
+    const g = ctx.createLinearGradient(0, 0, 0, 1024)
+    g.addColorStop(0, '#d4a86a')
+    g.addColorStop(0.45, '#e6c07a')
+    g.addColorStop(1, '#c99658')
+    ctx.fillStyle = g
+    ctx.fillRect(0, 0, 1024, 1024)
+
+    // dune bands
+    for (let i = 0; i < 28; i++) {
+      const y = (i / 28) * 1024
+      const amp = 18 + (i % 5) * 6
+      ctx.beginPath()
+      ctx.moveTo(0, y)
+      for (let x = 0; x <= 1024; x += 16) {
+        ctx.lineTo(x, y + Math.sin(x * 0.012 + i * 0.7) * amp)
+      }
+      ctx.strokeStyle = i % 2 === 0 ? 'rgba(170,120,60,0.28)' : 'rgba(250,220,160,0.22)'
+      ctx.lineWidth = 10 + (i % 3) * 4
+      ctx.stroke()
+    }
+    // sand grain
+    for (let i = 0; i < 9000; i++) {
+      const x = Math.random() * 1024
+      const y = Math.random() * 1024
+      const a = 0.08 + Math.random() * 0.18
+      ctx.fillStyle = Math.random() > 0.5 ? `rgba(255,230,180,${a})` : `rgba(120,80,40,${a})`
+      ctx.fillRect(x, y, 1 + Math.random() * 2, 1 + Math.random() * 2)
+    }
+    // darker patches / rocks shadows
+    for (let i = 0; i < 40; i++) {
+      const x = Math.random() * 1024
+      const y = Math.random() * 1024
+      const r = 20 + Math.random() * 70
+      const grd = ctx.createRadialGradient(x, y, 2, x, y, r)
+      grd.addColorStop(0, 'rgba(140,95,45,0.35)')
+      grd.addColorStop(1, 'rgba(140,95,45,0)')
+      ctx.fillStyle = grd
+      ctx.beginPath()
+      ctx.arc(x, y, r, 0, Math.PI * 2)
+      ctx.fill()
+    }
+  } else {
+    const g = ctx.createLinearGradient(0, 0, 1024, 1024)
+    g.addColorStop(0, '#3d7a42')
+    g.addColorStop(0.4, '#4a8f48')
+    g.addColorStop(1, '#356b3a')
+    ctx.fillStyle = g
+    ctx.fillRect(0, 0, 1024, 1024)
+
+    // moss / litter patches
+    for (let i = 0; i < 70; i++) {
+      const x = Math.random() * 1024
+      const y = Math.random() * 1024
+      const r = 25 + Math.random() * 90
+      const grd = ctx.createRadialGradient(x, y, 2, x, y, r)
+      const bright = Math.random() > 0.45
+      grd.addColorStop(0, bright ? 'rgba(110,180,80,0.5)' : 'rgba(40,90,40,0.45)')
+      grd.addColorStop(1, 'rgba(0,0,0,0)')
+      ctx.fillStyle = grd
+      ctx.beginPath()
+      ctx.ellipse(x, y, r, r * (0.55 + Math.random() * 0.5), Math.random() * Math.PI, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    // leaf litter noise
+    for (let i = 0; i < 7000; i++) {
+      const x = Math.random() * 1024
+      const y = Math.random() * 1024
+      const a = 0.1 + Math.random() * 0.25
+      ctx.fillStyle = Math.random() > 0.5 ? `rgba(130,200,90,${a})` : `rgba(55,100,45,${a})`
+      ctx.fillRect(x, y, 1 + Math.random() * 2.5, 1 + Math.random() * 2)
+    }
+    // soft path bands for scroll readability
+    for (let i = 0; i < 18; i++) {
+      const y = (i / 18) * 1024
+      ctx.strokeStyle = 'rgba(80,140,70,0.25)'
+      ctx.lineWidth = 14
+      ctx.beginPath()
+      ctx.moveTo(0, y)
+      for (let x = 0; x <= 1024; x += 20) {
+        ctx.lineTo(x, y + Math.sin(x * 0.01 + i) * 12)
+      }
+      ctx.stroke()
+    }
   }
+  return c
 }
 
 function Ground({ biome }: { biome: Biome }) {
-  const ref = useRef<any>(null)
+  const matRef = useRef<THREE.MeshStandardMaterial>(null)
   const scroll = useGameStore((s) => s.scrollOffset)
-  useFrame((_, rawDt) => {
-    if (!ref.current) return
-    ref.current.uTime += gameDt(rawDt)
-    ref.current.uScroll = scroll
-  })
-  const colors =
-    biome === 'desert'
-      ? { deep: '#c4a06a', shallow: '#e8c888', foam: '#f5e6c0', mode: 1 }
-      : { deep: '#1a4a28', shallow: '#2f6b3a', foam: '#4a8f4a', mode: 2 }
+  const desert = biome === 'desert'
 
-  // Huge continuous plane under the whole playfield — no gaps / floating islands
+  const map = useMemo(() => {
+    const tex = new THREE.CanvasTexture(makeGroundCanvas(desert))
+    tex.colorSpace = THREE.SRGBColorSpace
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping
+    // Large world plane → many repeats so grain stays readable under the ship
+    tex.repeat.set(5, 6)
+    tex.anisotropy = 8
+    tex.needsUpdate = true
+    return tex
+  }, [desert])
+
+  useEffect(() => () => map.dispose(), [map])
+
+  useFrame(() => {
+    if (!matRef.current?.map) return
+    // Scroll texture with world so the floor visibly moves under the plane
+    matRef.current.map.offset.y = -(scroll * 0.85) % 1
+  })
+
+  // Continuous floor under the playfield. Depth chosen so the far edge sits near the
+  // horizon (sky band above); previous 72-deep plane ended at z≈36 while the top of
+  // the screen looked past z≈48 — that gap read as "no ground".
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, GROUND_Y, 0]} receiveShadow>
-      <planeGeometry args={[90, 72, 96, 72]} />
-      <groundMat
-        ref={ref}
-        uDeep={colors.deep}
-        uShallow={colors.shallow}
-        uFoam={colors.foam}
-        uMode={colors.mode}
-        uScroll={0}
+    <mesh
+      rotation={[-Math.PI / 2, 0, 0]}
+      position={[0, GROUND_Y, 8]}
+      receiveShadow
+      frustumCulled={false}
+    >
+      <planeGeometry args={[140, 100]} />
+      <meshStandardMaterial
+        ref={matRef}
+        map={map}
+        color={desert ? '#e8c888' : '#4a8f48'}
+        roughness={desert ? 0.92 : 0.88}
+        metalness={0}
+        envMapIntensity={0.45}
       />
     </mesh>
   )
@@ -444,20 +474,20 @@ function SkyBackdrop({ biome }: { biome: Biome }) {
     if (mat.current) mat.current.uTime += gameDt(rawDt)
   })
 
-  // Tall horizon billboard facing the camera (-Z); fills sky above the far ground edge
+  // Horizon billboard ABOVE the ground line only — depth-tested so it never paints over the floor
   return (
     <mesh
-      position={[0, 18, 36]}
+      position={[0, 22, 58]}
       rotation={[0, Math.PI, 0]}
       frustumCulled={false}
-      renderOrder={-20}
+      renderOrder={-5}
     >
-      <planeGeometry args={[160, 80]} />
+      <planeGeometry args={[180, 55]} />
       <skyBackdropMat
         ref={mat}
         fog={false}
         depthWrite={false}
-        depthTest={false}
+        depthTest={true}
         toneMapped={false}
         uMode={desert ? 1 : 2}
         uMap={map}
@@ -472,7 +502,7 @@ function SkySun({ biome }: { biome: Biome }) {
   const desert = biome === 'desert'
   // Sit in the visible sky strip just above the far ground edge
   return (
-    <group position={desert ? [16, 12, 28] : [12, 13, 28]}>
+    <group position={desert ? [18, 22, 55] : [14, 24, 55]}>
       <mesh renderOrder={-15}>
         <sphereGeometry args={[desert ? 2.6 : 1.8, 24, 24]} />
         <meshBasicMaterial color={desert ? '#ffe566' : '#fff8e0'} toneMapped={false} fog={false} depthWrite={false} depthTest={false} />
@@ -505,62 +535,15 @@ function Clouds({ biome }: { biome: Biome }) {
   })
   return (
     <>
-      <group ref={g1} position={[0, 5.5, 0]}>
+      <group ref={g1} position={[0, 14, 8]}>
         <Cloud seed={1} position={[-6, 0, -8]} opacity={biome === 'desert' ? 0.28 : 0.4} speed={0.05} scale={1.4} color={tint} />
         <Cloud seed={2} position={[5, 0.5, 4]} opacity={biome === 'desert' ? 0.24 : 0.32} speed={0.04} scale={1.8} color={tint} />
         <Cloud seed={3} position={[0, -0.3, 12]} opacity={0.26} speed={0.03} scale={2} color="#ffffff" />
       </group>
-      <group ref={g2} position={[0, 7.5, 0]}>
+      <group ref={g2} position={[0, 18, 12]}>
         <Cloud seed={4} position={[8, 0, -15]} opacity={biome === 'desert' ? 0.18 : 0.22} speed={0.02} scale={2.5} color={tint} />
         <Cloud seed={5} position={[-7, 0.4, 8]} opacity={0.2} speed={0.03} scale={2.2} color="#ffffff" />
       </group>
-    </>
-  )
-}
-
-/** Soft side shelves for depth/parallax — same height as ground, not floating strips. */
-function SideBands({ biome }: { biome: Biome }) {
-  const y = GROUND_Y + 0.02
-  if (biome === 'desert') {
-    return (
-      <>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-18, y, 0]} receiveShadow>
-          <planeGeometry args={[16, 72]} />
-          <meshStandardMaterial color="#d2b07a" roughness={0.95} />
-        </mesh>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[18, y, 0]} receiveShadow>
-          <planeGeometry args={[16, 72]} />
-          <meshStandardMaterial color="#c9a66e" roughness={0.95} />
-        </mesh>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-12, y + 0.01, 0]} receiveShadow>
-          <planeGeometry args={[5, 72]} />
-          <meshStandardMaterial color="#b8955c" roughness={1} />
-        </mesh>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[12, y + 0.01, 0]} receiveShadow>
-          <planeGeometry args={[5, 72]} />
-          <meshStandardMaterial color="#a8844e" roughness={1} />
-        </mesh>
-      </>
-    )
-  }
-  return (
-    <>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-18, y, 0]} receiveShadow>
-        <planeGeometry args={[16, 72]} />
-        <meshStandardMaterial color="#2d5a32" roughness={0.9} />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[18, y, 0]} receiveShadow>
-        <planeGeometry args={[16, 72]} />
-        <meshStandardMaterial color="#274f2c" roughness={0.9} />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-12, y + 0.01, 0]} receiveShadow>
-        <planeGeometry args={[5, 72]} />
-        <meshStandardMaterial color="#3d7a40" roughness={1} />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[12, y + 0.01, 0]} receiveShadow>
-        <planeGeometry args={[5, 72]} />
-        <meshStandardMaterial color="#356b38" roughness={1} />
-      </mesh>
     </>
   )
 }
@@ -575,25 +558,24 @@ export function Environment() {
       <SkySun biome={biome} />
       <DreiEnv preset={desert ? 'dawn' : 'forest'} environmentIntensity={desert ? 0.7 : 0.55} />
       <hemisphereLight args={desert ? ['#ffd9a0', '#8a6a3a', 0.85] : ['#a8e0ff', '#1e4a28', 0.85]} />
-      <ambientLight intensity={desert ? 0.6 : 0.42} />
+      <ambientLight intensity={desert ? 0.75 : 0.55} />
       <directionalLight
         castShadow
         position={desert ? [12, 18, 6] : [6, 20, 8]}
         intensity={desert ? 2.6 : 2.15}
         color={desert ? '#ffd7a0' : '#fff4d6'}
-        shadow-mapSize={[1024, 1024]}
-        shadow-camera-far={60}
-        shadow-camera-left={-20}
-        shadow-camera-right={20}
-        shadow-camera-top={20}
-        shadow-camera-bottom={-20}
+        shadow-mapSize={[2048, 2048]}
+        shadow-camera-far={90}
+        shadow-camera-left={-30}
+        shadow-camera-right={30}
+        shadow-camera-top={40}
+        shadow-camera-bottom={-30}
       />
       <pointLight position={[0, 5, 2]} intensity={desert ? 0.28 : 0.48} color={desert ? '#ffaa55' : '#7ad7ff'} />
       {/* Light distance haze on props/ground only — sky materials set fog={false} */}
-      {desert && <fog attach="fog" args={['#f0d8b0', 62, 140]} />}
-      {!desert && <fog attach="fog" args={['#9ec4c8', 65, 145]} />}
+      {desert && <fog attach="fog" args={['#e8d0a8', 90, 200]} />}
+      {!desert && <fog attach="fog" args={['#8eb8a8', 95, 210]} />}
       <Ground biome={biome} />
-      <SideBands biome={biome} />
       <ScrollingWorld biome={biome} />
       <Clouds biome={biome} />
     </>

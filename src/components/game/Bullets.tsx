@@ -18,11 +18,16 @@ export function Bullets() {
     const s = useGameStore.getState()
     if (s.gameState !== 'playing') return
     const next = []
+    // Despawn only once completely off the visible playfield (no mid-screen range cut-off).
+    // Bounds track the player so bullets keep traveling straight across the full screen.
+    const offX = 14
+    const offZAhead = 22
+    const offZBehind = 16
     for (const b of s.bullets) {
       b.x += b.vx * dt
       b.y += b.vy * dt
       b.z += b.vz * dt
-      if (Math.abs(b.x) > 8 || b.z > 12 || b.z < -10) continue
+      if (Math.abs(b.x) > offX || b.z > s.playerY + offZAhead || b.z < s.playerY - offZBehind) continue
 
       let hit = false
       if (!b.isEnemy) {

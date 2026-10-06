@@ -71,7 +71,7 @@ interface GameStore {
   tick: (dt: number) => void
 }
 
-const BOUNDS = { minX: -4.2, maxX: 4.2, minY: -6.2, maxY: 3.5 }
+const BOUNDS = { minX: -7.0, maxX: 7.0, minY: -8.2, maxY: 5.8 }
 const IFRAMES = 1200
 const COMBO_TIMEOUT = 2200
 

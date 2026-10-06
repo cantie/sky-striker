@@ -36,7 +36,7 @@ export const MODEL_PATHS = {
 
 export type ModelKey = keyof typeof MODEL_PATHS
 
-export function fitObject(obj: THREE.Object3D, targetSize = 1, axis: 'max' | 'y' = 'max') {
+export function fitObject(obj: THREE.Object3D, targetSize = 1, axis: 'max' | 'y' = 'max', grounded = false) {
   const box = new THREE.Box3().setFromObject(obj)
   const size = box.getSize(new THREE.Vector3())
   const center = box.getCenter(new THREE.Vector3())
@@ -44,13 +44,17 @@ export function fitObject(obj: THREE.Object3D, targetSize = 1, axis: 'max' | 'y'
   const s = dim > 0 ? targetSize / dim : 1
   obj.scale.setScalar(s)
   obj.position.sub(center.multiplyScalar(s))
+  if (grounded) {
+    const fitted = new THREE.Box3().setFromObject(obj)
+    obj.position.y -= fitted.min.y
+  }
   return obj
 }
 
 export function GlbModel({
-  path, size = 1, sizeAxis = 'max', rotation, color, emissive, castShadow = true, receiveShadow = true,
+  path, size = 1, sizeAxis = 'max', grounded = false, rotation, color, emissive, castShadow = true, receiveShadow = true,
 }: {
-  path: string; size?: number; sizeAxis?: 'max' | 'y'
+  path: string; size?: number; sizeAxis?: 'max' | 'y'; grounded?: boolean
   rotation?: [number, number, number]; color?: string; emissive?: string
   castShadow?: boolean; receiveShadow?: boolean
 }) {
@@ -73,9 +77,9 @@ export function GlbModel({
         }
       })
     })
-    fitObject(clone, size, sizeAxis)
+    fitObject(clone, size, sizeAxis, grounded)
     return clone
-  }, [scene, size, sizeAxis, color, emissive, castShadow, receiveShadow])
+  }, [scene, size, sizeAxis, grounded, color, emissive, castShadow, receiveShadow])
 
   useLayoutEffect(() => {
     if (rotation) obj.rotation.set(...rotation)

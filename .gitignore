@@ -1,0 +1,8 @@
+node_modules
+dist
+*.log
+screenshots
+.agents/
+.cursor/
+_origin/
+skills-lock.json

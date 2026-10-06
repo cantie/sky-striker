@@ -15,7 +15,6 @@ export function Boss() {
     const b = s.boss
     if (!b || s.gameState !== 'playing' || !group.current) return
 
-    // intro dive
     if (b.intro > 0) {
       b.intro = Math.max(0, b.intro - dt * 0.35)
       b.y = THREE.MathUtils.lerp(b.y, 4.2, 1 - Math.pow(0.02, dt))
@@ -60,8 +59,17 @@ export function Boss() {
   if (!boss) return null
   return (
     <group ref={group} position={[boss.x, 0.4, boss.y]}>
-      <group scale={[1, 1, 1]} rotation={[0, Math.PI, 0]}>
+      {/* Quaternius ship: Z-flip so nose aims at player */}
+      <group scale={[1, 1, -1]}>
         <GlbModel path={MODEL_PATHS.boss} size={3.8} emissive="#331100" />
+        <mesh position={[0, 0.15, 1.5]} rotation={[Math.PI / 2, 0, 0]}>
+          <coneGeometry args={[0.35, 0.9, 8]} />
+          <meshBasicMaterial color="#ff3300" toneMapped={false} />
+        </mesh>
+        <mesh position={[0, 0.1, -1.2]}>
+          <sphereGeometry args={[0.35, 12, 12]} />
+          <meshBasicMaterial color="#ff4422" transparent opacity={0.75} toneMapped={false} />
+        </mesh>
       </group>
       <pointLight color="#ff5522" intensity={4} distance={8} />
       <mesh position={[0, -0.2, 0]} rotation={[-Math.PI / 2, 0, 0]}>

@@ -1,17 +1,19 @@
-import type { CSSProperties, ReactNode } from 'react'
+import type { CSSProperties } from 'react'
 import { useGameStore } from '../../store/gameStore'
+import { onPlayGesture, sounds } from '../../hooks/useAudio'
 
 export function GameOverScreen() {
   const score = useGameStore((s) => s.score)
   const stars = useGameStore((s) => s.stars)
   const startGame = useGameStore((s) => s.startGame)
   const setGameState = useGameStore((s) => s.setGameState)
+  const retry = async () => { sounds.uiSelect(); await onPlayGesture(); startGame() }
   return (
     <div style={box}>
       <div style={{ color: '#ff5252', fontSize: 'clamp(2rem, 8vw, 3rem)', fontWeight: 900 }}>GAME OVER</div>
       <div style={{ color: '#fff', margin: '12px 0', fontSize: '1.2rem' }}>Score {score.toLocaleString()} · ★ {stars}</div>
-      <button onClick={() => startGame()} style={btn}>Retry</button>
-      <button onClick={() => setGameState('menu')} style={{ ...btn, background: '#455a64' }}>Menu</button>
+      <button onClick={() => void retry()} style={btn}>Retry</button>
+      <button onClick={() => { sounds.uiClick(); setGameState('menu') }} style={{ ...btn, background: '#455a64' }}>Menu</button>
     </div>
   )
 }

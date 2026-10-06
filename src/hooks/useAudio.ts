@@ -1,80 +1,160 @@
 import { useEffect, useRef } from 'react'
 import { useGameStore } from '../store/gameStore'
 
-const Ctx = typeof window !== 'undefined' ? new (window.AudioContext || (window as any).webkitAudioContext)() : null
+type SfxName =
+  | 'shoot' | 'hit' | 'explosion' | 'explosion_big' | 'pickup' | 'powerup'
+  | 'player_hit' | 'game_over' | 'victory' | 'boss_appear' | 'ui_click' | 'ui_select'
+  | 'shield' | 'jingle_start' | 'jingle_win'
 
-function beep(freq: number, dur: number, type: OscillatorType = 'square', vol = 0.08) {
-  return () => {
-    if (!Ctx || useGameStore.getState().isMuted) return
-    const o = Ctx.createOscillator(), g = Ctx.createGain()
-    o.type = type; o.frequency.setValueAtTime(freq, Ctx.currentTime)
-    g.gain.setValueAtTime(vol, Ctx.currentTime)
-    g.gain.exponentialRampToValueAtTime(0.01, Ctx.currentTime + dur)
-    o.connect(g); g.connect(Ctx.destination); o.start(); o.stop(Ctx.currentTime + dur)
+const FILES: Record<SfxName, string> = {
+  shoot: '/audio/shoot.ogg',
+  hit: '/audio/hit.ogg',
+  explosion: '/audio/explosion.ogg',
+  explosion_big: '/audio/explosion_big.ogg',
+  pickup: '/audio/pickup.ogg',
+  powerup: '/audio/powerup.ogg',
+  player_hit: '/audio/player_hit.ogg',
+  game_over: '/audio/game_over.ogg',
+  victory: '/audio/victory.ogg',
+  boss_appear: '/audio/boss_appear.ogg',
+  ui_click: '/audio/ui_click.ogg',
+  ui_select: '/audio/ui_select.ogg',
+  shield: '/audio/shield.ogg',
+  jingle_start: '/audio/jingle_start.ogg',
+  jingle_win: '/audio/jingle_win.ogg',
+}
+
+let ctx: AudioContext | null = null
+let master: GainNode | null = null
+let musicGain: GainNode | null = null
+let musicSource: AudioBufferSourceNode | null = null
+let unlocked = false
+const buffers = new Map<string, AudioBuffer>()
+const loading = new Map<string, Promise<AudioBuffer | null>>()
+
+function getCtx() {
+  if (typeof window === 'undefined') return null
+  if (!ctx) {
+    ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
+    master = ctx.createGain()
+    master.gain.value = 1
+    master.connect(ctx.destination)
+    musicGain = ctx.createGain()
+    musicGain.gain.value = 0.22
+    musicGain.connect(master)
   }
+  return ctx
+}
+
+async function loadBuffer(url: string): Promise<AudioBuffer | null> {
+  if (buffers.has(url)) return buffers.get(url)!
+  if (loading.has(url)) return loading.get(url)!
+  const ac = getCtx()
+  if (!ac) return null
+  const p = (async () => {
+    try {
+      const res = await fetch(url)
+      if (!res.ok) return null
+      const arr = await res.arrayBuffer()
+      const buf = await ac.decodeAudioData(arr.slice(0))
+      buffers.set(url, buf)
+      return buf
+    } catch {
+      return null
+    } finally {
+      loading.delete(url)
+    }
+  })()
+  loading.set(url, p)
+  return p
+}
+
+function applyMute() {
+  if (!master || !ctx) return
+  const muted = useGameStore.getState().isMuted
+  master.gain.setTargetAtTime(muted ? 0 : 1, ctx.currentTime, 0.02)
+}
+
+export async function unlockAudio() {
+  const ac = getCtx()
+  if (!ac) return
+  if (ac.state === 'suspended') {
+    try { await ac.resume() } catch { /* ignore */ }
+  }
+  unlocked = true
+  applyMute()
+  // warm common buffers
+  await Promise.all(Object.values(FILES).map((u) => loadBuffer(u)))
+  await loadBuffer('/audio/music_loop.ogg')
+}
+
+function playBuf(buf: AudioBuffer | null | undefined, opts?: { gain?: number; dest?: AudioNode }) {
+  const ac = getCtx()
+  if (!ac || !master || !buf || !unlocked) return
+  if (useGameStore.getState().isMuted && opts?.dest !== musicGain) return
+  applyMute()
+  const src = ac.createBufferSource()
+  src.buffer = buf
+  const g = ac.createGain()
+  g.gain.value = opts?.gain ?? 0.55
+  src.connect(g)
+  g.connect(opts?.dest ?? master)
+  try { src.start() } catch { /* ignore */ }
+  return src
 }
 
 export const sounds = {
-  shoot: beep(880, 0.04, 'square', 0.04),
-  enemyHit: beep(220, 0.08, 'sawtooth', 0.07),
-  explosion: () => {
-    if (!Ctx || useGameStore.getState().isMuted) return
-    const n = Ctx.sampleRate * 0.2
-    const buf = Ctx.createBuffer(1, n, Ctx.sampleRate)
-    const d = buf.getChannelData(0)
-    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 2)
-    const src = Ctx.createBufferSource(), g = Ctx.createGain()
-    src.buffer = buf; g.gain.value = 0.18; src.connect(g); g.connect(Ctx.destination); src.start()
-  },
-  pickup: beep(660, 0.1, 'sine', 0.1),
-  powerup: () => {
-    if (!Ctx || useGameStore.getState().isMuted) return
-    const o = Ctx.createOscillator(), g = Ctx.createGain()
-    o.type = 'sine'; o.frequency.setValueAtTime(440, Ctx.currentTime)
-    o.frequency.exponentialRampToValueAtTime(880, Ctx.currentTime + 0.15)
-    g.gain.setValueAtTime(0.1, Ctx.currentTime)
-    g.gain.exponentialRampToValueAtTime(0.01, Ctx.currentTime + 0.2)
-    o.connect(g); g.connect(Ctx.destination); o.start(); o.stop(Ctx.currentTime + 0.2)
-  },
-  playerHit: () => {
-    if (!Ctx || useGameStore.getState().isMuted) return
-    const o = Ctx.createOscillator(), g = Ctx.createGain()
-    o.type = 'sawtooth'; o.frequency.setValueAtTime(200, Ctx.currentTime)
-    o.frequency.exponentialRampToValueAtTime(50, Ctx.currentTime + 0.3)
-    g.gain.setValueAtTime(0.12, Ctx.currentTime)
-    g.gain.exponentialRampToValueAtTime(0.01, Ctx.currentTime + 0.3)
-    o.connect(g); g.connect(Ctx.destination); o.start(); o.stop(Ctx.currentTime + 0.3)
-  },
-  gameOver: () => {
-    if (!Ctx || useGameStore.getState().isMuted) return
-    ;[392, 349, 330, 262].forEach((f, i) => setTimeout(() => {
-      const o = Ctx!.createOscillator(), g = Ctx!.createGain()
-      o.type = 'triangle'; o.frequency.value = f
-      g.gain.setValueAtTime(0.1, Ctx!.currentTime)
-      g.gain.exponentialRampToValueAtTime(0.01, Ctx!.currentTime + 0.3)
-      o.connect(g); g.connect(Ctx!.destination); o.start(); o.stop(Ctx!.currentTime + 0.3)
-    }, i * 200))
-  },
+  shoot: () => { void loadBuffer(FILES.shoot).then((b) => playBuf(b, { gain: 0.28 })) },
+  enemyHit: () => { void loadBuffer(FILES.hit).then((b) => playBuf(b, { gain: 0.45 })) },
+  explosion: () => { void loadBuffer(FILES.explosion).then((b) => playBuf(b, { gain: 0.6 })) },
+  explosionBig: () => { void loadBuffer(FILES.explosion_big).then((b) => playBuf(b, { gain: 0.7 })) },
+  pickup: () => { void loadBuffer(FILES.pickup).then((b) => playBuf(b, { gain: 0.5 })) },
+  powerup: () => { void loadBuffer(FILES.powerup).then((b) => playBuf(b, { gain: 0.55 })) },
+  playerHit: () => { void loadBuffer(FILES.player_hit).then((b) => playBuf(b, { gain: 0.55 })) },
+  gameOver: () => { void loadBuffer(FILES.game_over).then((b) => playBuf(b, { gain: 0.6 })) },
   victory: () => {
-    if (!Ctx || useGameStore.getState().isMuted) return
-    ;[523, 659, 784, 1047].forEach((f, i) => setTimeout(() => {
-      const o = Ctx!.createOscillator(), g = Ctx!.createGain()
-      o.type = 'sine'; o.frequency.value = f
-      g.gain.setValueAtTime(0.1, Ctx!.currentTime)
-      g.gain.exponentialRampToValueAtTime(0.01, Ctx!.currentTime + 0.4)
-      o.connect(g); g.connect(Ctx!.destination); o.start(); o.stop(Ctx!.currentTime + 0.4)
-    }, i * 150))
+    void loadBuffer(FILES.jingle_win).then((b) => playBuf(b, { gain: 0.55 }))
+    void loadBuffer(FILES.victory).then((b) => playBuf(b, { gain: 0.45 }))
   },
-  bossAppear: () => {
-    if (!Ctx || useGameStore.getState().isMuted) return
-    const o = Ctx.createOscillator(), g = Ctx.createGain()
-    o.type = 'sawtooth'; o.frequency.setValueAtTime(80, Ctx.currentTime)
-    o.frequency.exponentialRampToValueAtTime(200, Ctx.currentTime + 1)
-    g.gain.setValueAtTime(0.15, Ctx.currentTime)
-    g.gain.setValueAtTime(0.15, Ctx.currentTime + 0.8)
-    g.gain.exponentialRampToValueAtTime(0.01, Ctx.currentTime + 1)
-    o.connect(g); g.connect(Ctx.destination); o.start(); o.stop(Ctx.currentTime + 1)
-  },
+  bossAppear: () => { void loadBuffer(FILES.boss_appear).then((b) => playBuf(b, { gain: 0.65 })) },
+  uiClick: () => { void loadBuffer(FILES.ui_click).then((b) => playBuf(b, { gain: 0.4 })) },
+  uiSelect: () => { void loadBuffer(FILES.ui_select).then((b) => playBuf(b, { gain: 0.4 })) },
+  shield: () => { void loadBuffer(FILES.shield).then((b) => playBuf(b, { gain: 0.4 })) },
+}
+
+export async function startMusic() {
+  await unlockAudio()
+  const ac = getCtx()
+  if (!ac || !musicGain) return
+  stopMusic()
+  const buf = await loadBuffer('/audio/music_loop.ogg')
+  if (!buf) return
+  const src = ac.createBufferSource()
+  src.buffer = buf
+  src.loop = true
+  src.connect(musicGain)
+  try { src.start() } catch { /* ignore */ }
+  musicSource = src
+  applyMute()
+}
+
+export function stopMusic() {
+  if (musicSource) {
+    try { musicSource.stop() } catch { /* ignore */ }
+    try { musicSource.disconnect() } catch { /* ignore */ }
+    musicSource = null
+  }
+}
+
+export function syncMute() {
+  applyMute()
+}
+
+/** Call from Play / first gesture — unlocks AudioContext and starts BGM. */
+export async function onPlayGesture() {
+  await unlockAudio()
+  void loadBuffer(FILES.jingle_start).then((b) => playBuf(b, { gain: 0.4 }))
+  await startMusic()
 }
 
 export function useAudio() {
@@ -83,14 +163,19 @@ export function useAudio() {
   const explosions = useGameStore((s) => s.explosions)
   const playerHp = useGameStore((s) => s.playerHp)
   const boss = useGameStore((s) => s.boss)
+  const isMuted = useGameStore((s) => s.isMuted)
   const lastB = useRef(0), lastX = useRef(0), lastHp = useRef(100), hadBoss = useRef(false), lastState = useRef(gameState)
 
+  useEffect(() => { syncMute() }, [isMuted])
+
   useEffect(() => {
-    if (Ctx?.state === 'suspended') {
-      const resume = () => { Ctx.resume(); document.removeEventListener('click', resume); document.removeEventListener('touchstart', resume) }
-      document.addEventListener('click', resume); document.addEventListener('touchstart', resume)
+    if (gameState === 'playing' || gameState === 'bossWarning') {
+      if (unlocked) void startMusic()
     }
-  }, [])
+    if (gameState === 'menu' || gameState === 'gameOver' || gameState === 'victory') {
+      // keep music on menu after unlock; stop only on hard end screens optional — keep looping quietly
+    }
+  }, [gameState])
 
   useEffect(() => {
     const n = bullets.filter((b) => !b.isEnemy).length
@@ -99,7 +184,11 @@ export function useAudio() {
   }, [bullets])
 
   useEffect(() => {
-    if (explosions.length > lastX.current) sounds.explosion()
+    if (explosions.length > lastX.current) {
+      const last = explosions[explosions.length - 1]
+      if (last && last.scale >= 2) sounds.explosionBig()
+      else sounds.explosion()
+    }
     lastX.current = explosions.length
   }, [explosions])
 

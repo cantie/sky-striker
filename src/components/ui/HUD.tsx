@@ -1,4 +1,5 @@
 import { useGameStore } from '../../store/gameStore'
+import { syncMute, sounds } from '../../hooks/useAudio'
 
 export function HUD() {
   const score = useGameStore((s) => s.score)
@@ -24,7 +25,7 @@ export function HUD() {
           <div style={{ color: '#ffd700', marginTop: 4 }}>★ {stars}</div>
         </div>
         <div style={{ display: 'flex', gap: 8, pointerEvents: 'auto' }}>
-          <IconBtn onClick={toggleMute}>{isMuted ? '🔇' : '🔊'}</IconBtn>
+          <IconBtn onClick={() => { sounds.uiClick(); toggleMute(); syncMute() }}>{isMuted ? '🔇' : '🔊'}</IconBtn>
           <IconBtn onClick={pauseGame}>⏸</IconBtn>
         </div>
       </div>

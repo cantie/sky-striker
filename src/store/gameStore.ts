@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 
 export type GameState = 'menu' | 'playing' | 'paused' | 'gameOver' | 'victory' | 'bossWarning'
+export type Biome = 'desert' | 'jungle'
 
 export interface Bullet {
   id: string; x: number; y: number; z: number
@@ -35,7 +36,7 @@ interface GameStore {
   bullets: Bullet[]; enemies: Enemy[]; boss: Boss | null
   pickups: Pickup[]; explosions: Explosion[]
   waveIndex: number; waveTimer: number; bossSpawned: boolean
-  scrollOffset: number; isMuted: boolean; easyMode: boolean
+  scrollOffset: number; biome: Biome; isMuted: boolean; easyMode: boolean
   screenShake: number; muzzleFlash: number; hitFlash: number
   setGameState: (s: GameState) => void
   startGame: (opts?: { skipToBoss?: boolean; easy?: boolean }) => void
@@ -83,7 +84,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   playerShield: 0, weaponLevel: 1, invincibleUntil: 0,
   bullets: [], enemies: [], boss: null, pickups: [], explosions: [],
   waveIndex: 0, waveTimer: 0, bossSpawned: false,
-  scrollOffset: 0, isMuted: false, easyMode: false,
+  scrollOffset: 0, biome: 'jungle', isMuted: false, easyMode: false,
   screenShake: 0, muzzleFlash: 0, hitFlash: 0,
 
   setGameState: (s) => set({ gameState: s }),
@@ -91,6 +92,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
   startGame: (opts = {}) => {
     const easy = !!opts.easy || new URLSearchParams(location.search).has('easy')
     const skip = !!opts.skipToBoss || new URLSearchParams(location.search).has('boss')
+    const q = new URLSearchParams(location.search)
+    const forced = q.get('biome')
+    const biome: Biome = forced === 'desert' || forced === 'jungle'
+      ? forced
+      : (Math.random() < 0.5 ? 'desert' : 'jungle')
     set({
       gameState: skip ? 'bossWarning' : 'playing',
       score: 0, combo: 0, comboTimer: 0, stars: 0,
@@ -98,7 +104,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       playerShield: easy ? 50 : 0, weaponLevel: easy ? 3 : 1, invincibleUntil: Date.now() + 1500,
       bullets: [], enemies: [], boss: null, pickups: [], explosions: [],
       waveIndex: skip ? 10 : 0, waveTimer: 0, bossSpawned: false,
-      scrollOffset: 0, easyMode: easy, screenShake: 0, muzzleFlash: 0, hitFlash: 0,
+      scrollOffset: 0, biome, easyMode: easy, screenShake: 0, muzzleFlash: 0, hitFlash: 0,
     })
     if (skip) setTimeout(() => get().spawnBoss(), 2200)
   },
@@ -205,7 +211,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
   },
 
-  updateScroll: (dt) => set((s) => ({ scrollOffset: s.scrollOffset + dt * 0.0022 })),
+  updateScroll: (dt) => set((s) => ({ scrollOffset: s.scrollOffset + dt * 0.00095 })),
   toggleMute: () => set((s) => ({ isMuted: !s.isMuted })),
   addShake: (a) => set((s) => ({ screenShake: Math.max(s.screenShake, a) })),
   setMuzzleFlash: (v) => set({ muzzleFlash: v }),

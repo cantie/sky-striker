@@ -5,7 +5,7 @@ Mobile-friendly 3D vertical-scrolling shoot-'em-up inspired by Sky Force Reloade
 ## Stack
 - Vite + TypeScript + React
 - Three.js + React Three Fiber + drei + postprocessing
-- Zustand game state, procedural Web Audio
+- Zustand game state, Kenney CC0 audio
 
 ## Run
 ```bash
@@ -18,7 +18,7 @@ npm run preview
 ## Controls
 - **Mobile**: relative touch-drag (ship offset above finger), auto-fire
 - **Desktop**: WASD / arrows, click-drag mouse, Esc pause
-- **URL**: `?boss` skip to boss, `?easy` easy mode
+- **URL**: `?boss` skip to boss, `?easy` easy mode, `?biome=desert|jungle` force biome
 - **Keys on menu**: `B` boss, `E` easy
 
 ## Assets

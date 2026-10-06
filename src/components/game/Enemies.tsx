@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import * as THREE from 'three'
 import { useGameStore, type EnemyType } from '../../store/gameStore'
 import { GlbModel, MODEL_PATHS } from './Model'
 import { sounds } from '../../hooks/useAudio'
@@ -42,7 +41,7 @@ export function Enemies() {
   const enemies = useGameStore((s) => s.enemies)
 
   useEffect(() => {
-    const unsub = useGameStore.subscribe((s, p) => {
+    const unsub = useGameStore.subscribe((s) => {
       if (s.gameState === 'playing' && s.waveIndex !== lastWave.current && !s.bossSpawned) {
         lastWave.current = s.waveIndex
         spawnWave(s.waveIndex)
@@ -73,13 +72,10 @@ export function Enemies() {
       }
 
       if (ny < -9) { s.removeEnemy(e.id); continue }
-      // update positions in store lightly
       e.x = nx; e.y = ny
     }
-    // force re-render via shallow copy occasionally not needed — we mutate and set
     useGameStore.setState({ enemies: s.enemies.map((e) => ({ ...e })) })
 
-    // collisions player bullets handled in Bullets; here player body vs enemy
     for (const e of s.enemies) {
       if (Math.hypot(e.x - s.playerX, e.y - s.playerY) < 0.9) {
         s.damagePlayer(20)
@@ -95,9 +91,22 @@ export function Enemies() {
       {enemies.map((e) => {
         const st = STATS[e.type]
         return (
-          <group key={e.id} position={[e.x, 0.25, e.y]} rotation={[0, Math.PI, 0]}>
-            <GlbModel path={st.model} size={st.size} />
-            {/* silhouette ring so enemies pop */}
+          <group key={e.id} position={[e.x, 0.25, e.y]}>
+            {/* scale.z = -1 flips Kenney craft so nose points toward player (−Z) */}
+            {/* scale.z=-1: Kenney craft nose (+Z) → world −Z (toward player / screen-down) */}
+            <group scale={[1, 1, -1]}>
+              <GlbModel path={st.model} size={st.size} />
+              {/* nose marker (local +Z) → after flip points at player */}
+              <mesh position={[0, 0.08, 0.5]} rotation={[Math.PI / 2, 0, 0]}>
+                <coneGeometry args={[0.12, 0.35, 6]} />
+                <meshBasicMaterial color="#ff2244" toneMapped={false} />
+              </mesh>
+              {/* engine glow at rear (local −Z) */}
+              <mesh position={[0, 0, -0.55]}>
+                <sphereGeometry args={[0.14, 10, 10]} />
+                <meshBasicMaterial color="#ff6644" transparent opacity={0.85} toneMapped={false} />
+              </mesh>
+            </group>
             <mesh position={[0, -0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
               <ringGeometry args={[0.5, 0.62, 24]} />
               <meshBasicMaterial color="#ff4d4d" transparent opacity={0.5} toneMapped={false} />

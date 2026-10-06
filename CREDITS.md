@@ -2,7 +2,7 @@
 
 ## Game assets (CC0 / Public Domain)
 
-All 3D models used in Sky Striker are licensed under **CC0 1.0 Universal** (public domain dedication). No attribution is legally required; we credit the authors out of appreciation.
+All 3D models and audio used in Sky Striker are licensed under **CC0 1.0 Universal** (public domain dedication). No attribution is legally required; we credit the authors out of appreciation.
 
 ### Kenney (https://kenney.nl) — CC0
 - **Space Kit** — player jet, enemy craft, boss craft, turrets  
@@ -23,9 +23,18 @@ All 3D models used in Sky Striker are licensed under **CC0 1.0 Universal** (publ
   https://poly.pizza (creator: Quaternius)  
   Files under `public/models/quaternius/`
 
+## Audio (CC0) — `public/audio/`
+All SFX and the looping ambient bed are from Kenney CC0 packs (downloaded via OpenGameArt / community mirrors):
+
+- **Sci-Fi Sounds** — `shoot.ogg`, `explosion*.ogg`, `music_loop.ogg` (space engine loop), `shield.ogg`  
+  https://kenney.nl/assets/sci-fi-sounds
+- **Impact Sounds** — `hit.ogg`, `hit_light.ogg`  
+  https://kenney.nl/assets/impact-sounds
+- **Interface Sounds** — `pickup.ogg`, `powerup.ogg`, `ui_*.ogg`, `player_hit.ogg`, `game_over.ogg`, `victory.ogg`, `boss_appear.ogg`  
+  https://kenney.nl/assets/interface-sounds
+- **Music Jingles** — `jingle_start.ogg`, `jingle_win.ogg`  
+  https://kenney.nl/assets/music-jingles
+
 ## Libraries
 - Three.js, React Three Fiber, drei, postprocessing — MIT
 - Zustand, Vite, React — MIT
-
-## Audio
-Procedural Web Audio API SFX generated at runtime (no external samples).

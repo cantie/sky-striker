@@ -11,6 +11,7 @@ import { Boss } from './Boss'
 import { Bullets } from './Bullets'
 import { Pickups } from './Pickups'
 import { Explosions } from './Explosions'
+import { GAME_SPEED } from '../../game/speed'
 
 export function GameScene() {
   const { camera, gl } = useThree()
@@ -53,7 +54,7 @@ export function GameScene() {
       e.preventDefault()
       if (!touchStart.current || useGameStore.getState().gameState !== 'playing') return
       const t = e.touches[0]
-      const dx = (t.clientX - touchStart.current.x) * 0.018
+      const dx = -(t.clientX - touchStart.current.x) * 0.018
       const dy = -(t.clientY - touchStart.current.y) * 0.018
       // ship sits slightly above finger feel via offset already baked into start pos
       useGameStore.getState().setPlayerPosition(touchStart.current.px + dx, touchStart.current.py + dy + 0.6)
@@ -62,7 +63,7 @@ export function GameScene() {
     const onMouse = (e: MouseEvent) => {
       if (useGameStore.getState().gameState !== 'playing') return
       if (!(e.buttons & 1)) return
-      useGameStore.getState().movePlayer(e.movementX * 0.018, -e.movementY * 0.018)
+      useGameStore.getState().movePlayer(-e.movementX * 0.018, -e.movementY * 0.018)
     }
     canvas.addEventListener('touchstart', onStart, { passive: false })
     canvas.addEventListener('touchmove', onMove, { passive: false })
@@ -79,12 +80,13 @@ export function GameScene() {
   useFrame((_, dt) => {
     const s = useGameStore.getState()
     if (s.gameState === 'playing') {
-      const sp = 0.14
+      // Camera lookAt along +Z flips world X vs screen; negate horizontal so left = left.
+      const sp = 0.14 * GAME_SPEED
       if (keys.current.has('w') || keys.current.has('arrowup')) s.movePlayer(0, sp)
       if (keys.current.has('s') || keys.current.has('arrowdown')) s.movePlayer(0, -sp)
-      if (keys.current.has('a') || keys.current.has('arrowleft')) s.movePlayer(-sp, 0)
-      if (keys.current.has('d') || keys.current.has('arrowright')) s.movePlayer(sp, 0)
-      s.tick(dt * 1000)
+      if (keys.current.has('a') || keys.current.has('arrowleft')) s.movePlayer(sp, 0)
+      if (keys.current.has('d') || keys.current.has('arrowright')) s.movePlayer(-sp, 0)
+      s.tick(dt * 1000 * GAME_SPEED)
     }
     // Sky Force-style angled camera + shake
     const shake = s.screenShake

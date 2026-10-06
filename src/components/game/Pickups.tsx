@@ -1,13 +1,15 @@
 import { useFrame } from '@react-three/fiber'
 import { useGameStore } from '../../store/gameStore'
 import { sounds } from '../../hooks/useAudio'
+import { gameDt } from '../../game/speed'
 
 const COLORS = { powerup: '#ff9800', star: '#ffd700', health: '#4caf50', shield: '#2196f3' }
 
 export function Pickups() {
   const pickups = useGameStore((s) => s.pickups)
 
-  useFrame((_, dt) => {
+  useFrame((_, rawDt) => {
+    const dt = gameDt(rawDt)
     const s = useGameStore.getState()
     if (s.gameState !== 'playing') return
     const next = []

@@ -3,12 +3,14 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useGameStore } from '../../store/gameStore'
 import { GlbModel, MODEL_PATHS } from './Model'
+import { gameDt, gameInterval } from '../../game/speed'
 
 export function Boss() {
   const group = useRef<THREE.Group>(null)
   const boss = useGameStore((s) => s.boss)
 
-  useFrame((_, dt) => {
+  useFrame((_, rawDt) => {
+    const dt = gameDt(rawDt)
     const s = useGameStore.getState()
     const b = s.boss
     if (!b || s.gameState !== 'playing' || !group.current) return
@@ -25,7 +27,7 @@ export function Boss() {
     group.current.rotation.z = -b.x * 0.08
 
     const now = Date.now()
-    const interval = Math.max(280, 700 - b.phase * 120)
+    const interval = gameInterval(Math.max(280, 700 - b.phase * 120))
     if (b.intro <= 0 && now - b.lastShot > interval) {
       b.lastShot = now
       b.patternIndex = (b.patternIndex + 1) % 4

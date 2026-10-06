@@ -4,6 +4,7 @@ import * as THREE from 'three'
 import { useGameStore, type EnemyType } from '../../store/gameStore'
 import { GlbModel, MODEL_PATHS } from './Model'
 import { sounds } from '../../hooks/useAudio'
+import { gameDt, gameInterval } from '../../game/speed'
 
 const STATS: Record<EnemyType, { hp: number; speed: number; score: number; fire: number; model: string; size: number }> = {
   basic: { hp: 30, speed: 2.2, score: 100, fire: 0, model: MODEL_PATHS.enemyBasic, size: 0.95 },
@@ -51,7 +52,8 @@ export function Enemies() {
     return unsub
   }, [])
 
-  useFrame((_, dt) => {
+  useFrame((_, rawDt) => {
+    const dt = gameDt(rawDt)
     const s = useGameStore.getState()
     if (s.gameState !== 'playing') return
     const now = Date.now()
@@ -63,7 +65,7 @@ export function Enemies() {
       else if (e.pattern === 1) { ny -= st.speed * dt; nx += Math.sin(e.age * 4) * 2.2 * dt }
       else { ny -= st.speed * 0.7 * dt; nx = Math.sin(e.age * 1.2) * 3.2 }
 
-      if (st.fire > 0 && now - e.lastShot > st.fire) {
+      if (st.fire > 0 && now - e.lastShot > gameInterval(st.fire)) {
         e.lastShot = now
         const px = s.playerX - nx, pz = s.playerY - ny
         const len = Math.hypot(px, pz) || 1

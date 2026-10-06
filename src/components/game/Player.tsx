@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useGameStore } from '../../store/gameStore'
 import { GlbModel, MODEL_PATHS } from './Model'
+import { gameDt, gameInterval } from '../../game/speed'
 
 export function Player() {
   const group = useRef<THREE.Group>(null)
@@ -12,7 +13,8 @@ export function Player() {
   const lastShot = useRef(0)
   const prevX = useRef(0)
 
-  useFrame((_, dt) => {
+  useFrame((_, rawDt) => {
+    const dt = gameDt(rawDt)
     const s = useGameStore.getState()
     if (s.gameState !== 'playing' || !group.current) return
     const { playerX, playerY, weaponLevel, invincibleUntil } = s
@@ -39,7 +41,7 @@ export function Player() {
     }
 
     const now = Date.now()
-    const fireRate = Math.max(90, 180 - weaponLevel * 18)
+    const fireRate = gameInterval(Math.max(90, 180 - weaponLevel * 18))
     if (now - lastShot.current > fireRate) {
       lastShot.current = now
       const dmg = 8 + weaponLevel * 3

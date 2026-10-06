@@ -5,6 +5,7 @@ import { extend, type ThreeElement } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useGameStore } from '../../store/gameStore'
 import { GlbModel, MODEL_PATHS } from './Model'
+import { gameDt } from '../../game/speed'
 
 const WaterMat = shaderMaterial(
   { uTime: 0, uDeep: new THREE.Color('#2088c8'), uShallow: new THREE.Color('#5ed0f0'), uFoam: new THREE.Color('#e8f8ff') },
@@ -141,7 +142,8 @@ function ScrollingWorld() {
 function Clouds() {
   const g1 = useRef<THREE.Group>(null)
   const g2 = useRef<THREE.Group>(null)
-  useFrame((_, dt) => {
+  useFrame((_, rawDt) => {
+    const dt = gameDt(rawDt)
     if (g1.current) g1.current.position.z = (g1.current.position.z + dt * 1.2) % 40 - 20
     if (g2.current) g2.current.position.z = (g2.current.position.z + dt * 0.6) % 50 - 25
   })

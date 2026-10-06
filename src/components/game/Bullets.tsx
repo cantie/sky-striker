@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useGameStore } from '../../store/gameStore'
 import { sounds } from '../../hooks/useAudio'
+import { gameDt } from '../../game/speed'
 
 const MAX = 256
 
@@ -12,7 +13,8 @@ export function Bullets() {
   const dummy = useMemo(() => new THREE.Object3D(), [])
   const color = useMemo(() => new THREE.Color(), [])
 
-  useFrame((_, dt) => {
+  useFrame((_, rawDt) => {
+    const dt = gameDt(rawDt)
     const s = useGameStore.getState()
     if (s.gameState !== 'playing') return
     const next = []

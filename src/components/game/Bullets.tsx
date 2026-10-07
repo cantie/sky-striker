@@ -4,7 +4,8 @@ import * as THREE from 'three'
 import { useGameStore } from '../../store/gameStore'
 import { sounds } from '../../hooks/useAudio'
 import { gameDt } from '../../game/speed'
-import { ROLE_STATS } from '../../game/roster'
+import { BOSS_COINS, ROLE_STATS } from '../../game/roster'
+import { spawnCoins } from './Coins'
 import { BOSSES } from '../../game/bosses'
 import { getStage } from '../../game/stages'
 import { onScreen } from '../../game/world'
@@ -48,10 +49,10 @@ export function Bullets() {
               s.addExplosion(e.x, 0.2, e.y, e.type === 'heavy' || e.type === 'tank' ? 1.6 : 1)
               s.addScore(role.score)
               s.incrementCombo()
-              s.addStar()
               s.recordEnemyKill()
+              spawnCoins(e.x, e.y, role.coins)
               if (Math.random() < 0.35) {
-                const types = ['powerup', 'star', 'health', 'shield'] as const
+                const types = ['powerup', 'health', 'shield'] as const
                 s.addPickup({ x: e.x, y: 0.3, z: e.y, type: types[Math.floor(Math.random() * types.length)] })
               }
             }
@@ -65,6 +66,7 @@ export function Bullets() {
           if (dead) {
             s.addExplosion(s.boss.x, 0.4, s.boss.y, 3)
             s.addScore(5000)
+            spawnCoins(s.boss.x, s.boss.y, BOSS_COINS)
           }
           hit = true
         }

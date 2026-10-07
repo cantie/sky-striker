@@ -136,6 +136,8 @@ interface GameStore {
 }
 
 const IFRAMES = 1200
+/** Real ms between a boss going down and the results screen. */
+const BOSS_OUTRO_MS = 2800
 const COMBO_TIMEOUT = 2200
 
 let bid = 0, eid = 0, pid = 0, xid = 0
@@ -354,12 +356,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!boss) return false
     const hp = boss.hp - damage
     if (hp <= 0) {
+      // Victory lap: enemy fire vanishes and the player gets a moment to scoop up the boss's stars
+      const runStart = get().scrollOffset
       set((s) => ({
         boss: null,
         screenShake: 0.8,
+        bullets: s.bullets.filter((b) => !b.isEnemy),
         runStats: { ...s.runStats, bossDefeated: true },
       }))
-      get().finishStageWin()
+      setTimeout(() => {
+        // Skip if the player has already left / restarted in the meantime
+        if (get().gameState === 'playing' && get().scrollOffset >= runStart) get().finishStageWin()
+      }, BOSS_OUTRO_MS)
       return true
     }
     set({ boss: { ...boss, hp } })

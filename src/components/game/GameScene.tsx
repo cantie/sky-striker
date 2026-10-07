@@ -11,6 +11,7 @@ import { Boss } from './Boss'
 import { Bullets } from './Bullets'
 import { Pickups } from './Pickups'
 import { Explosions } from './Explosions'
+import { Coins } from './Coins'
 import { GAME_SPEED } from '../../game/speed'
 import { BOUNDS, PLAYFIELD_MID_Z, setView } from '../../game/world'
 /** Half-extents with padding so the ship stays inside the visible area on mobile + desktop. */
@@ -171,6 +172,7 @@ export function GameScene() {
             <Bullets />
             <Pickups />
             <Explosions />
+            <Coins />
           </>
         )}
       </Suspense>

@@ -8,9 +8,13 @@ import { GROUND_Y, view } from '../../game/world'
 import { ShipModel } from './Model'
 import { Vehicle } from './Vehicles'
 import { gameDt } from '../../game/speed'
+import { sounds } from '../../hooks/useAudio'
+import { BossLaser, LASER_CHARGE, LASER_FIRE, LASER_HALF_WIDTH, LASER_LOCK, type LaserState } from './BossLaser'
 
 /** Boss bullets before stage scaling (game units / game-second). */
 const BOSS_BULLET = { speed: 8, radius: 0.15, damage: 13 }
+const LASER_DAMAGE = 24
+const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a))
 
 type Volley = { at: number; fire: () => void }
 const tri = (t: number) => 2 * Math.abs(2 * (t - Math.floor(t + 0.5))) - 1
@@ -96,6 +100,9 @@ function planAttack(
     case 'burst':
       for (let k = 0; k < 3; k++) add(k * 0.15, () => { for (let i = 0; i < 10; i++) shoot(k * 0.31 + (i / 10) * Math.PI * 2, 0.9) })
       break
+    case 'laser':
+      // Driven by the laser state machine in Boss, not by timed volleys
+      break
     case 'broadside':
       // Cannons down both flanks of the hull, then one aimed shot from the bow
       for (let k = 0; k < 2 + phase; k++) add(k * 0.12, () => {
@@ -123,6 +130,7 @@ export function Boss() {
   const nextAttack = useRef(0)
   const cycle = useRef(0)
   const volleys = useRef<Volley[]>([])
+  const laser = useRef<LaserState>({ stage: 'idle', t: 0, angle: Math.PI })
 
   if (boss && boss.hp < prevHp.current) flashUntil.current = Date.now() + 90
   prevHp.current = boss?.hp ?? 0
@@ -135,6 +143,7 @@ export function Boss() {
     if (b.intro >= 1) {
       // First frame of a fresh fight: drop timers/volleys left over from a previous run
       clock.current = 0; fightT.current = 0; nextAttack.current = 0.6; cycle.current = 0; volleys.current = []
+      laser.current = { stage: 'idle', t: 0, angle: Math.PI }
     }
     clock.current += dt
 
@@ -144,7 +153,9 @@ export function Boss() {
     if (b.intro > 0) {
       b.intro = Math.max(0, b.intro - dt * 0.45)
     } else {
-      fightT.current += dt * (1 + 0.2 * (b.phase - 1))
+      // Hold nearly still while charging/firing the laser so the beam stays dodgeable
+      const laserSlow = laser.current.stage === 'idle' ? 1 : 0.25
+      fightT.current += dt * (1 + 0.2 * (b.phase - 1)) * laserSlow
       const p = movePos(def, fightT.current, hy, amp)
       tx = p.x; ty = p.y
     }
@@ -160,6 +171,30 @@ export function Boss() {
       bankGroup.current.rotation.z = THREE.MathUtils.lerp(bankGroup.current.rotation.z, target, 1 - Math.pow(0.01, dt))
     }
 
+    // Laser: charge (aim tracks the player, then locks) → beam
+    const L = laser.current
+    if (L.stage !== 'idle') {
+      L.t += dt
+      const nx = b.x, nz = b.y - def.radius * 0.6
+      const toPlayer = Math.atan2(s.playerX - nx, s.playerY - nz)
+      if (L.stage === 'charge') {
+        if (L.t < LASER_CHARGE - LASER_LOCK) L.angle += wrapAngle(toPlayer - L.angle) * (1 - Math.pow(0.02, dt))
+        if (L.t >= LASER_CHARGE) {
+          L.stage = 'fire'; L.t = 0
+          sounds.explosionBig()
+          s.addShake(0.45)
+        }
+      } else {
+        // Final phase: the beam slowly sweeps after the player
+        if (b.phase >= 3) L.angle += wrapAngle(toPlayer - L.angle) * (1 - Math.pow(0.5, dt))
+        const dx = s.playerX - nx, dz = s.playerY - nz
+        const along = dx * Math.sin(L.angle) + dz * Math.cos(L.angle)
+        const perp = Math.abs(dx * Math.cos(L.angle) - dz * Math.sin(L.angle))
+        if (along > 0 && perp < LASER_HALF_WIDTH + 0.35) s.damagePlayer(LASER_DAMAGE * stage.damageMult)
+        if (L.t >= LASER_FIRE) L.stage = 'idle'
+      }
+    }
+
     // Attacks — only once it has arrived on screen
     if (b.intro <= 0 && clock.current >= nextAttack.current) {
       const intervalMs = (def.interval * (1 - 0.12 * (b.phase - 1))) / stage.fireRateMult
@@ -167,6 +202,11 @@ export function Boss() {
       const allowed = Math.min(def.attacks.length, b.phase + 1)
       const kind = def.attacks[cycle.current % allowed]
       cycle.current++
+      if (kind === 'laser') {
+        laser.current = { stage: 'charge', t: 0, angle: Math.PI }
+        nextAttack.current = clock.current + LASER_CHARGE + LASER_FIRE + 0.5
+        sounds.shield()
+      }
       const speed = BOSS_BULLET.speed * stage.bulletSpeedMult
       const dmg = BOSS_BULLET.damage * stage.damageMult
       const shoot = (ang: number, mul = 1, ox = 0, oz = 0) => {
@@ -223,6 +263,7 @@ export function Boss() {
         </group>
       </group>
       <pointLight color={def.flameColor} intensity={4} distance={8} position={[0, 1.2, 0]} />
+      <BossLaser laser={laser} nose={[0, def.ground ? 2.4 : 0.35, -def.radius * 0.6]} />
     </group>
   )
 }

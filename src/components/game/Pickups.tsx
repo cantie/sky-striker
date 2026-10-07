@@ -106,10 +106,12 @@ function PickupItem({ pickup, type }: { pickup: Pickup; type: DropType }) {
 }
 
 /** Hover within this distance of a survivor… */
-const RESCUE_RADIUS = 1.7
+const RESCUE_RADIUS = 2.6
 /** …for this many real seconds to lift them out. */
 const RESCUE_SECONDS = 2
 const ARC_STEPS = 64
+/** Progress ring hugging the (small) survivor; the rescue zone itself is much wider. */
+const RING_IN = 0.62, RING_OUT = 0.8
 
 /** One flat piece of the survivor pictogram, with a dark outline drawn behind it. */
 function FigurePart({ shape, size, at, color }: { shape: 'circle' | 'box'; size: [number, number]; at: [number, number]; color: string }) {
@@ -137,7 +139,7 @@ function Survivor({ pickup }: { pickup: Pickup }) {
   const arc = useMemo(() => {
     if (steps <= 0) return null
     const len = (steps / ARC_STEPS) * Math.PI * 2
-    return new THREE.RingGeometry(0.95, 1.22, ARC_STEPS, 1, Math.PI / 2 - len, len)
+    return new THREE.RingGeometry(RING_IN, RING_OUT, ARC_STEPS, 1, Math.PI / 2 - len, len)
   }, [steps])
   useEffect(() => () => arc?.dispose(), [arc])
 
@@ -166,7 +168,7 @@ function Survivor({ pickup }: { pickup: Pickup }) {
           <meshBasicMaterial color="#ffe14a" transparent depthWrite={false} toneMapped={false} />
         </mesh>
         <mesh position={[0, 0, 0.02]}>
-          <ringGeometry args={[0.95, 1.22, 64]} />
+          <ringGeometry args={[RING_IN, RING_OUT, 64]} />
           <meshBasicMaterial color="#000000" transparent opacity={0.45} depthWrite={false} />
         </mesh>
         {arc && (
@@ -177,7 +179,7 @@ function Survivor({ pickup }: { pickup: Pickup }) {
       </group>
 
       {/* Flat pictogram facing the top-down camera (a 3D figure only shows its head from above) */}
-      <group rotation={FACE_UP} position={[0, 0.12, 0]} scale={1.35}>
+      <group rotation={FACE_UP} position={[0, 0.12, 0]} scale={0.85}>
         <mesh position={[0, 0, -0.01]}>
           <circleGeometry args={[0.62, 24]} />
           <meshBasicMaterial color="#ffffff" transparent opacity={0.55} depthWrite={false} />

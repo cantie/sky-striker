@@ -4,7 +4,7 @@ import * as THREE from 'three'
 import { useGameStore } from '../../store/gameStore'
 import { ShipModel, MODEL_PATHS, type MaterialPalette } from './Model'
 import { gameDt, gameInterval } from '../../game/speed'
-import { weaponStats } from '../../game/weapon'
+import { PLAYER_BULLET_SPEED, weaponStats } from '../../game/weapon'
 
 /** Hero livery: white hull, cobalt panels, glowing cyan trim (enemies use warm hostile colours). */
 const PLAYER_PALETTE: MaterialPalette = {
@@ -55,7 +55,7 @@ export function Player() {
     if (now - lastShot.current > gameInterval(w.interval)) {
       lastShot.current = now
       for (const sh of w.streams) {
-        s.addBullet({ x: playerX + sh.x, y: 0.3, z: playerY + 0.6, vx: sh.vx, vy: 0, vz: 18, isEnemy: false, damage: w.damage, radius: w.radius })
+        s.addBullet({ x: playerX + sh.x, y: 0.3, z: playerY + 0.6, vx: sh.vx, vy: 0, vz: PLAYER_BULLET_SPEED, isEnemy: false, damage: w.damage, radius: w.radius })
       }
       s.setMuzzleFlash(1)
     }

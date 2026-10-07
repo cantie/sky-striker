@@ -5,7 +5,7 @@ import { useGameStore, type Enemy } from '../../store/gameStore'
 import { getStage, type StageConfig } from '../../game/stages'
 import { ROLE_STATS, isGround, type AirRole } from '../../game/roster'
 import { GROUND_PATHS, pathPos, type PathParams } from '../../game/paths'
-import { GROUND_Y, WORLD_SCROLL, inFireZone, onScreen } from '../../game/world'
+import { GROUND_Y, WORLD_SCROLL, edges, inFireZone, onScreen } from '../../game/world'
 import { ShipModel } from './Model'
 import { Vehicle } from './Vehicles'
 import { sounds } from '../../hooks/useAudio'
@@ -75,9 +75,13 @@ export function Enemies() {
         queue.current.push(...expandWave(st, s.waveIndex, clock.current, s.easyMode))
         useGameStore.setState({ pendingSpawns: queue.current.length })
 
-        // Occasional rescue / pickup pods mid-stage
-        if (s.waveIndex > 0 && s.waveIndex % 2 === 0) {
-          s.addPickup({ x: (Math.random() - 0.5) * 5, y: 0.3, z: 12 + Math.random() * 2, type: Math.random() < 0.55 ? 'rescue' : 'star' })
+        // Survivors stranded on the terrain every other wave (they scroll in from the top edge)
+        if (s.waveIndex % 2 === 1) {
+          s.addPickup({ x: (Math.random() - 0.5) * 9, y: 0, z: edges().top + 1, type: 'rescue', progress: 0 })
+        }
+        // Occasional floating star pod
+        if (s.waveIndex > 0 && s.waveIndex % 4 === 0) {
+          s.addPickup({ x: (Math.random() - 0.5) * 5, y: 0.3, z: 12 + Math.random() * 2, type: 'star' })
         }
       }
       if (s.gameState === 'menu' || s.gameState === 'stageSelect' || s.gameState === 'briefing' || s.gameState === 'results') {

@@ -1,4 +1,5 @@
 import { STAGES, type ObjectiveId } from './stages'
+import { clampPower } from './weapon'
 
 const STORAGE_KEY = 'sky-striker-saga-v1'
 
@@ -13,6 +14,8 @@ export interface StageProgress {
 
 export interface SagaProgress {
   stages: Record<number, StageProgress>
+  /** Weapon power carried into the next run: kept after a win, back to 0 after a loss. */
+  weapon: number
 }
 
 function emptyStage(): StageProgress {
@@ -22,7 +25,7 @@ function emptyStage(): StageProgress {
 function defaultProgress(): SagaProgress {
   const stages: Record<number, StageProgress> = {}
   for (const s of STAGES) stages[s.id] = emptyStage()
-  return { stages }
+  return { stages, weapon: 0 }
 }
 
 export function loadProgress(): SagaProgress {
@@ -41,6 +44,7 @@ export function loadProgress(): SagaProgress {
         }
       }
     }
+    base.weapon = clampPower(parsed.weapon ?? 0)
     return base
   } catch {
     return defaultProgress()
@@ -67,10 +71,12 @@ export function mergeStageResult(
   score: number,
   earned: ObjectiveId[],
   cleared: boolean,
+  weapon: number,
 ): SagaProgress {
   const prev = progress.stages[stageId] ?? emptyStage()
   const starSet = new Set([...prev.stars, ...earned])
   const next: SagaProgress = {
+    weapon: clampPower(weapon),
     stages: {
       ...progress.stages,
       [stageId]: {

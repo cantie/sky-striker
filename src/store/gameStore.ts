@@ -4,6 +4,7 @@ import { isBiome, type Biome } from '../game/biomes'
 import type { EnemyType } from '../game/roster'
 import type { PathId } from '../game/paths'
 import { BOUNDS } from '../game/world'
+import { MAX_WEAPON_POWER, WEAPON_TIERS } from '../game/weapon'
 import {
   loadProgress,
   mergeStageResult,
@@ -51,6 +52,8 @@ export type PickupType = 'powerup' | 'star' | 'health' | 'shield' | 'rescue'
 export interface Pickup {
   id: string; x: number; y: number; z: number
   type: PickupType
+  /** Rescue only: 0→1 while the player hovers nearby (survivors stand on the terrain). */
+  progress?: number
 }
 export interface Explosion {
   id: string; x: number; y: number; z: number
@@ -72,7 +75,9 @@ interface GameStore {
   gameState: GameState
   score: number; combo: number; comboTimer: number; stars: number
   playerX: number; playerY: number; playerHp: number; playerMaxHp: number
-  playerShield: number; weaponLevel: number; invincibleUntil: number
+  playerShield: number; invincibleUntil: number
+  /** Weapon progression index (see game/weapon). */
+  weaponPower: number
   bullets: Bullet[]; enemies: Enemy[]; boss: Boss | null
   pickups: Pickup[]; explosions: Explosion[]
   waveIndex: number; waveTimer: number; bossSpawned: boolean
@@ -191,7 +196,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   gameState: 'menu',
   score: 0, combo: 0, comboTimer: 0, stars: 0,
   playerX: 0, playerY: -4, playerHp: 100, playerMaxHp: 100,
-  playerShield: 0, weaponLevel: 1, invincibleUntil: 0,
+  playerShield: 0, weaponPower: 0, invincibleUntil: 0,
   bullets: [], enemies: [], boss: null, pickups: [], explosions: [],
   waveIndex: 0, waveTimer: 0, bossSpawned: false, pendingSpawns: 0,
   scrollOffset: 0, biome: 'jungle', isMuted: false, easyMode: false,
@@ -244,7 +249,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       playerHp: easy ? 150 : 100,
       playerMaxHp: easy ? 150 : 100,
       playerShield: easy ? 50 : 0,
-      weaponLevel: easy ? 3 : 1,
+      // Carried over from the last cleared stage; easy start guarantees at least level 2
+      weaponPower: Math.max(get().progress.weapon, easy ? WEAPON_TIERS : 0),
       invincibleUntil: Date.now() + 1500,
       bullets: [], enemies: [], boss: null, pickups: [], explosions: [],
       waveIndex: startWave, waveTimer: 0, bossSpawned: false, pendingSpawns: 0,
@@ -255,17 +261,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       lastResultWon: false,
     })
 
-    // Seed a few rescue pods early so collect-all is achievable
+    // First survivors are already standing on the ground ahead of the player
     if (!skip) {
       const s = get()
-      for (let i = 0; i < 2; i++) {
-        s.addPickup({
-          x: (i - 0.5) * 3,
-          y: 0.3,
-          z: 6 + i * 2,
-          type: 'rescue',
-        })
-      }
+      s.addPickup({ x: 2.5, y: 0, z: 13, type: 'rescue', progress: 0 })
+      s.addPickup({ x: -3, y: 0, z: 26, type: 'rescue', progress: 0 })
     }
 
     if (skip && hasBoss) setTimeout(() => get().spawnBoss(), 2200)
@@ -306,7 +306,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   healPlayer: (n) => set((s) => ({ playerHp: Math.min(s.playerMaxHp, s.playerHp + n) })),
   addShield: (n) => set((s) => ({ playerShield: Math.min(100, s.playerShield + n) })),
-  upgradeWeapon: () => set((s) => ({ weaponLevel: Math.min(5, s.weaponLevel + 1) })),
+  upgradeWeapon: () => set((s) => ({ weaponPower: Math.min(MAX_WEAPON_POWER, s.weaponPower + 1) })),
 
   addBullet: (b) => set((s) => ({ bullets: [...s.bullets, { ...b, id: `b${bid++}` }] })),
   removeBullet: (id) => set((s) => ({ bullets: s.bullets.filter((b) => b.id !== id) })),
@@ -457,6 +457,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       s.score,
       earned,
       won,
+      // Clearing a stage keeps the gun for the next one; getting shot down resets it
+      won ? s.weaponPower : 0,
     )
     set({
       gameState: 'results',

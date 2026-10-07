@@ -3,6 +3,7 @@ import { useGameStore } from '../../store/gameStore'
 import { syncMute, sounds } from '../../hooks/useAudio'
 import { getStage } from '../../game/stages'
 import { BOSSES } from '../../game/bosses'
+import { WEAPON_TIERS, weaponStats } from '../../game/weapon'
 
 /** In-flight HUD: one compact top row (score · HP/shield/weapon · buttons), boss bar under it. */
 export function HUD() {
@@ -12,7 +13,7 @@ export function HUD() {
   const playerHp = useGameStore((s) => s.playerHp)
   const playerMaxHp = useGameStore((s) => s.playerMaxHp)
   const playerShield = useGameStore((s) => s.playerShield)
-  const weaponLevel = useGameStore((s) => s.weaponLevel)
+  const weapon = weaponStats(useGameStore((s) => s.weaponPower))
   const boss = useGameStore((s) => s.boss)
   const isMuted = useGameStore((s) => s.isMuted)
   const toggleMute = useGameStore((s) => s.toggleMute)
@@ -44,10 +45,11 @@ export function HUD() {
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-            <span style={{ ...label, color: '#ff9800' }}>WPN</span>
+            <span style={{ ...label, color: '#ff9800' }}>LV{weapon.level}</span>
+            {/* Tier pips inside the current level */}
             <div style={{ display: 'flex', gap: 3, flex: 1 }}>
-              {[1, 2, 3, 4, 5].map((l) => (
-                <div key={l} style={{ flex: 1, height: 5, borderRadius: 2, background: l <= weaponLevel ? '#ff9800' : 'rgba(255,255,255,0.18)' }} />
+              {Array.from({ length: WEAPON_TIERS }, (_, i) => (
+                <div key={i} style={{ flex: 1, height: 5, borderRadius: 2, background: i < weapon.tier ? '#ff9800' : 'rgba(255,255,255,0.18)' }} />
               ))}
             </div>
           </div>

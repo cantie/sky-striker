@@ -4,6 +4,7 @@ import * as THREE from 'three'
 import { useGameStore } from '../../store/gameStore'
 import { ShipModel, MODEL_PATHS, type MaterialPalette } from './Model'
 import { gameDt, gameInterval } from '../../game/speed'
+import { weaponStats } from '../../game/weapon'
 
 /** Hero livery: white hull, cobalt panels, glowing cyan trim (enemies use warm hostile colours). */
 const PLAYER_PALETTE: MaterialPalette = {
@@ -25,7 +26,7 @@ export function Player() {
     const dt = gameDt(rawDt)
     const s = useGameStore.getState()
     if (s.gameState !== 'playing' || !group.current) return
-    const { playerX, playerY, weaponLevel, invincibleUntil } = s
+    const { playerX, playerY, weaponPower, invincibleUntil } = s
     group.current.position.set(playerX, 0.2, playerY)
     const vx = playerX - prevX.current
     prevX.current = playerX
@@ -50,17 +51,11 @@ export function Player() {
     }
 
     const now = Date.now()
-    const fireRate = gameInterval(Math.max(90, 180 - weaponLevel * 18))
-    if (now - lastShot.current > fireRate) {
+    const w = weaponStats(weaponPower)
+    if (now - lastShot.current > gameInterval(w.interval)) {
       lastShot.current = now
-      const dmg = 8 + weaponLevel * 3
-      const shots: { x: number; vx: number }[] = [{ x: 0, vx: 0 }]
-      if (weaponLevel >= 2) { shots.push({ x: -0.35, vx: -0.5 }); shots.push({ x: 0.35, vx: 0.5 }) }
-      if (weaponLevel >= 3) { shots.push({ x: -0.7, vx: -1.1 }); shots.push({ x: 0.7, vx: 1.1 }) }
-      if (weaponLevel >= 4) { shots.push({ x: 0, vx: 0 }); shots[0].x = -0.12; shots.push({ x: 0.12, vx: 0 }) }
-      if (weaponLevel >= 5) { shots.push({ x: -1.0, vx: -1.8 }); shots.push({ x: 1.0, vx: 1.8 }) }
-      for (const sh of shots) {
-        s.addBullet({ x: playerX + sh.x, y: 0.3, z: playerY + 0.6, vx: sh.vx, vy: 0, vz: 18, isEnemy: false, damage: dmg, radius: 0.12 })
+      for (const sh of w.streams) {
+        s.addBullet({ x: playerX + sh.x, y: 0.3, z: playerY + 0.6, vx: sh.vx, vy: 0, vz: 18, isEnemy: false, damage: w.damage, radius: w.radius })
       }
       s.setMuzzleFlash(1)
     }

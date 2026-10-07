@@ -51,7 +51,7 @@ export function Bullets() {
               s.addStar()
               s.recordEnemyKill()
               if (Math.random() < 0.35) {
-                const types = ['powerup', 'star', 'health', 'shield', 'rescue'] as const
+                const types = ['powerup', 'star', 'health', 'shield'] as const
                 s.addPickup({ x: e.x, y: 0.3, z: e.y, type: types[Math.floor(Math.random() * types.length)] })
               }
             }
@@ -83,8 +83,9 @@ export function Bullets() {
     if (playerRef.current) {
       playerRef.current.count = players.length
       players.forEach((b, i) => {
+        // Elongated bolt; radius grows with the weapon tier, so higher tiers look heavier
         dummy.position.set(b.x, 0.35, b.z)
-        dummy.scale.setScalar(b.radius * 2.2)
+        dummy.scale.set(b.radius * 2.2, b.radius * 2.2, b.radius * 5.5)
         dummy.updateMatrix()
         playerRef.current!.setMatrixAt(i, dummy.matrix)
       })

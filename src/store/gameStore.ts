@@ -27,7 +27,7 @@ export type { EnemyType } from '../game/roster'
 export interface Bullet {
   id: string; x: number; y: number; z: number
   vx: number; vy: number; vz: number
-  isEnemy: boolean; damage: number; radius: number; glow?: string
+  isEnemy: boolean; damage: number; radius: number
 }
 export interface Enemy {
   id: string; x: number; y: number; z: number

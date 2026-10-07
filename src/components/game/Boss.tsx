@@ -35,37 +35,36 @@ function movePos(def: BossDef, t: number, hy: number, amp: number) {
 /** Builds the timed volleys for one attack. Angles: 0 = +Z (up screen), π = toward the player side. */
 function planAttack(
   kind: BossAttack, at: number, phase: number, stage: StageConfig, def: BossDef,
-  shoot: (ang: number, speedMul?: number, ox?: number, oz?: number, color?: string) => void,
+  shoot: (ang: number, speedMul?: number, ox?: number, oz?: number) => void,
   aimAt: () => number, bossX: () => number,
 ): Volley[] {
   const v: Volley[] = []
-  const [c1, c2] = def.bulletColors
   const add = (dt: number, fire: () => void) => v.push({ at: at + dt, fire })
   switch (kind) {
     case 'fan': {
       const n = 5 + phase * 2
-      add(0, () => { for (let i = 0; i < n; i++) shoot(Math.PI + (i / (n - 1) - 0.5) * 1.3, 1, 0, 0, c1) })
+      add(0, () => { for (let i = 0; i < n; i++) shoot(Math.PI + (i / (n - 1) - 0.5) * 1.3, 1) })
       break
     }
     case 'ring': {
       const n = 14 + phase * 4
       const off = Math.random() * Math.PI
-      add(0, () => { for (let i = 0; i < n; i++) shoot(off + (i / n) * Math.PI * 2, 0.75, 0, 0, c2) })
+      add(0, () => { for (let i = 0; i < n; i++) shoot(off + (i / n) * Math.PI * 2, 0.75) })
       break
     }
     case 'aimed':
-      for (let k = 0; k < 2 + phase; k++) add(k * 0.14, () => { const a = aimAt(); [-0.08, 0, 0.08].forEach((d) => shoot(a + d, 1.15, 0, 0, c1)) })
+      for (let k = 0; k < 2 + phase; k++) add(k * 0.14, () => { const a = aimAt(); [-0.08, 0, 0.08].forEach((d) => shoot(a + d, 1.15)) })
       break
     case 'spiral': {
       const arms = 2 + phase
-      for (let k = 0; k < 12; k++) add(k * 0.09, () => { for (let i = 0; i < arms; i++) shoot(k * 0.32 + (i / arms) * Math.PI * 2, 0.8, 0, 0, i % 2 ? c2 : c1) })
+      for (let k = 0; k < 12; k++) add(k * 0.09, () => { for (let i = 0; i < arms; i++) shoot(k * 0.32 + (i / arms) * Math.PI * 2, 0.8) })
       break
     }
     case 'twinSpiral':
       for (let k = 0; k < 12; k++) add(k * 0.09, () => {
         for (let i = 0; i < 2; i++) {
-          shoot(k * 0.3 + i * Math.PI, 0.8, 0, 0, c1)
-          shoot(-k * 0.3 + i * Math.PI + Math.PI / 2, 0.8, 0, 0, c2)
+          shoot(k * 0.3 + i * Math.PI, 0.8)
+          shoot(-k * 0.3 + i * Math.PI + Math.PI / 2, 0.8)
         }
       })
       break
@@ -77,32 +76,32 @@ function planAttack(
           const hw = Math.min(view.halfW, 8.5)
           for (let x = -hw; x <= hw; x += 0.85) {
             if (Math.abs(x - gapX) < 1.3) continue
-            shoot(Math.PI, 0.7, x - bossX(), -1, c2)
+            shoot(Math.PI, 0.7, x - bossX(), -1)
           }
         })
       }
       break
     }
     case 'stream':
-      for (let k = 0; k < 6 + phase * 2; k++) add(k * 0.07, () => shoot(aimAt(), 1.3, 0, 0, c1))
+      for (let k = 0; k < 6 + phase * 2; k++) add(k * 0.07, () => shoot(aimAt(), 1.3))
       break
     case 'cross':
-      for (let k = 0; k < 3; k++) add(k * 0.18, () => { for (let i = 0; i < 8; i++) shoot(k * 0.2 + (i / 8) * Math.PI * 2, 0.85, 0, 0, k % 2 ? c2 : c1) })
+      for (let k = 0; k < 3; k++) add(k * 0.18, () => { for (let i = 0; i < 8; i++) shoot(k * 0.2 + (i / 8) * Math.PI * 2, 0.85) })
       break
     case 'scatter': {
       const n = 14 + phase * 4
-      add(0, () => { for (let i = 0; i < n; i++) shoot(Math.PI + (Math.random() - 0.5) * 2.4, 0.6 + Math.random() * 0.5, 0, 0, i % 2 ? c1 : c2) })
+      add(0, () => { for (let i = 0; i < n; i++) shoot(Math.PI + (Math.random() - 0.5) * 2.4, 0.6 + Math.random() * 0.5) })
       break
     }
     case 'burst':
-      for (let k = 0; k < 3; k++) add(k * 0.15, () => { for (let i = 0; i < 10; i++) shoot(k * 0.31 + (i / 10) * Math.PI * 2, 0.9, 0, 0, c1) })
+      for (let k = 0; k < 3; k++) add(k * 0.15, () => { for (let i = 0; i < 10; i++) shoot(k * 0.31 + (i / 10) * Math.PI * 2, 0.9) })
       break
     case 'broadside':
       // Cannons down both flanks of the hull, then one aimed shot from the bow
       for (let k = 0; k < 2 + phase; k++) add(k * 0.12, () => {
-        for (const side of [-1, 1]) for (let z = -1.6; z <= 1.6; z += 1.1) shoot(Math.PI + side * 1.15, 0.75, side * 0.6, z, c1)
+        for (const side of [-1, 1]) for (let z = -1.6; z <= 1.6; z += 1.1) shoot(Math.PI + side * 1.15, 0.75, side * 0.6, z)
       })
-      add(0.5, () => shoot(aimAt(), 1.25, 0, -2.4, c2))
+      add(0.5, () => shoot(aimAt(), 1.25, 0, -2.4))
       break
   }
   return v
@@ -170,14 +169,14 @@ export function Boss() {
       cycle.current++
       const speed = BOSS_BULLET.speed * stage.bulletSpeedMult
       const dmg = BOSS_BULLET.damage * stage.damageMult
-      const shoot = (ang: number, mul = 1, ox = 0, oz = 0, color = def.bulletColors[0]) => {
+      const shoot = (ang: number, mul = 1, ox = 0, oz = 0) => {
         const st = useGameStore.getState()
         const bb = st.boss
         if (!bb) return
         st.addBullet({
           x: bb.x + ox, y: 0.4, z: bb.y - def.radius * 0.5 + oz,
           vx: Math.sin(ang) * speed * mul, vy: 0, vz: Math.cos(ang) * speed * mul,
-          isEnemy: true, damage: dmg, radius: BOSS_BULLET.radius, glow: color,
+          isEnemy: true, damage: dmg, radius: BOSS_BULLET.radius,
         })
       }
       const aimAt = () => {

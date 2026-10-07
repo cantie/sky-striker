@@ -27,7 +27,6 @@ export interface BossDef {
   attacks: BossAttack[]
   /** Base ms between volleys. */
   interval: number
-  bulletColors: [string, string]
 }
 
 export const BOSSES: Record<string, BossDef> = {
@@ -37,21 +36,18 @@ export const BOSSES: Record<string, BossDef> = {
     palette: kenneyLivery('#7d8a4e', '#4d5a2c', '#1d2414', '#ff5a2a'),
     flames: 2, flameColor: '#ff7a3d', radius: 1.6, ground: false,
     move: 'sway', attacks: ['fan', 'aimed'], interval: 1000,
-    bulletColors: ['#ff5533', '#ffaa33'],
   },
   crawler: {
     name: 'SAND CRAWLER',
     vehicle: { vehicle: 'tank', hull: '#b8945a', turret: '#8a6a3a', accent: '#ff7a2a' }, size: 3.4,
     flames: 0, flameColor: '#ff7a2a', radius: 1.8, ground: true,
     move: 'strafe', attacks: ['aimed', 'wall', 'fan'], interval: 950,
-    bulletColors: ['#ffb02e', '#ff6a2a'],
   },
   galleon: {
     name: 'DREAD GALLEON',
     model: MODEL_PATHS.shipPirate, size: 6,
     flames: 0, flameColor: '#ffffff', radius: 1.7, ground: true,
     move: 'drift', attacks: ['broadside', 'ring', 'fan'], interval: 950,
-    bulletColors: ['#ff4466', '#ffd166'],
   },
   hornet: {
     name: 'EMBER HORNET',
@@ -59,7 +55,6 @@ export const BOSSES: Record<string, BossDef> = {
     palette: quatLivery('#e9d2b4', '#3a1a10', '#ff6a1a', '#ff4a10'),
     flames: 2, flameColor: '#ff8a3d', radius: 1.7, ground: false,
     move: 'figure8', attacks: ['spiral', 'aimed', 'fan'], interval: 900,
-    bulletColors: ['#ff7a1a', '#ffd23f'],
   },
   warden: {
     name: 'FROST WARDEN',
@@ -67,7 +62,6 @@ export const BOSSES: Record<string, BossDef> = {
     palette: quatLivery('#eaf6ff', '#2a4a6a', '#7fdcff', '#45c8ff'),
     flames: 2, flameColor: '#7fe0ff', radius: 1.8, ground: false,
     move: 'orbit', attacks: ['ring', 'scatter', 'wall'], interval: 900,
-    bulletColors: ['#2a8cff', '#8a5aff'],
   },
   breaker: {
     name: 'ROCK BREAKER',
@@ -75,7 +69,6 @@ export const BOSSES: Record<string, BossDef> = {
     palette: kenneyLivery('#b9653a', '#6b2f18', '#24120a', '#ffb02e'),
     flames: 2, flameColor: '#ffb02e', radius: 1.9, ground: false,
     move: 'charge', attacks: ['burst', 'fan', 'stream'], interval: 850,
-    bulletColors: ['#ffb02e', '#ff5a2a'],
   },
   wraith: {
     name: 'BOG WRAITH',
@@ -84,7 +77,6 @@ export const BOSSES: Record<string, BossDef> = {
     emissive: '#0c2a08',
     flames: 1, flameColor: '#9bff5a', radius: 1.5, ground: false,
     move: 'drift', attacks: ['twinSpiral', 'aimed', 'scatter'], interval: 850,
-    bulletColors: ['#9bff5a', '#e2ff7a'],
   },
   hive: {
     name: 'NEON HIVE',
@@ -92,7 +84,6 @@ export const BOSSES: Record<string, BossDef> = {
     palette: quatLivery('#ff8ad8', '#2a0a2a', undefined, '#ff2ab8'),
     flames: 2, flameColor: '#ff4ad8', radius: 1.9, ground: false,
     move: 'strafe', attacks: ['cross', 'stream', 'ring', 'wall'], interval: 800,
-    bulletColors: ['#ff4ad8', '#4af0ff'],
   },
   leviathan: {
     name: 'MAGMA LEVIATHAN',
@@ -101,7 +92,6 @@ export const BOSSES: Record<string, BossDef> = {
     emissive: '#401000',
     flames: 2, flameColor: '#ff5a1f', radius: 1.9, ground: false,
     move: 'figure8', attacks: ['spiral', 'burst', 'fan', 'wall'], interval: 780,
-    bulletColors: ['#ff5a1f', '#ffd23f'],
   },
   citadel: {
     name: 'IRON CITADEL',
@@ -110,7 +100,6 @@ export const BOSSES: Record<string, BossDef> = {
     emissive: '#2a0006',
     flames: 2, flameColor: '#ff3a5a', radius: 2.1, ground: false,
     move: 'charge', attacks: ['twinSpiral', 'wall', 'cross', 'stream', 'ring', 'scatter'], interval: 720,
-    bulletColors: ['#ff1a3a', '#ff9ad0'],
   },
 }
 

@@ -151,11 +151,10 @@ export function Enemies() {
       if (fireMs > 0 && role.shot !== 'none' && e.entered && inFireZone(nx, ny) && e.age - e.lastShot > interval) {
         e.lastShot = e.age
         const dmg = role.damage * st.damageMult
-        const glow = isGround(e.type) ? st.ground.accent : st.skins[e.type as AirRole].flame
         const shoot = (ang: number, ox = 0) => s.addBullet({
           x: nx + Math.cos(ang) * ox, y: 0.4, z: ny - Math.sin(ang) * ox,
           vx: Math.sin(ang) * bulletSpeed, vy: 0, vz: Math.cos(ang) * bulletSpeed,
-          isEnemy: true, damage: dmg, radius: ENEMY_BULLET.radius, glow,
+          isEnemy: true, damage: dmg, radius: ENEMY_BULLET.radius,
         })
         if (role.shot === 'aimed') shoot(e.aim)
         else if (role.shot === 'spread3') [-0.28, 0, 0.28].forEach((d) => shoot(e.aim + d))

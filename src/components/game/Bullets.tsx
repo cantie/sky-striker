@@ -10,13 +10,18 @@ import { getStage } from '../../game/stages'
 import { onScreen } from '../../game/world'
 
 const MAX = 512
+/**
+ * One enemy-bullet look for every biome: dark rim (pops on snow/sand), hot magenta halo
+ * (pops on lava/forest/water — a hue no terrain uses) and a white core.
+ */
+export const ENEMY_BULLET_COLOR = '#ff2bd6'
 
 export function Bullets() {
   const playerRef = useRef<THREE.InstancedMesh>(null)
   const enemyRef = useRef<THREE.InstancedMesh>(null)
   const coreRef = useRef<THREE.InstancedMesh>(null)
+  const rimRef = useRef<THREE.InstancedMesh>(null)
   const dummy = useMemo(() => new THREE.Object3D(), [])
-  const color = useMemo(() => new THREE.Color(), [])
 
   useFrame((_, rawDt) => {
     const dt = gameDt(rawDt)
@@ -85,26 +90,25 @@ export function Bullets() {
       })
       playerRef.current.instanceMatrix.needsUpdate = true
     }
-    if (enemyRef.current && coreRef.current) {
-      enemyRef.current.count = enemies.length
-      coreRef.current.count = enemies.length
+    // [mesh, height, scale × radius, lie flat] — the rim is a disc facing the top-down camera
+    const layers: [THREE.InstancedMesh | null, number, number, boolean][] = [
+      [rimRef.current, 0.3, 4.2, true],
+      [enemyRef.current, 0.4, 2.8, false],
+      [coreRef.current, 0.75, 1.35, false],
+    ]
+    for (const [mesh, y, k, flat] of layers) {
+      if (!mesh) continue
+      mesh.count = enemies.length
+      dummy.rotation.set(flat ? -Math.PI / 2 : 0, 0, 0)
       enemies.forEach((b, i) => {
-        // Coloured halo + hot white core keeps small bullets readable on any terrain
-        dummy.position.set(b.x, 0.4, b.z)
-        dummy.scale.setScalar(b.radius * 2.8)
+        dummy.position.set(b.x, y, b.z)
+        dummy.scale.setScalar(b.radius * k)
         dummy.updateMatrix()
-        enemyRef.current!.setMatrixAt(i, dummy.matrix)
-        color.set(b.glow || '#ff2244')
-        enemyRef.current!.setColorAt(i, color)
-        dummy.position.y = 0.45
-        dummy.scale.setScalar(b.radius * 1.3)
-        dummy.updateMatrix()
-        coreRef.current!.setMatrixAt(i, dummy.matrix)
+        mesh.setMatrixAt(i, dummy.matrix)
       })
-      enemyRef.current.instanceMatrix.needsUpdate = true
-      coreRef.current.instanceMatrix.needsUpdate = true
-      if (enemyRef.current.instanceColor) enemyRef.current.instanceColor.needsUpdate = true
+      mesh.instanceMatrix.needsUpdate = true
     }
+    dummy.rotation.set(0, 0, 0)
   })
 
   return (
@@ -113,9 +117,13 @@ export function Bullets() {
         <sphereGeometry args={[0.5, 8, 8]} />
         <meshBasicMaterial color="#7cf9ff" toneMapped={false} />
       </instancedMesh>
+      <instancedMesh ref={rimRef} args={[undefined, undefined, MAX]} frustumCulled={false}>
+        <circleGeometry args={[0.5, 16]} />
+        <meshBasicMaterial color="#1a0016" transparent opacity={0.75} depthWrite={false} toneMapped={false} side={THREE.DoubleSide} />
+      </instancedMesh>
       <instancedMesh ref={enemyRef} args={[undefined, undefined, MAX]} frustumCulled={false}>
         <sphereGeometry args={[0.5, 10, 10]} />
-        <meshBasicMaterial color="#ffffff" transparent opacity={0.85} toneMapped={false} />
+        <meshBasicMaterial color={ENEMY_BULLET_COLOR} toneMapped={false} />
       </instancedMesh>
       <instancedMesh ref={coreRef} args={[undefined, undefined, MAX]} frustumCulled={false}>
         <sphereGeometry args={[0.5, 8, 8]} />

@@ -60,7 +60,7 @@ export function Player() {
       if (weaponLevel >= 4) { shots.push({ x: 0, vx: 0 }); shots[0].x = -0.12; shots.push({ x: 0.12, vx: 0 }) }
       if (weaponLevel >= 5) { shots.push({ x: -1.0, vx: -1.8 }); shots.push({ x: 1.0, vx: 1.8 }) }
       for (const sh of shots) {
-        s.addBullet({ x: playerX + sh.x, y: 0.3, z: playerY + 0.6, vx: sh.vx, vy: 0, vz: 18, isEnemy: false, damage: dmg, radius: 0.12, glow: '#7cf9ff' })
+        s.addBullet({ x: playerX + sh.x, y: 0.3, z: playerY + 0.6, vx: sh.vx, vy: 0, vz: 18, isEnemy: false, damage: dmg, radius: 0.12 })
       }
       s.setMuzzleFlash(1)
     }

@@ -40,8 +40,9 @@ export function Bullets() {
               s.addScore(e.type === 'heavy' ? 300 : e.type === 'fast' ? 150 : e.type === 'shooter' ? 200 : 100)
               s.incrementCombo()
               s.addStar()
+              s.recordEnemyKill()
               if (Math.random() < 0.35) {
-                const types = ['powerup', 'star', 'health', 'shield'] as const
+                const types = ['powerup', 'star', 'health', 'shield', 'rescue'] as const
                 s.addPickup({ x: e.x, y: 0.3, z: e.y, type: types[Math.floor(Math.random() * types.length)] })
               }
             }

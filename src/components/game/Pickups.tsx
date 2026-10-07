@@ -1,9 +1,15 @@
 import { useFrame } from '@react-three/fiber'
-import { useGameStore } from '../../store/gameStore'
+import { useGameStore, type PickupType } from '../../store/gameStore'
 import { sounds } from '../../hooks/useAudio'
 import { gameDt } from '../../game/speed'
 
-const COLORS = { powerup: '#ff9800', star: '#ffd700', health: '#4caf50', shield: '#2196f3' }
+const COLORS: Record<PickupType, string> = {
+  powerup: '#ff9800',
+  star: '#ffd700',
+  health: '#4caf50',
+  shield: '#2196f3',
+  rescue: '#ff6ec7',
+}
 
 export function Pickups() {
   const pickups = useGameStore((s) => s.pickups)
@@ -14,16 +20,20 @@ export function Pickups() {
     if (s.gameState !== 'playing') return
     const next = []
     for (const p of s.pickups) {
-      p.y = p.y // keep
       const z = p.z - 1.5 * dt
       if (Math.hypot(p.x - s.playerX, z - s.playerY) < 0.85) {
-        if (p.type === 'powerup') { s.upgradeWeapon(); sounds.powerup() }
-        else if (p.type === 'health') { s.healPlayer(25); sounds.pickup() }
-        else if (p.type === 'shield') { s.addShield(30); sounds.pickup() }
-        else { s.addStar(); s.addScore(50); sounds.pickup() }
+        const collected = s.collectPickup(p.id)
+        if (collected) {
+          if (collected.type === 'powerup') { s.upgradeWeapon(); sounds.powerup() }
+          else if (collected.type === 'health') { s.healPlayer(25); sounds.pickup() }
+          else if (collected.type === 'shield') { s.addShield(30); sounds.pickup() }
+          else if (collected.type === 'rescue') { s.addScore(150); s.addStar(); sounds.pickup() }
+          else { s.addStar(); s.addScore(50); sounds.pickup() }
+        }
         continue
       }
       if (z > -9) next.push({ ...p, z })
+      // Escaped pickups stay in spawned count (collect-all fails) — just despawn visually
     }
     useGameStore.setState({ pickups: next })
   })
@@ -31,10 +41,19 @@ export function Pickups() {
   return (
     <>
       {pickups.map((p) => (
-        <mesh key={p.id} position={[p.x, 0.5, p.z]}>
-          <octahedronGeometry args={[0.28, 0]} />
-          <meshStandardMaterial color={COLORS[p.type]} emissive={COLORS[p.type]} emissiveIntensity={0.8} toneMapped={false} />
-        </mesh>
+        <group key={p.id} position={[p.x, 0.5, p.z]}>
+          {p.type === 'rescue' ? (
+            <mesh>
+              <capsuleGeometry args={[0.18, 0.22, 4, 8]} />
+              <meshStandardMaterial color={COLORS.rescue} emissive={COLORS.rescue} emissiveIntensity={0.9} toneMapped={false} />
+            </mesh>
+          ) : (
+            <mesh>
+              <octahedronGeometry args={[0.28, 0]} />
+              <meshStandardMaterial color={COLORS[p.type]} emissive={COLORS[p.type]} emissiveIntensity={0.8} toneMapped={false} />
+            </mesh>
+          )}
+        </group>
       ))}
     </>
   )

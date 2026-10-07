@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { useGameStore, type EnemyType } from '../../store/gameStore'
+import { getStage } from '../../game/stages'
 import { GlbModel, MODEL_PATHS } from './Model'
 import { sounds } from '../../hooks/useAudio'
 import { gameDt, gameInterval } from '../../game/speed'
@@ -12,27 +13,47 @@ const STATS: Record<EnemyType, { hp: number; speed: number; score: number; fire:
   shooter: { hp: 40, speed: 1.8, score: 200, fire: 900, model: MODEL_PATHS.enemyShooter, size: 1.0 },
 }
 
-const WAVE_PATTERNS: { type: EnemyType; xs: number[]; pattern: number }[][] = [
-  [{ type: 'basic', xs: [-2, 0, 2], pattern: 0 }],
-  [{ type: 'fast', xs: [-3, -1, 1, 3], pattern: 1 }],
-  [{ type: 'basic', xs: [-2.5, 0, 2.5], pattern: 2 }, { type: 'shooter', xs: [0], pattern: 0 }],
-  [{ type: 'heavy', xs: [-1.5, 1.5], pattern: 0 }],
-  [{ type: 'fast', xs: [-3.5, -1.5, 1.5, 3.5], pattern: 1 }, { type: 'shooter', xs: [-2, 2], pattern: 2 }],
-  [{ type: 'basic', xs: [-3, -1, 1, 3], pattern: 0 }, { type: 'heavy', xs: [0], pattern: 0 }],
-  [{ type: 'shooter', xs: [-2.5, 0, 2.5], pattern: 2 }],
-  [{ type: 'fast', xs: [-3, 0, 3], pattern: 1 }, { type: 'heavy', xs: [-1.5, 1.5], pattern: 0 }],
-  [{ type: 'basic', xs: [-3.5, -1.5, 1.5, 3.5], pattern: 2 }, { type: 'shooter', xs: [-2, 2], pattern: 0 }],
-  [{ type: 'heavy', xs: [-2, 0, 2], pattern: 0 }, { type: 'fast', xs: [-3.5, 3.5], pattern: 1 }],
-]
-
 function spawnWave(index: number) {
-  const wave = WAVE_PATTERNS[Math.min(index, WAVE_PATTERNS.length - 1)]
-  const s = useGameStore.getState()
+  const store = useGameStore.getState()
+  const stage = getStage(store.currentStageId)
+  const wave = stage.waves[Math.min(index, stage.waves.length - 1)]
+  if (!wave) return
+  const hpMult = stage.enemyHpMult * (store.easyMode ? 0.75 : 1)
+
   for (const row of wave) {
     for (const x of row.xs) {
       const st = STATS[row.type]
-      s.addEnemy({ x, y: 8 + Math.random() * 1.5, z: 0, type: row.type, hp: st.hp, maxHp: st.hp, lastShot: 0, pattern: row.pattern, age: 0 })
+      const hp = Math.max(8, Math.floor(st.hp * hpMult))
+      store.addEnemy({
+        x, y: 8 + Math.random() * 1.5, z: 0,
+        type: row.type, hp, maxHp: hp,
+        lastShot: 0, pattern: row.pattern, age: 0,
+      })
     }
+  }
+
+  // Density: extra basic flyers on harder stages
+  if (stage.densityExtra > 0) {
+    for (let i = 0; i < stage.densityExtra; i++) {
+      const x = (Math.random() - 0.5) * 6
+      const st = STATS.basic
+      const hp = Math.max(8, Math.floor(st.hp * hpMult))
+      store.addEnemy({
+        x, y: 9 + Math.random(), z: 0,
+        type: 'basic', hp, maxHp: hp,
+        lastShot: 0, pattern: 0, age: 0,
+      })
+    }
+  }
+
+  // Occasional rescue / pickup pods mid-stage
+  if (index > 0 && index % 2 === 0) {
+    store.addPickup({
+      x: (Math.random() - 0.5) * 5,
+      y: 0.3,
+      z: 7 + Math.random() * 2,
+      type: Math.random() < 0.55 ? 'rescue' : 'star',
+    })
   }
 }
 
@@ -42,11 +63,18 @@ export function Enemies() {
 
   useEffect(() => {
     const unsub = useGameStore.subscribe((s) => {
-      if (s.gameState === 'playing' && s.waveIndex !== lastWave.current && !s.bossSpawned) {
+      if (
+        s.gameState === 'playing' &&
+        s.waveIndex !== lastWave.current &&
+        !s.bossSpawned &&
+        s.waveIndex < getStage(s.currentStageId).maxWaves
+      ) {
         lastWave.current = s.waveIndex
         spawnWave(s.waveIndex)
       }
-      if (s.gameState === 'menu') lastWave.current = -1
+      if (s.gameState === 'menu' || s.gameState === 'stageSelect' || s.gameState === 'briefing') {
+        lastWave.current = -1
+      }
     })
     return unsub
   }, [])
@@ -92,16 +120,12 @@ export function Enemies() {
         const st = STATS[e.type]
         return (
           <group key={e.id} position={[e.x, 0.25, e.y]}>
-            {/* scale.z = -1 flips Kenney craft so nose points toward player (−Z) */}
-            {/* scale.z=-1: Kenney craft nose (+Z) → world −Z (toward player / screen-down) */}
             <group scale={[1, 1, -1]}>
               <GlbModel path={st.model} size={st.size} />
-              {/* nose marker (local +Z) → after flip points at player */}
               <mesh position={[0, 0.08, 0.5]} rotation={[Math.PI / 2, 0, 0]}>
                 <coneGeometry args={[0.12, 0.35, 6]} />
                 <meshBasicMaterial color="#ff2244" toneMapped={false} />
               </mesh>
-              {/* engine glow at rear (local −Z) */}
               <mesh position={[0, 0, -0.55]}>
                 <sphereGeometry args={[0.14, 10, 10]} />
                 <meshBasicMaterial color="#ff6644" transparent opacity={0.85} toneMapped={false} />

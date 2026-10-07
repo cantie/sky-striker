@@ -14,6 +14,7 @@ export function HUD() {
   const toggleMute = useGameStore((s) => s.toggleMute)
   const pauseGame = useGameStore((s) => s.pauseGame)
   const gameState = useGameStore((s) => s.gameState)
+  const currentStageId = useGameStore((s) => s.currentStageId)
   const hpPct = (playerHp / playerMaxHp) * 100
 
   return (
@@ -23,6 +24,7 @@ export function HUD() {
           <div style={{ fontSize: 'clamp(1.2rem, 4vw, 1.8rem)', fontWeight: 800, color: '#fff', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>{score.toLocaleString()}</div>
           {combo > 0 && <div style={{ color: '#ffd700', fontWeight: 800, fontSize: 'clamp(0.8rem, 2.5vw, 1rem)' }}>{combo}x COMBO</div>}
           <div style={{ color: '#ffd700', marginTop: 4 }}>★ {stars}</div>
+          <div style={{ color: '#4ec4ff', marginTop: 2, fontWeight: 800, fontSize: 12 }}>STAGE {currentStageId}</div>
         </div>
         <div style={{ display: 'flex', gap: 8, pointerEvents: 'auto' }}>
           <IconBtn onClick={() => { sounds.uiClick(); toggleMute(); syncMute() }}>{isMuted ? '🔇' : '🔊'}</IconBtn>

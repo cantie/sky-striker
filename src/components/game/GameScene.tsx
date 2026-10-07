@@ -63,10 +63,10 @@ export function GameScene() {
         else if (st.gameState === 'paused') st.resumeGame()
       }
       if (e.key.toLowerCase() === 'b' && useGameStore.getState().gameState === 'menu') {
-        void onPlayGesture().then(() => useGameStore.getState().startGame({ skipToBoss: true }))
+        void onPlayGesture().then(() => useGameStore.getState().startGame({ skipToBoss: true, stageId: 3 }))
       }
       if (e.key.toLowerCase() === 'e' && useGameStore.getState().gameState === 'menu') {
-        void onPlayGesture().then(() => useGameStore.getState().startGame({ easy: true }))
+        void onPlayGesture().then(() => useGameStore.getState().startGame({ easy: true, stageId: 1 }))
       }
     }
     const up = (e: KeyboardEvent) => keys.current.delete(e.key.toLowerCase())
@@ -155,7 +155,7 @@ export function GameScene() {
     camera.rotateZ(ox * 0.015)
   })
 
-  const showActors = gameState !== 'menu'
+  const showActors = gameState === 'playing' || gameState === 'paused' || gameState === 'bossWarning' || gameState === 'results'
 
   return (
     <>

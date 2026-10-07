@@ -2,8 +2,7 @@ import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useGameStore } from '../../store/gameStore'
-import { GlbModel, MODEL_PATHS, type MaterialPalette } from './Model'
-import { EngineFlame } from './EngineFlame'
+import { ShipModel, MODEL_PATHS, type MaterialPalette } from './Model'
 import { gameDt, gameInterval } from '../../game/speed'
 
 /** Hero livery: white hull, cobalt panels, glowing cyan trim (enemies use warm hostile colours). */
@@ -69,9 +68,7 @@ export function Player() {
 
   return (
     <group ref={group}>
-      <GlbModel path={MODEL_PATHS.player} size={2.0} palette={PLAYER_PALETTE} />
-      <EngineFlame position={[-0.22, 0.02, -0.78]} color="#3fd4ff" length={0.85} width={0.12} />
-      <EngineFlame position={[0.22, 0.02, -0.78]} color="#3fd4ff" length={0.85} width={0.12} />
+      <ShipModel path={MODEL_PATHS.player} size={2.0} palette={PLAYER_PALETTE} flame="#3fd4ff" core="#ffffff" flames={2} flameScale={1.1} />
       {/* wingtip nav lights, blink together */}
       <group ref={navLights} position={[0, 0.05, -0.15]}>
         <mesh position={[-0.93, 0, 0]}>

@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import { useGameStore } from '../../store/gameStore'
 import { getStage } from '../../game/stages'
+import { BOSSES } from '../../game/bosses'
 import { countStars, totalStarsPossible } from '../../game/progress'
 import { onPlayGesture, sounds } from '../../hooks/useAudio'
 
@@ -53,9 +54,11 @@ export function StageBriefing() {
         </div>
 
         <div style={{ color: '#8eb8d4', fontSize: 12, textAlign: 'center', marginTop: 4 }}>
-          {stage.hasBoss ? 'Boss awaits at the end' : 'Survive all waves to clear'}
+          Boss: <b style={{ color: '#ff8a80' }}>{BOSSES[stage.boss].name}</b>
           {' · '}
-          {stage.biome.toUpperCase()} biome
+          {stage.biome.toUpperCase()} · {stage.maxWaves} waves
+          <br />
+          Enemy HP ×{stage.enemyHpMult.toFixed(2)} · Damage ×{stage.damageMult.toFixed(2)}
         </div>
 
         <button type="button" style={startBtn} onClick={() => void start()}>
@@ -75,11 +78,15 @@ export function StageBriefing() {
 }
 
 function diffBadge(diff: string): CSSProperties {
-  const bg = diff === 'EASY' ? '#2e7d32' : diff === 'HARD' ? '#c62828' : '#ef6c00'
+  const bg = DIFF_COLORS[diff] ?? '#ef6c00'
   return {
     padding: '3px 10px', borderRadius: 999, background: bg, color: '#fff',
     fontWeight: 800, fontSize: 11, letterSpacing: 0.6,
   }
+}
+
+export const DIFF_COLORS: Record<string, string> = {
+  EASY: '#2e7d32', NORMAL: '#ef6c00', HARD: '#c62828', EXPERT: '#8e24aa', INSANE: '#ff1f6b',
 }
 
 const overlay: CSSProperties = {

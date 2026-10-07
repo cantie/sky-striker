@@ -3,6 +3,8 @@ import { useGameStore } from '../../store/gameStore'
 import { STAGES } from '../../game/stages'
 import { isStageUnlocked, countStars, totalStarsPossible } from '../../game/progress'
 import { sounds, syncMute } from '../../hooks/useAudio'
+import { BOSSES } from '../../game/bosses'
+import { DIFF_COLORS } from './StageBriefing'
 
 export function StageSelect() {
   const progress = useGameStore((s) => s.progress)
@@ -45,9 +47,8 @@ export function StageSelect() {
           </button>
         </div>
 
-        {/* Path with nodes */}
+        {/* Saga grid: 2 rows of 5 */}
         <div style={pathWrap}>
-          <div style={pathLine} />
           <div style={nodesRow}>
             {STAGES.map((stage) => {
               const open = isStageUnlocked(progress, stage.id)
@@ -71,21 +72,11 @@ export function StageSelect() {
                         : 'none',
                   }}
                 >
-                  <div style={starCluster}>
-                    {Array.from({ length: max }, (_, i) => (
-                      <span
-                        key={i}
-                        style={{
-                          color: i < stars ? '#ffd54a' : 'rgba(255,255,255,0.25)',
-                          fontSize: 11,
-                          textShadow: i < stars ? '0 0 6px #ffd54a' : 'none',
-                        }}
-                      >
-                        ★
-                      </span>
-                    ))}
-                  </div>
                   <div style={nodeNum}>{String(stage.id).padStart(2, '0')}</div>
+                  <div style={{ ...starCluster, color: stars > 0 ? '#ffd54a' : 'rgba(255,255,255,0.35)' }}>
+                    ★ {stars}/{max}
+                  </div>
+                  <div style={{ height: 3, borderRadius: 2, marginTop: 4, background: DIFF_COLORS[stage.difficulty] }} />
                   {!open && <div style={lockBadge}>🔒</div>}
                 </button>
               )
@@ -96,7 +87,7 @@ export function StageSelect() {
         {/* Briefing preview */}
         <div style={briefCard}>
           <div style={stageTitle}>{selected.name}</div>
-          <div style={stageSub}>{selected.subtitle}</div>
+          <div style={stageSub}>{selected.subtitle} · Boss: {BOSSES[selected.boss].name}</div>
           <div style={metaRow}>
             <span style={badge(selected.difficulty)}>{selected.difficulty}</span>
             <span style={metaText}>
@@ -138,8 +129,7 @@ export function StageSelect() {
 }
 
 function badge(diff: string): CSSProperties {
-  const bg =
-    diff === 'EASY' ? '#2e7d32' : diff === 'HARD' ? '#c62828' : '#ef6c00'
+  const bg = DIFF_COLORS[diff] ?? '#ef6c00'
   return {
     display: 'inline-block',
     padding: '2px 10px',
@@ -173,23 +163,17 @@ const iconBtn: CSSProperties = {
   width: 40, height: 40, borderRadius: 12, border: '1px solid rgba(78,196,255,0.35)',
   background: 'rgba(20,40,70,0.8)', color: '#fff', fontSize: 18, cursor: 'pointer',
 }
-const pathWrap: CSSProperties = { position: 'relative', padding: '18px 8px 8px' }
-const pathLine: CSSProperties = {
-  position: 'absolute', left: '12%', right: '12%', top: 52,
-  height: 4, borderRadius: 4,
-  background: 'linear-gradient(90deg, #4ec4ff, #ff9800, #ff5252)',
-  opacity: 0.55,
-}
+const pathWrap: CSSProperties = { position: 'relative', padding: '8px 0 4px' }
 const nodesRow: CSSProperties = {
-  display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, position: 'relative',
+  display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, position: 'relative',
 }
 const nodeBtn: CSSProperties = {
-  flex: 1, background: 'rgba(12,28,52,0.95)', border: '2px solid #4ec4ff',
-  borderRadius: 16, padding: '8px 4px 10px', cursor: 'pointer', color: '#fff',
+  background: 'rgba(12,28,52,0.95)', border: '2px solid #4ec4ff',
+  borderRadius: 14, padding: '8px 4px 8px', cursor: 'pointer', color: '#fff',
   position: 'relative',
 }
 const starCluster: CSSProperties = {
-  display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 1, minHeight: 28, marginBottom: 4,
+  fontSize: 11, fontWeight: 800, marginTop: 2,
 }
 const nodeNum: CSSProperties = {
   fontWeight: 900, fontSize: '1.35rem', letterSpacing: 1, color: '#e8f7ff',

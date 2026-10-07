@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 import { useGameStore } from '../../store/gameStore'
-import { getStage } from '../../game/stages'
+import { getStage, TOTAL_STAGES } from '../../game/stages'
 import { isStageUnlocked, totalStarsPossible } from '../../game/progress'
 import { onPlayGesture, sounds } from '../../hooks/useAudio'
 
@@ -72,7 +72,7 @@ export function ResultsScreen() {
         </div>
 
         <button type="button" style={primary} onClick={() => void retry()}>RETRY</button>
-        {won && nextId <= 3 && (
+        {won && nextId <= TOTAL_STAGES && (
           <button
             type="button"
             style={{ ...primary, background: nextUnlocked ? 'linear-gradient(180deg,#5ec8ff,#1a8fd0)' : '#445', boxShadow: nextUnlocked ? '0 6px 0 #0d5f90' : 'none' }}

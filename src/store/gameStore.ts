@@ -1,5 +1,9 @@
 import { create } from 'zustand'
 import { getStage, type ObjectiveId, type StageConfig } from '../game/stages'
+import { isBiome, type Biome } from '../game/biomes'
+import type { EnemyType } from '../game/roster'
+import type { PathId } from '../game/paths'
+import { BOUNDS } from '../game/world'
 import {
   loadProgress,
   mergeStageResult,
@@ -17,18 +21,26 @@ export type GameState =
   | 'results'
   | 'bossWarning'
 
-export type Biome = 'desert' | 'jungle'
+export type { Biome } from '../game/biomes'
+export type { EnemyType } from '../game/roster'
 
 export interface Bullet {
   id: string; x: number; y: number; z: number
   vx: number; vy: number; vz: number
   isEnemy: boolean; damage: number; radius: number; glow?: string
 }
-export type EnemyType = 'basic' | 'fast' | 'heavy' | 'shooter'
 export interface Enemy {
   id: string; x: number; y: number; z: number
   type: EnemyType; hp: number; maxHp: number
-  lastShot: number; pattern: number; age: number
+  lastShot: number; age: number
+  /** Scripted curve + its parameters (see game/paths). */
+  path: PathId; px: number; py: number; m: 1 | -1; amp: number; spd: number
+  /** Ground units ride the terrain: distance it has scrolled since spawn. */
+  groundDist: number
+  /** Has been fully on screen; leaving afterwards despawns it. */
+  entered: boolean
+  /** Facing (radians about Y; 0 = +Z) and turret aim. */
+  heading: number; aim: number
 }
 export interface Boss {
   id: string; x: number; y: number; z: number
@@ -64,6 +76,8 @@ interface GameStore {
   bullets: Bullet[]; enemies: Enemy[]; boss: Boss | null
   pickups: Pickup[]; explosions: Explosion[]
   waveIndex: number; waveTimer: number; bossSpawned: boolean
+  /** Scripted units queued but not yet spawned (the boss waits for these too). */
+  pendingSpawns: number
   scrollOffset: number; biome: Biome; isMuted: boolean; easyMode: boolean
   screenShake: number; muzzleFlash: number; hitFlash: number
 
@@ -116,7 +130,6 @@ interface GameStore {
   getStageConfig: () => StageConfig
 }
 
-const BOUNDS = { minX: -7.2, maxX: 7.2, minY: -8.8, maxY: 16.5 }
 const IFRAMES = 1200
 const COMBO_TIMEOUT = 2200
 
@@ -180,7 +193,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   playerX: 0, playerY: -4, playerHp: 100, playerMaxHp: 100,
   playerShield: 0, weaponLevel: 1, invincibleUntil: 0,
   bullets: [], enemies: [], boss: null, pickups: [], explosions: [],
-  waveIndex: 0, waveTimer: 0, bossSpawned: false,
+  waveIndex: 0, waveTimer: 0, bossSpawned: false, pendingSpawns: 0,
   scrollOffset: 0, biome: 'jungle', isMuted: false, easyMode: false,
   screenShake: 0, muzzleFlash: 0, hitFlash: 0,
 
@@ -212,12 +225,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const easy = !!opts.easy || new URLSearchParams(location.search).has('easy')
     const skip = !!opts.skipToBoss || new URLSearchParams(location.search).has('boss')
     const q = new URLSearchParams(location.search)
-    const stageId = opts.stageId ?? get().selectedStageId ?? 1
+    // ?stage=N (dev/testing) overrides the chosen stage
+    const stageId = Number(q.get('stage')) || opts.stageId || get().selectedStageId || 1
     const stage = getStage(stageId)
 
     const forced = q.get('biome')
-    const biome: Biome =
-      forced === 'desert' || forced === 'jungle' ? forced : stage.biome
+    const biome: Biome = isBiome(forced) ? forced : stage.biome
 
     const hasBoss = stage.hasBoss || skip
     const startWave = skip ? stage.maxWaves : 0
@@ -234,7 +247,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       weaponLevel: easy ? 3 : 1,
       invincibleUntil: Date.now() + 1500,
       bullets: [], enemies: [], boss: null, pickups: [], explosions: [],
-      waveIndex: startWave, waveTimer: 0, bossSpawned: false,
+      waveIndex: startWave, waveTimer: 0, bossSpawned: false, pendingSpawns: 0,
       scrollOffset: 0, biome, easyMode: easy,
       screenShake: 0, muzzleFlash: 0, hitFlash: 0,
       runStats: emptyRunStats(),
@@ -328,7 +341,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({
       gameState: 'playing',
       boss: {
-        id: 'boss', x: 0, y: 7, z: 0,
+        // Starts above the screen; Boss flies it in to its hover line
+        id: 'boss', x: 0, y: 26, z: 0,
         hp, maxHp: hp, phase: 1, lastShot: 0, patternIndex: 0, intro: 1,
       },
       bossSpawned: true,
@@ -408,7 +422,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     const st = get()
-    if (st.waveIndex >= stage.maxWaves && !st.bossSpawned && st.enemies.length === 0) {
+    if (st.waveIndex >= stage.maxWaves && !st.bossSpawned && st.enemies.length === 0 && st.pendingSpawns === 0 && st.gameState === 'playing') {
       if (stage.hasBoss) {
         set({ gameState: 'bossWarning' })
         setTimeout(() => get().spawnBoss(), 2200)
@@ -480,3 +494,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
     get().updateScroll(dt)
   },
 }))
+
+// Dev-only handle for automated playtests (scripts_shot.mjs eval actions)
+if (import.meta.env.DEV) (window as unknown as { __store: typeof useGameStore }).__store = useGameStore

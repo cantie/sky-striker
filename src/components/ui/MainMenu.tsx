@@ -23,7 +23,7 @@ export function MainMenu() {
           SKY STRIKER
         </div>
         <div style={{ color: '#d7f3ff', marginTop: 8, marginBottom: 8, fontSize: 'clamp(0.85rem, 2.5vw, 1rem)' }}>
-          3-stage saga · earn stars · clear the sky
+          {STAGES.length}-stage saga · earn stars · clear the sky
         </div>
         <div style={{ color: '#ffd54a', fontWeight: 800, marginBottom: 22, fontSize: 14 }}>
           ★ {totalEarned}/{totalPossible} SAGA STARS
@@ -44,7 +44,7 @@ export function MainMenu() {
         </button>
         <div style={{ marginTop: 22, color: 'rgba(255,255,255,0.75)', fontSize: 13, lineHeight: 1.5 }}>
           Drag to move · Auto-fire · WASD / arrows on desktop<br />
-          Tip: <code>?boss</code>, <code>?easy</code>, <code>?biome=desert|jungle</code>
+          Tip: <code>?boss</code>, <code>?easy</code>, <code>?biome=ocean</code>
         </div>
       </div>
     </div>

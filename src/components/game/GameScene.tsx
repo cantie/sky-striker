@@ -12,10 +12,7 @@ import { Bullets } from './Bullets'
 import { Pickups } from './Pickups'
 import { Explosions } from './Explosions'
 import { GAME_SPEED } from '../../game/speed'
-
-/** Must match gameStore BOUNDS — full playfield for ortho framing. */
-const BOUNDS = { minX: -7.2, maxX: 7.2, minY: -8.8, maxY: 16.5 }
-const PLAYFIELD_MID_Z = (BOUNDS.minY + BOUNDS.maxY) / 2
+import { BOUNDS, PLAYFIELD_MID_Z, setView } from '../../game/world'
 /** Half-extents with padding so the ship stays inside the visible area on mobile + desktop. */
 const HALF_W = (BOUNDS.maxX - BOUNDS.minX) / 2 + 1.1
 const HALF_H = (BOUNDS.maxY - BOUNDS.minY) / 2 + 1.4
@@ -30,6 +27,7 @@ export function GameScene() {
   const sizeRef = useRef(size)
   sizeRef.current = size
   const pointerActive = useRef(false)
+  const hitOverlay = useRef<THREE.Mesh>(null)
   const gameState = useGameStore((s) => s.gameState)
   useAudio()
 
@@ -143,7 +141,11 @@ export function GameScene() {
         camera.zoom = zoom
         camera.updateProjectionMatrix()
       }
+      // Publish the visible rectangle for spawn edges / fire zone / despawn checks
+      setView(size.width / (2 * zoom), size.height / (2 * zoom))
     }
+
+    if (hitOverlay.current) hitOverlay.current.visible = s.hitFlash > 0
 
     const shake = s.screenShake
     const ox = (Math.random() - 0.5) * shake * 0.35
@@ -176,7 +178,7 @@ export function GameScene() {
         <Bloom intensity={0.7} luminanceThreshold={0.7} mipmapBlur levels={5} />
         <Vignette offset={0.3} darkness={0.35} />
       </EffectComposer>
-      <mesh position={[0, 8, PLAYFIELD_MID_Z]} rotation={[-Math.PI / 2, 0, 0]} visible={useGameStore.getState().hitFlash > 0}>
+      <mesh ref={hitOverlay} position={[0, 8, PLAYFIELD_MID_Z]} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
         <planeGeometry args={[30, 40]} />
         <meshBasicMaterial color="#ff4444" transparent opacity={0.15} depthWrite={false} />
       </mesh>

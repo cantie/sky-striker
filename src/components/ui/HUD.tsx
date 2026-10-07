@@ -1,5 +1,7 @@
 import { useGameStore } from '../../store/gameStore'
 import { syncMute, sounds } from '../../hooks/useAudio'
+import { getStage } from '../../game/stages'
+import { BOSSES } from '../../game/bosses'
 
 export function HUD() {
   const score = useGameStore((s) => s.score)
@@ -24,7 +26,7 @@ export function HUD() {
           <div style={{ fontSize: 'clamp(1.2rem, 4vw, 1.8rem)', fontWeight: 800, color: '#fff', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>{score.toLocaleString()}</div>
           {combo > 0 && <div style={{ color: '#ffd700', fontWeight: 800, fontSize: 'clamp(0.8rem, 2.5vw, 1rem)' }}>{combo}x COMBO</div>}
           <div style={{ color: '#ffd700', marginTop: 4 }}>★ {stars}</div>
-          <div style={{ color: '#4ec4ff', marginTop: 2, fontWeight: 800, fontSize: 12 }}>STAGE {currentStageId}</div>
+          <div style={{ color: '#4ec4ff', marginTop: 2, fontWeight: 800, fontSize: 12, textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>STAGE {currentStageId} · {getStage(currentStageId).subtitle.toUpperCase()}</div>
         </div>
         <div style={{ display: 'flex', gap: 8, pointerEvents: 'auto' }}>
           <IconBtn onClick={() => { sounds.uiClick(); toggleMute(); syncMute() }}>{isMuted ? '🔇' : '🔊'}</IconBtn>
@@ -33,8 +35,8 @@ export function HUD() {
       </div>
 
       {boss && (
-        <div style={{ position: 'absolute', top: 'max(3.5rem, calc(env(safe-area-inset-top) + 2.5rem))', left: '50%', transform: 'translateX(-50%)', width: 'min(80%, 320px)', textAlign: 'center' }}>
-          <div style={{ color: '#ff1744', fontWeight: 800, textShadow: '0 0 10px #ff1744' }}>BOSS — PHASE {boss.phase}</div>
+        <div style={{ position: 'absolute', top: 'max(6.4rem, calc(env(safe-area-inset-top) + 5.6rem))', left: '50%', transform: 'translateX(-50%)', width: 'min(80%, 320px)', textAlign: 'center' }}>
+          <div style={{ color: '#ff1744', fontWeight: 800, textShadow: '0 0 10px #ff1744' }}>{BOSSES[getStage(currentStageId).boss].name} — PHASE {boss.phase}</div>
           <div style={{ height: 12, background: 'rgba(0,0,0,0.45)', borderRadius: 6, border: '1px solid #ff1744', overflow: 'hidden', marginTop: 4 }}>
             <div style={{ width: `${(boss.hp / boss.maxHp) * 100}%`, height: '100%', background: 'linear-gradient(90deg,#ff1744,#ff5722)', transition: 'width 0.2s' }} />
           </div>

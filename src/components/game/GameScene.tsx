@@ -33,7 +33,7 @@ export function GameScene() {
   const gameState = useGameStore((s) => s.gameState)
   useAudio()
 
-  /** Map CSS client coords → world X / Z (playerY). Ortho: +X right, +Z screen-up. */
+  /** Map CSS client coords → world X / Z (playerY). Camera looks down +Y with up=+Z, so screen-right is world −X. */
   const pointerToWorld = (clientX: number, clientY: number) => {
     const { width, height } = sizeRef.current
     const rect = gl.domElement.getBoundingClientRect()
@@ -44,7 +44,7 @@ export function GameScene() {
     const halfH = height / (2 * zoom)
     // Plane sits POINTER_OFFSET_Z above the finger on the playfield (+Z / screen-up)
     return {
-      x: ndcX * halfW,
+      x: -ndcX * halfW,
       z: PLAYFIELD_MID_Z + ndcY * halfH + POINTER_OFFSET_Z,
     }
   }
@@ -127,12 +127,12 @@ export function GameScene() {
   useFrame((_, dt) => {
     const s = useGameStore.getState()
     if (s.gameState === 'playing') {
-      // Top-down ortho: +X = right, +Z = forward (screen-up)
+      // Top-down ortho: screen-right = world −X, screen-up = +Z
       const sp = 0.14 * GAME_SPEED
       if (keys.current.has('w') || keys.current.has('arrowup')) s.movePlayer(0, sp)
       if (keys.current.has('s') || keys.current.has('arrowdown')) s.movePlayer(0, -sp)
-      if (keys.current.has('a') || keys.current.has('arrowleft')) s.movePlayer(-sp, 0)
-      if (keys.current.has('d') || keys.current.has('arrowright')) s.movePlayer(sp, 0)
+      if (keys.current.has('a') || keys.current.has('arrowleft')) s.movePlayer(sp, 0)
+      if (keys.current.has('d') || keys.current.has('arrowright')) s.movePlayer(-sp, 0)
       s.tick(dt * 1000 * GAME_SPEED)
     }
 

@@ -1,4 +1,4 @@
-import { useMemo, useLayoutEffect } from 'react'
+import { useMemo, useLayoutEffect, type MutableRefObject } from 'react'
 import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 
@@ -51,35 +51,59 @@ export function fitObject(obj: THREE.Object3D, targetSize = 1, axis: 'max' | 'y'
   return obj
 }
 
+/** Per-material-name overrides: base color and/or emissive glow. */
+export type MaterialPalette = Record<string, { color?: string; emissive?: string; emissiveIntensity?: number; metalness?: number; roughness?: number }>
+
 export function GlbModel({
-  path, size = 1, sizeAxis = 'max', grounded = false, rotation, color, emissive, castShadow = true, receiveShadow = true,
+  path, size = 1, sizeAxis = 'max', grounded = false, rotation, color, emissive, palette, materialsRef,
+  castShadow = true, receiveShadow = true,
 }: {
   path: string; size?: number; sizeAxis?: 'max' | 'y'; grounded?: boolean
   rotation?: [number, number, number]; color?: string; emissive?: string
+  /** Recolor by GLB material name (e.g. Kenney `metalRed`, `leafsGreen`). */
+  palette?: MaterialPalette
+  /** Receives this instance's own (cloned) materials, e.g. for hit flashes. */
+  materialsRef?: MutableRefObject<THREE.MeshStandardMaterial[]>
   castShadow?: boolean; receiveShadow?: boolean
 }) {
   const { scene } = useGLTF(path)
+  const paletteKey = palette ? JSON.stringify(palette) : ''
   const obj = useMemo(() => {
     const clone = scene.clone(true)
+    // scene.clone shares materials across instances — clone them before mutating
+    const custom = !!(color || emissive || palette || materialsRef)
+    const owned: THREE.MeshStandardMaterial[] = []
     clone.traverse((c) => {
       const m = c as THREE.Mesh
       if (!m.isMesh) return
       m.castShadow = castShadow
       m.receiveShadow = receiveShadow
-      const mats = Array.isArray(m.material) ? m.material : [m.material]
+      const src = Array.isArray(m.material) ? m.material : [m.material]
+      const mats = custom ? src.map((mat) => mat.clone()) : src
+      if (custom) m.material = Array.isArray(m.material) ? mats : mats[0]
       mats.forEach((mat) => {
         const std = mat as THREE.MeshStandardMaterial
         if (std && 'color' in std) {
           std.side = THREE.DoubleSide
           if (color) std.color = new THREE.Color(color)
           if (emissive) { std.emissive = new THREE.Color(emissive); std.emissiveIntensity = 0.35 }
+          const p = palette?.[std.name]
+          if (p) {
+            if (p.color) std.color = new THREE.Color(p.color)
+            if (p.emissive) { std.emissive = new THREE.Color(p.emissive); std.emissiveIntensity = p.emissiveIntensity ?? 1 }
+            if (p.metalness !== undefined) std.metalness = p.metalness
+            if (p.roughness !== undefined) std.roughness = p.roughness
+          }
           std.needsUpdate = true
+          if (custom) owned.push(std)
         }
       })
     })
+    if (materialsRef) materialsRef.current = owned
     fitObject(clone, size, sizeAxis, grounded)
     return clone
-  }, [scene, size, sizeAxis, grounded, color, emissive, castShadow, receiveShadow])
+    // paletteKey stands in for palette so inline objects don't rebuild every render
+  }, [scene, size, sizeAxis, grounded, color, emissive, paletteKey, materialsRef, castShadow, receiveShadow])
 
   useLayoutEffect(() => {
     if (rotation) obj.rotation.set(...rotation)

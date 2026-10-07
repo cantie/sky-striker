@@ -2,13 +2,22 @@ import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useGameStore } from '../../store/gameStore'
-import { GlbModel, MODEL_PATHS } from './Model'
+import { GlbModel, MODEL_PATHS, type MaterialPalette } from './Model'
+import { EngineFlame } from './EngineFlame'
 import { gameDt, gameInterval } from '../../game/speed'
+
+/** Hero livery: white hull, cobalt panels, glowing cyan trim (enemies use warm hostile colours). */
+const PLAYER_PALETTE: MaterialPalette = {
+  metal: { color: '#eef4ff', metalness: 0.35, roughness: 0.35 },
+  metalDark: { color: '#2f63d6', metalness: 0.45, roughness: 0.4 },
+  dark: { color: '#141c33', metalness: 0.6, roughness: 0.3 },
+  metalRed: { color: '#1fd0ff', emissive: '#19c6ff', emissiveIntensity: 1.4 },
+}
 
 export function Player() {
   const group = useRef<THREE.Group>(null)
-  const glow = useRef<THREE.Mesh>(null)
-  const shieldRing = useRef<THREE.Mesh>(null)
+  const navLights = useRef<THREE.Group>(null)
+  const shieldRing = useRef<THREE.Group>(null)
   const bank = useRef(0)
   const lastShot = useRef(0)
   const prevX = useRef(0)
@@ -28,16 +37,17 @@ export function Player() {
     const blink = Date.now() < invincibleUntil && Math.floor(Date.now() / 80) % 2 === 0
     group.current.visible = !blink
 
-    if (glow.current) {
-      const mat = glow.current.material as THREE.MeshBasicMaterial
-      mat.opacity = 0.55 + Math.sin(Date.now() * 0.02) * 0.25
-      glow.current.scale.setScalar(0.9 + Math.sin(Date.now() * 0.025) * 0.2)
-    }
+    if (navLights.current) navLights.current.visible = Date.now() % 900 < 160
     if (shieldRing.current) {
       const sh = s.playerShield
       shieldRing.current.visible = sh > 0
-      const mat = shieldRing.current.material as THREE.MeshBasicMaterial
-      mat.opacity = 0.25 + Math.min(0.35, sh / 200)
+      // Stronger shield → brighter bubble, with a slow breathing pulse
+      const pulse = 1 + Math.sin(Date.now() * 0.004) * 0.04
+      shieldRing.current.scale.setScalar(pulse)
+      const strength = Math.min(1, sh / 100)
+      const [bubble, rim] = shieldRing.current.children as THREE.Mesh[]
+      ;(bubble.material as THREE.MeshBasicMaterial).opacity = 0.08 + strength * 0.12
+      ;(rim.material as THREE.MeshBasicMaterial).opacity = 0.3 + strength * 0.4
     }
 
     const now = Date.now()
@@ -59,20 +69,33 @@ export function Player() {
 
   return (
     <group ref={group}>
-      <group rotation={[0, 0, 0]}>
-        <GlbModel path={MODEL_PATHS.player} size={1.35} />
+      <GlbModel path={MODEL_PATHS.player} size={2.0} palette={PLAYER_PALETTE} />
+      <EngineFlame position={[-0.22, 0.02, -0.78]} color="#3fd4ff" length={0.85} width={0.12} />
+      <EngineFlame position={[0.22, 0.02, -0.78]} color="#3fd4ff" length={0.85} width={0.12} />
+      {/* wingtip nav lights, blink together */}
+      <group ref={navLights} position={[0, 0.05, -0.15]}>
+        <mesh position={[-0.93, 0, 0]}>
+          <sphereGeometry args={[0.07, 8, 8]} />
+          <meshBasicMaterial color="#ff5577" toneMapped={false} />
+        </mesh>
+        <mesh position={[0.93, 0, 0]}>
+          <sphereGeometry args={[0.07, 8, 8]} />
+          <meshBasicMaterial color="#55ffaa" toneMapped={false} />
+        </mesh>
       </group>
-      <mesh ref={glow} position={[0, -0.05, -0.7]}>
-        <sphereGeometry args={[0.22, 12, 12]} />
-        <meshBasicMaterial color="#4de8ff" transparent opacity={0.7} toneMapped={false} />
-      </mesh>
-      <pointLight position={[0, 0.05, -0.55]} color="#4de8ff" intensity={4} distance={3} />
-      <mesh ref={shieldRing} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
-        <ringGeometry args={[0.75, 0.95, 32]} />
-        <meshBasicMaterial color="#4fc3f7" transparent opacity={0.35} toneMapped={false} side={THREE.DoubleSide} />
-      </mesh>
+      <pointLight position={[0, 0.1, -0.9]} color="#4de8ff" intensity={5} distance={3.5} />
+      <group ref={shieldRing} visible={false}>
+        <mesh scale={[1, 0.45, 1]}>
+          <sphereGeometry args={[1.25, 32, 16]} />
+          <meshBasicMaterial color="#4fc3f7" transparent opacity={0.16} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+        </mesh>
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[1.18, 1.27, 48]} />
+          <meshBasicMaterial color="#9be7ff" transparent opacity={0.6} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} side={THREE.DoubleSide} />
+        </mesh>
+      </group>
       {useGameStore.getState().muzzleFlash > 0 && (
-        <mesh position={[0, 0.1, 0.7]}>
+        <mesh position={[0, 0.1, 0.9]}>
           <sphereGeometry args={[0.2, 8, 8]} />
           <meshBasicMaterial color="#fff7a0" transparent opacity={0.8} toneMapped={false} />
         </mesh>

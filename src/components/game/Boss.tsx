@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useGameStore } from '../../store/gameStore'
 import { GlbModel, MODEL_PATHS } from './Model'
+import { EngineFlame } from './EngineFlame'
 import { gameDt, gameInterval } from '../../game/speed'
 
 export function Boss() {
@@ -66,16 +67,10 @@ export function Boss() {
           <coneGeometry args={[0.35, 0.9, 8]} />
           <meshBasicMaterial color="#ff3300" toneMapped={false} />
         </mesh>
-        <mesh position={[0, 0.1, -1.2]}>
-          <sphereGeometry args={[0.35, 12, 12]} />
-          <meshBasicMaterial color="#ff4422" transparent opacity={0.75} toneMapped={false} />
-        </mesh>
+        <EngineFlame position={[-0.5, 0.1, -1.7]} color="#ff5a1f" core="#fff0c0" length={1.3} width={0.24} />
+        <EngineFlame position={[0.5, 0.1, -1.7]} color="#ff5a1f" core="#fff0c0" length={1.3} width={0.24} />
       </group>
       <pointLight color="#ff5522" intensity={4} distance={8} />
-      <mesh position={[0, -0.2, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[1.6, 1.9, 40]} />
-        <meshBasicMaterial color="#ff3300" transparent opacity={0.45} toneMapped={false} />
-      </mesh>
     </group>
   )
 }

@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react'
 import { useGameStore } from '../../store/gameStore'
 import { getStage } from '../../game/stages'
 import { BOSSES } from '../../game/bosses'
+import { getPlane } from '../../game/planes'
 import { countStars, totalStarsPossible } from '../../game/progress'
 import { onPlayGesture, sounds } from '../../hooks/useAudio'
 
@@ -10,6 +11,9 @@ export function StageBriefing() {
   const progress = useGameStore((s) => s.progress)
   const startGame = useGameStore((s) => s.startGame)
   const goToStageSelect = useGameStore((s) => s.goToStageSelect)
+  const openHangar = useGameStore((s) => s.openHangar)
+  const plane = getPlane(useGameStore((s) => s.progress.plane))
+  const carry = useGameStore((s) => s.carryWeapon)
   const stage = getStage(stageId)
   const earned = countStars(progress, stageId)
   const total = totalStarsPossible(stageId)
@@ -60,6 +64,17 @@ export function StageBriefing() {
           <br />
           Enemy HP ×{stage.enemyHpMult.toFixed(2)} · Damage ×{stage.damageMult.toFixed(2)}
         </div>
+
+        <button type="button" style={planeRow} onClick={() => { sounds.uiClick(); openHangar() }}>
+          <span style={{ color: plane.flame, fontWeight: 900, letterSpacing: 1 }}>✈ {plane.name}</span>
+          <span style={{ color: '#8eb8d4', fontSize: 11, flex: 1, textAlign: 'left' }}>{plane.skillName}</span>
+          <span style={{ color: '#9fd6ff', fontSize: 11, fontWeight: 800 }}>CHANGE ›</span>
+        </button>
+        {carry > 0 && (
+          <div style={{ color: '#ffb02e', fontSize: 12, fontWeight: 800, textAlign: 'center' }}>
+            ⚡ Weapon carried over: LV{Math.floor(carry / 4) + 1} · tier {(carry % 4) + 1}
+          </div>
+        )}
 
         <button type="button" style={startBtn} onClick={() => void start()}>
           START
@@ -121,6 +136,10 @@ const objBox: CSSProperties = {
 const objRow: CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8,
   padding: '8px 10px', borderRadius: 10, background: 'rgba(255,255,255,0.03)',
+}
+const planeRow: CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 12px', marginTop: 6,
+  borderRadius: 12, border: '1px solid rgba(78,196,255,0.3)', background: 'rgba(8,22,40,0.9)', cursor: 'pointer',
 }
 const startBtn: CSSProperties = {
   width: '100%', padding: '1.05rem', border: 'none', borderRadius: 14, marginTop: 8,

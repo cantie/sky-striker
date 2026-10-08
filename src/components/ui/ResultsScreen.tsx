@@ -14,6 +14,7 @@ export function ResultsScreen() {
   const startGame = useGameStore((s) => s.startGame)
   const goToStageSelect = useGameStore((s) => s.goToStageSelect)
   const openBriefing = useGameStore((s) => s.openBriefing)
+  const goldStars = useGameStore((s) => s.lastGoldStars)
 
   const stage = getStage(stageId)
   const total = totalStarsPossible(stageId)
@@ -48,6 +49,10 @@ export function ResultsScreen() {
           DESTROYED {destroyPct}% · KILLS {runStats.enemiesKilled}/{runStats.enemiesSpawned}
           {' · '}PICKUPS {runStats.pickupsCollected}/{runStats.pickupsSpawned}
           {runStats.tookDamage ? '' : ' · UNTOUCHED'}
+        </div>
+
+        <div style={{ textAlign: 'center', color: '#ffd54a', fontWeight: 800, fontSize: 13 }}>
+          +{goldStars} ★ banked · wallet ★ {progress.wallet.toLocaleString()}
         </div>
 
         <div style={sectionTitle}>STARS EARNED THIS RUN</div>

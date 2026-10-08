@@ -5,7 +5,10 @@ import type { EnemyType } from '../game/roster'
 import type { PathId } from '../game/paths'
 import { BOUNDS } from '../game/world'
 import { MAX_WEAPON_POWER, WEAPON_TIERS } from '../game/weapon'
+import { getPlane } from '../game/planes'
 import {
+  buyPlane,
+  choosePlane,
   loadProgress,
   mergeStageResult,
   type SagaProgress,
@@ -21,6 +24,7 @@ export type GameState =
   | 'victory'
   | 'results'
   | 'bossWarning'
+  | 'hangar'
 
 export type { Biome } from '../game/biomes'
 export type { EnemyType } from '../game/roster'
@@ -29,6 +33,8 @@ export interface Bullet {
   id: string; x: number; y: number; z: number
   vx: number; vy: number; vz: number
   isEnemy: boolean; damage: number; radius: number
+  /** Player skills: pass through enemies (remembering who was hit) / steer toward targets. */
+  pierce?: boolean; hits?: string[]; homing?: boolean
 }
 export interface Enemy {
   id: string; x: number; y: number; z: number
@@ -78,6 +84,14 @@ interface GameStore {
   playerShield: number; invincibleUntil: number
   /** Weapon progression index (see game/weapon). */
   weaponPower: number
+  /** Gun handed to the next stage via NEXT (in memory only; the saga map resets it). */
+  carryWeapon: number
+  /** Screen the hangar returns to. */
+  hangarReturn: GameState
+  /** Gold stars banked into the wallet by the last run. */
+  lastGoldStars: number
+  /** Plane currently shown in the hangar (may still be locked). */
+  hangarPlane: string
   bullets: Bullet[]; enemies: Enemy[]; boss: Boss | null
   pickups: Pickup[]; explosions: Explosion[]
   waveIndex: number; waveTimer: number; bossSpawned: boolean
@@ -96,6 +110,11 @@ interface GameStore {
 
   setGameState: (s: GameState) => void
   goToStageSelect: () => void
+  openHangar: () => void
+  closeHangar: () => void
+  buyPlane: (id: string) => boolean
+  choosePlane: (id: string) => void
+  viewHangarPlane: (id: string) => void
   selectStage: (id: number) => void
   openBriefing: (id?: number) => void
   startGame: (opts?: { skipToBoss?: boolean; easy?: boolean; stageId?: number }) => void
@@ -198,7 +217,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   gameState: 'menu',
   score: 0, combo: 0, comboTimer: 0, stars: 0,
   playerX: 0, playerY: -4, playerHp: 100, playerMaxHp: 100,
-  playerShield: 0, weaponPower: 0, invincibleUntil: 0,
+  playerShield: 0, weaponPower: 0, carryWeapon: 0, hangarReturn: 'menu', lastGoldStars: 0, hangarPlane: 'hawk', invincibleUntil: 0,
   bullets: [], enemies: [], boss: null, pickups: [], explosions: [],
   waveIndex: 0, waveTimer: 0, bossSpawned: false, pendingSpawns: 0,
   scrollOffset: 0, biome: 'jungle', isMuted: false, easyMode: false,
@@ -216,8 +235,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
   goToStageSelect: () => set({
     gameState: 'stageSelect',
     progress: loadProgress(),
+    // Back on the saga map the carried-over gun is lost
+    carryWeapon: 0,
     bullets: [], enemies: [], boss: null, pickups: [], explosions: [],
   }),
+
+  // Swapping planes (e.g. from the briefing after NEXT) keeps the carried gun
+  openHangar: () => {
+    const progress = loadProgress()
+    set((s) => ({ gameState: 'hangar', hangarReturn: s.gameState, progress, hangarPlane: progress.plane }))
+  },
+  viewHangarPlane: (id) => set({ hangarPlane: id }),
+  closeHangar: () => set((s) => ({ gameState: s.hangarReturn })),
+  buyPlane: (id) => {
+    const next = buyPlane(get().progress, id)
+    if (!next) return false
+    set({ progress: next })
+    return true
+  },
+  choosePlane: (id) => set((s) => ({ progress: choosePlane(s.progress, id) })),
 
   selectStage: (id) => set({ selectedStageId: id }),
 
@@ -235,6 +271,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // ?stage=N (dev/testing) overrides the chosen stage
     const stageId = Number(q.get('stage')) || opts.stageId || get().selectedStageId || 1
     const stage = getStage(stageId)
+    const plane = getPlane(get().progress.plane)
 
     const forced = q.get('biome')
     const biome: Biome = isBiome(forced) ? forced : stage.biome
@@ -248,11 +285,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       selectedStageId: stageId,
       score: 0, combo: 0, comboTimer: 0, stars: 0,
       playerX: 0, playerY: -4,
-      playerHp: easy ? 150 : 100,
-      playerMaxHp: easy ? 150 : 100,
-      playerShield: easy ? 50 : 0,
+      playerHp: Math.round(plane.hp * (easy ? 1.5 : 1)),
+      playerMaxHp: Math.round(plane.hp * (easy ? 1.5 : 1)),
+      playerShield: Math.max(plane.startShield, easy ? 50 : 0),
       // Carried over from the last cleared stage; easy start guarantees at least level 2
-      weaponPower: Math.max(get().progress.weapon, easy ? WEAPON_TIERS : 0),
+      // Kept only when arriving via NEXT; easy start guarantees at least level 2
+      weaponPower: Math.max(get().carryWeapon, easy ? WEAPON_TIERS : 0),
       invincibleUntil: Date.now() + 1500,
       bullets: [], enemies: [], boss: null, pickups: [], explosions: [],
       waveIndex: startWave, waveTimer: 0, bossSpawned: false, pendingSpawns: 0,
@@ -288,7 +326,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   damagePlayer: (amount) => {
     const { invincibleUntil, playerShield, playerHp, easyMode, runStats } = get()
     if (Date.now() < invincibleUntil) return
-    let rem = easyMode ? amount * 0.6 : amount
+    const armor = getPlane(get().progress.plane).armor
+    let rem = (easyMode ? amount * 0.6 : amount) * armor
     let shield = playerShield
     if (shield > 0) {
       if (shield >= rem) { shield -= rem; rem = 0 }
@@ -465,11 +504,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
       s.score,
       earned,
       won,
-      // Clearing a stage keeps the gun for the next one; getting shot down resets it
-      won ? s.weaponPower : 0,
+      s.stars,
     )
     set({
       gameState: 'results',
+      // Clearing a stage hands the gun to NEXT; getting shot down resets it
+      carryWeapon: won ? s.weaponPower : 0,
+      lastGoldStars: s.stars,
       lastResultWon: won,
       earnedObjectives: earned,
       runStats: stats,

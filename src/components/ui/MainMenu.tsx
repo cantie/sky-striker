@@ -9,6 +9,7 @@ export function MainMenu() {
   const isMuted = useGameStore((s) => s.isMuted)
   const toggleMute = useGameStore((s) => s.toggleMute)
   const progress = useGameStore((s) => s.progress)
+  const openHangar = useGameStore((s) => s.openHangar)
 
   const totalEarned = STAGES.reduce((n, s) => n + countStars(progress, s.id), 0)
   const totalPossible = STAGES.reduce((n, s) => n + totalStarsPossible(s.id), 0)
@@ -34,6 +35,13 @@ export function MainMenu() {
           style={btnPrimary}
         >
           PLAY
+        </button>
+        <button
+          type="button"
+          onClick={() => { sounds.uiSelect(); openHangar() }}
+          style={{ ...btnPrimary, background: 'linear-gradient(180deg, #5ec8ff, #1a8fd0)', color: '#fff', boxShadow: '0 6px 0 #0d5f90' }}
+        >
+          ✈ HANGAR · ★ {progress.wallet.toLocaleString()}
         </button>
         <button
           type="button"

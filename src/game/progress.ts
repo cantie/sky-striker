@@ -1,5 +1,5 @@
 import { STAGES, type ObjectiveId } from './stages'
-import { clampPower } from './weapon'
+import { PLANES } from './planes'
 
 const STORAGE_KEY = 'sky-striker-saga-v1'
 
@@ -14,8 +14,12 @@ export interface StageProgress {
 
 export interface SagaProgress {
   stages: Record<number, StageProgress>
-  /** Weapon power carried into the next run: kept after a win, back to 0 after a loss. */
-  weapon: number
+  /** Gold stars banked from every run — the hangar currency. */
+  wallet: number
+  /** Unlocked plane ids (the starter is always owned). */
+  owned: string[]
+  /** Plane flown into the next stage. */
+  plane: string
 }
 
 function emptyStage(): StageProgress {
@@ -25,7 +29,7 @@ function emptyStage(): StageProgress {
 function defaultProgress(): SagaProgress {
   const stages: Record<number, StageProgress> = {}
   for (const s of STAGES) stages[s.id] = emptyStage()
-  return { stages, weapon: 0 }
+  return { stages, wallet: 0, owned: [PLANES[0].id], plane: PLANES[0].id }
 }
 
 export function loadProgress(): SagaProgress {
@@ -44,7 +48,10 @@ export function loadProgress(): SagaProgress {
         }
       }
     }
-    base.weapon = clampPower(parsed.weapon ?? 0)
+    base.wallet = typeof parsed.wallet === 'number' ? Math.max(0, Math.floor(parsed.wallet)) : 0
+    const known = new Set(PLANES.map((p) => p.id))
+    base.owned = [...new Set([PLANES[0].id, ...(Array.isArray(parsed.owned) ? parsed.owned : [])])].filter((id) => known.has(id))
+    base.plane = base.owned.includes(parsed.plane) ? parsed.plane : PLANES[0].id
     return base
   } catch {
     return defaultProgress()
@@ -71,12 +78,14 @@ export function mergeStageResult(
   score: number,
   earned: ObjectiveId[],
   cleared: boolean,
-  weapon: number,
+  /** Gold stars collected during the run (banked win or lose). */
+  goldStars: number,
 ): SagaProgress {
   const prev = progress.stages[stageId] ?? emptyStage()
   const starSet = new Set([...prev.stars, ...earned])
   const next: SagaProgress = {
-    weapon: clampPower(weapon),
+    ...progress,
+    wallet: progress.wallet + Math.max(0, Math.floor(goldStars)),
     stages: {
       ...progress.stages,
       [stageId]: {
@@ -86,6 +95,22 @@ export function mergeStageResult(
       },
     },
   }
+  saveProgress(next)
+  return next
+}
+
+/** Spend wallet stars on a plane; returns null if unaffordable or already owned. */
+export function buyPlane(progress: SagaProgress, id: string): SagaProgress | null {
+  const plane = PLANES.find((p) => p.id === id)
+  if (!plane || progress.owned.includes(id) || progress.wallet < plane.price) return null
+  const next = { ...progress, wallet: progress.wallet - plane.price, owned: [...progress.owned, id], plane: id }
+  saveProgress(next)
+  return next
+}
+
+export function choosePlane(progress: SagaProgress, id: string): SagaProgress {
+  if (!progress.owned.includes(id)) return progress
+  const next = { ...progress, plane: id }
   saveProgress(next)
   return next
 }

@@ -5,6 +5,7 @@ import { useGameStore } from '../../store/gameStore'
 import { sounds } from '../../hooks/useAudio'
 import { gameDt } from '../../game/speed'
 import { view } from '../../game/world'
+import { getPlane } from '../../game/planes'
 
 /**
  * Gold stars that burst out of destroyed enemies. Kept outside the store (they can number
@@ -57,15 +58,17 @@ export function Coins() {
 
     if (s.gameState === 'playing') {
       const dt = gameDt(rawDt)
+      // MAGNETAR's skill: far longer reach
+      const magnet = MAGNET * (getPlane(s.progress.plane).skill === 'magnet' ? 3 : 1)
       let picked = 0
       for (let i = coins.length - 1; i >= 0; i--) {
         const c = coins[i]
         c.age += dt
         const dx = s.playerX - c.x, dz = s.playerY - c.z
         const d = Math.hypot(dx, dz)
-        if (d < MAGNET && c.age > 0.25) {
+        if (d < magnet && c.age > 0.25) {
           // Magnet: accelerate toward the plane, harder the closer it is
-          const pull = 26 * (1 - d / MAGNET) + 8
+          const pull = 26 * (1 - d / magnet) + 8
           c.vx += (dx / (d || 1)) * pull * dt
           c.vz += (dz / (d || 1)) * pull * dt
         } else {

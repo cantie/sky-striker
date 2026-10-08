@@ -14,6 +14,7 @@ export function StageSelect() {
   const setGameState = useGameStore((s) => s.setGameState)
   const isMuted = useGameStore((s) => s.isMuted)
   const toggleMute = useGameStore((s) => s.toggleMute)
+  const openHangar = useGameStore((s) => s.openHangar)
 
   const selected = STAGES.find((s) => s.id === selectedStageId) ?? STAGES[0]
   const unlocked = isStageUnlocked(progress, selected.id)
@@ -37,6 +38,9 @@ export function StageSelect() {
             <div style={title}>SAGA MAP</div>
             <div style={subtitle}>Select a stage</div>
           </div>
+          <button type="button" style={iconBtn} onClick={() => { sounds.uiClick(); openHangar() }} aria-label="Hangar">
+            ✈
+          </button>
           <button
             type="button"
             style={iconBtn}

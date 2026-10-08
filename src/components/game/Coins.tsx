@@ -11,7 +11,9 @@ import { getPlane } from '../../game/planes'
  * Gold stars that burst out of destroyed enemies. Kept outside the store (they can number
  * in the dozens) and drawn as two instanced meshes: dark outline + gold star.
  */
-type Coin = { x: number; z: number; vx: number; vz: number; spin: number; rot: number; age: number }
+type Coin = { x: number; z: number; vx: number; vz: number; spin: number; rot: number; age: number
+  /** Caught by the magnet: homes straight in from then on. */
+  locked: boolean }
 
 const MAX = 400
 const coins: Coin[] = []
@@ -21,13 +23,16 @@ export function spawnCoins(x: number, z: number, count: number) {
   for (let i = 0; i < count && coins.length < MAX; i++) {
     const ang = Math.random() * Math.PI * 2
     const speed = 3 + Math.random() * 5 + Math.min(count, 30) * 0.08
-    coins.push({ x, z, vx: Math.sin(ang) * speed, vz: Math.cos(ang) * speed, spin: (Math.random() - 0.5) * 8, rot: Math.random() * 6, age: 0 })
+    coins.push({ x, z, vx: Math.sin(ang) * speed, vz: Math.cos(ang) * speed, spin: (Math.random() - 0.5) * 8, rot: Math.random() * 6, age: 0, locked: false })
   }
 }
 
 /** Within this range stars are pulled toward the plane. */
 const MAGNET = 3.2
 const PICKUP = 0.8
+/** Homing speed of a magnetised star (game units / game-second): starts quick, keeps accelerating. */
+const HOME_SPEED = 16
+const HOME_ACCEL = 40
 
 function starShape(outer: number, inner: number) {
   const s = new THREE.Shape()
@@ -68,22 +73,24 @@ export function Coins() {
         c.age += dt
         const dx = s.playerX - c.x, dz = s.playerY - c.z
         const d = Math.hypot(dx, dz)
-        if (d < magnet && c.age > 0.25) {
-          // Magnet: accelerate toward the plane, harder the closer it is
-          const pull = 26 * (1 - d / magnet) + 8
-          c.vx += (dx / (d || 1)) * pull * dt
-          c.vz += (dz / (d || 1)) * pull * dt
+        if (!c.locked && d < magnet && c.age > 0.25) c.locked = true
+        if (c.locked) {
+          // Fly straight at the plane with no inertia, so a star can never overshoot, orbit or
+          // get flung away — it just keeps closing in until it is collected.
+          const speed = HOME_SPEED + HOME_ACCEL * c.age
+          const step = speed * dt
+          if (step >= d) { c.x = s.playerX; c.z = s.playerY }
+          else { c.x += (dx / d) * step; c.z += (dz / d) * step }
         } else {
           // Burst slows down; the star then sits on the map and scrolls with it
           const damp = Math.pow(0.04, dt)
           c.vx *= damp
           c.vz *= damp
-          c.z -= groundMove
+          c.x += c.vx * dt
+          c.z += c.vz * dt - groundMove
         }
-        c.x += c.vx * dt
-        c.z += c.vz * dt
         c.rot += c.spin * dt
-        if (d < PICKUP) {
+        if (Math.hypot(s.playerX - c.x, s.playerY - c.z) < PICKUP) {
           coins.splice(i, 1)
           picked++
           continue

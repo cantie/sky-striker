@@ -109,7 +109,7 @@ const RESCUE_RADIUS = 2.6
 /** …for this many real seconds to lift them out. */
 const RESCUE_SECONDS = 2
 const ARC_STEPS = 64
-/** Progress ring hugging the (small) survivor; the rescue zone itself is much wider. */
+/** Progress ring hugging the (small) survivor; the (invisible) rescue zone is much wider. */
 const RING_IN = 0.62, RING_OUT = 0.8
 
 /** One flat piece of the survivor pictogram, with a dark outline drawn behind it. */
@@ -125,11 +125,10 @@ function FigurePart({ shape, size, at, color }: { shape: 'circle' | 'box'; size:
   )
 }
 
-/** A stranded survivor on the terrain: waving figure, rescue zone and a progress ring that fills up. */
+/** A stranded survivor on the terrain: waving figure and a progress ring that fills while rescuing. */
 function Survivor({ pickup }: { pickup: Pickup }) {
   const armL = useRef<THREE.Group>(null)
   const armR = useRef<THREE.Group>(null)
-  const zone = useRef<THREE.Mesh>(null)
   const beacon = useRef<THREE.Mesh>(null)
   const seed = useMemo(() => Math.random() * 10, [])
   const progress = pickup.progress ?? 0
@@ -147,10 +146,6 @@ function Survivor({ pickup }: { pickup: Pickup }) {
     // Both arms wave overhead
     if (armL.current) armL.current.rotation.z = 0.5 + Math.sin(t) * 0.35
     if (armR.current) armR.current.rotation.z = -0.5 - Math.sin(t + 1.4) * 0.35
-    if (zone.current) {
-      const mat = zone.current.material as THREE.MeshBasicMaterial
-      mat.opacity = progress > 0 ? 0.9 : 0.45 + Math.sin(clock.elapsedTime * 4 + seed) * 0.2
-    }
     if (beacon.current) beacon.current.visible = (clock.elapsedTime * 2.5 + seed) % 1 < 0.5
   })
 
@@ -158,14 +153,6 @@ function Survivor({ pickup }: { pickup: Pickup }) {
   return (
     <group position={[pickup.x, GROUND_Y, pickup.z]}>
       <group rotation={FACE_UP} position={[0, 0.05, 0]}>
-        <mesh>
-          <circleGeometry args={[RESCUE_RADIUS, 48]} />
-          <meshBasicMaterial color="#ffe14a" transparent opacity={progress > 0 ? 0.16 : 0.07} depthWrite={false} />
-        </mesh>
-        <mesh ref={zone} position={[0, 0, 0.01]}>
-          <ringGeometry args={[RESCUE_RADIUS - 0.08, RESCUE_RADIUS, 64]} />
-          <meshBasicMaterial color="#ffe14a" transparent depthWrite={false} toneMapped={false} />
-        </mesh>
         <mesh position={[0, 0, 0.02]}>
           <ringGeometry args={[RING_IN, RING_OUT, 64]} />
           <meshBasicMaterial color="#000000" transparent opacity={0.45} depthWrite={false} />

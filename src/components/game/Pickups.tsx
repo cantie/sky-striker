@@ -3,7 +3,6 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useGameStore, type Pickup, type PickupType } from '../../store/gameStore'
 import { sounds } from '../../hooks/useAudio'
-import { gameDt } from '../../game/speed'
 import { GROUND_Y, WORLD_SCROLL, view } from '../../game/world'
 
 /** Floating drops (rescue survivors are 3D figures on the ground, see Survivor). */
@@ -208,7 +207,6 @@ export function Pickups() {
   const lastScroll = useRef(0)
 
   useFrame((_, rawDt) => {
-    const dt = gameDt(rawDt)
     const s = useGameStore.getState()
     if (s.gameState !== 'playing') return
     let scrollDelta = s.scrollOffset - lastScroll.current
@@ -232,7 +230,8 @@ export function Pickups() {
         if (z > view.bottom - 2) next.push({ ...p, z, progress })
         continue
       }
-      const z = p.z - 1.5 * dt
+      // Floating drops ride the map too
+      const z = p.z - groundMove
       if (Math.hypot(p.x - s.playerX, z - s.playerY) < 0.85) {
         const collected = s.collectPickup(p.id)
         if (collected) {

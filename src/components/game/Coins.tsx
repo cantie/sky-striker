@@ -4,7 +4,7 @@ import * as THREE from 'three'
 import { useGameStore } from '../../store/gameStore'
 import { sounds } from '../../hooks/useAudio'
 import { gameDt } from '../../game/speed'
-import { view } from '../../game/world'
+import { WORLD_SCROLL, view } from '../../game/world'
 import { getPlane } from '../../game/planes'
 
 /**
@@ -28,7 +28,6 @@ export function spawnCoins(x: number, z: number, count: number) {
 /** Within this range stars are pulled toward the plane. */
 const MAGNET = 3.2
 const PICKUP = 0.8
-const DRIFT = 2.2
 
 function starShape(outer: number, inner: number) {
   const s = new THREE.Shape()
@@ -54,6 +53,9 @@ export function Coins() {
     const s = useGameStore.getState()
     // New run (scroll restarted) or left the stage → clear leftovers
     if (s.scrollOffset < lastScroll.current || s.gameState === 'menu' || s.gameState === 'stageSelect' || s.gameState === 'briefing') coins.length = 0
+    // How far the terrain scrolled this frame — loose stars ride along with it
+    const scrollDelta = s.scrollOffset - lastScroll.current
+    const groundMove = scrollDelta > 0 && scrollDelta < 0.2 ? scrollDelta * WORLD_SCROLL : 0
     lastScroll.current = s.scrollOffset
 
     if (s.gameState === 'playing') {
@@ -72,10 +74,11 @@ export function Coins() {
           c.vx += (dx / (d || 1)) * pull * dt
           c.vz += (dz / (d || 1)) * pull * dt
         } else {
-          // Burst slows down, then the star drifts down the screen with the world
+          // Burst slows down; the star then sits on the map and scrolls with it
           const damp = Math.pow(0.04, dt)
           c.vx *= damp
-          c.vz = c.vz * damp + (-DRIFT) * (1 - damp)
+          c.vz *= damp
+          c.z -= groundMove
         }
         c.x += c.vx * dt
         c.z += c.vz * dt

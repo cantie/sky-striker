@@ -70,6 +70,9 @@ export interface Explosion {
 /** Per-run objective tracking. */
 export interface RunStats {
   enemiesSpawned: number
+  /** Capped drops handed out this run (see game/drops). */
+  powerupsDropped: number
+  shieldsDropped: number
   enemiesKilled: number
   pickupsSpawned: number
   pickupsCollected: number
@@ -173,6 +176,8 @@ let bid = 0, eid = 0, pid = 0, xid = 0
 
 const emptyRunStats = (): RunStats => ({
   enemiesSpawned: 0,
+  powerupsDropped: 0,
+  shieldsDropped: 0,
   enemiesKilled: 0,
   pickupsSpawned: 0,
   pickupsCollected: 0,

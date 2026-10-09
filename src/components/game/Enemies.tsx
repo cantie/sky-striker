@@ -75,8 +75,8 @@ export function Enemies() {
         queue.current.push(...expandWave(st, s.waveIndex, clock.current, s.easyMode))
         useGameStore.setState({ pendingSpawns: queue.current.length })
 
-        // Survivors stranded on the terrain every other wave (they scroll in from the top edge)
-        if (s.waveIndex % 2 === 1) {
+        // Survivors stranded on the terrain every third wave (they scroll in from the top edge)
+        if (s.waveIndex % 3 === 1) {
           s.addPickup({ x: (Math.random() - 0.5) * 9, y: 0, z: edges().top + 1, type: 'rescue', progress: 0 })
         }
         // Occasional floating star pod

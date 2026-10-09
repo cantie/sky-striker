@@ -8,6 +8,7 @@ import { edges } from './world'
 export type AirPath =
   | 'dive' | 'sine' | 'zigzag' | 'swoop' | 'arc' | 'loop' | 'hover'
   | 'cross' | 'spiral' | 'uturn' | 'figure8' | 'pincer' | 'snake'
+  | 'column' | 'rise' | 'riseStraight' | 'sideDive' | 'zigCross' | 'boomerang' | 'stairs'
 export type GroundPath = 'drive' | 'driveS' | 'crossGround' | 'static'
 export type PathId = AirPath | GroundPath
 
@@ -100,6 +101,50 @@ export function pathPos(id: PathId, t: number, p: PathParams): { x: number; y: n
       // Straight diagonal dive from a top corner across the screen
       const v = 5.4 * s
       return { x: m * e.side - m * v * 0.62 * t, y: e.top - v * t }
+    }
+    case 'column':
+      // Ruler-straight vertical drop
+      return { x, y: e.top - 7 * s * t }
+    case 'rise': {
+      // Sneaks in from the bottom edge, climbs, then banks off toward side m
+      const v = 5.2 * s, turnY = 4 + p.y, r = 3
+      const t1 = (turnY - e.bottom) / v
+      if (t < t1) return { x, y: e.bottom + v * t }
+      const k = ((t - t1) * v) / r
+      if (k < Math.PI / 2) return { x: x + m * r * (1 - Math.cos(k)), y: turnY + r * Math.sin(k) }
+      const t2 = t - t1 - (Math.PI / 2) * (r / v)
+      return { x: x + m * (r + v * t2), y: turnY + r }
+    }
+    case 'riseStraight':
+      // Overtakes the player from behind and leaves over the top
+      return { x: x + Math.sin(t * 1.2) * 0.5, y: e.bottom + 4.6 * s * t }
+    case 'sideDive': {
+      // Flies in from side m along a high line, then hooks down at its lane and dives out
+      const v = 5.5 * s, hy = 12 + p.y, r = 2.5
+      const startX = m * e.side
+      const t1 = Math.abs(startX - x) / v
+      if (t < t1) return { x: startX - m * v * t, y: hy }
+      const k = ((t - t1) * v) / r
+      if (k < Math.PI / 2) return { x: x - m * r * Math.sin(k), y: hy - r * (1 - Math.cos(k)) }
+      const t2 = t - t1 - (Math.PI / 2) * (r / v)
+      return { x: x - m * r, y: hy - r - v * t2 }
+    }
+    case 'zigCross':
+      // Saw-tooth crossing from side to side
+      return { x: m * (e.side - 4.5 * s * t), y: 11 + p.y + 2.5 * tri(t * 0.6) }
+    case 'boomerang': {
+      // Swoops down through the lower middle and curls back up to the side it came from
+      const D = 6 / s
+      const u = t / D
+      if (u <= 1) return { x: bez(m * 6, -m * 2, m * e.side, u), y: bez(e.top, -8 + p.y, e.top + 1, u) }
+      return { x: m * e.side + m * (u - 1) * 6, y: e.top + 1 + (u - 1) * 6 }
+    }
+    case 'stairs': {
+      // Staircase: a sideways run, then a drop, repeated across the screen
+      const phase = t * 0.85 * s
+      const seg = Math.floor(phase), f = phase - seg
+      const run = Math.min(1, f * 2), drop = Math.max(0, f * 2 - 1)
+      return { x: m * 6 - m * 2.4 * (seg + run), y: e.top - 2.6 * (seg + drop) }
     }
     // Ground — relative to terrain (caller subtracts ground scroll)
     case 'drive':

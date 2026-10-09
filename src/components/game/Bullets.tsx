@@ -6,6 +6,7 @@ import { sounds } from '../../hooks/useAudio'
 import { gameDt } from '../../game/speed'
 import { BOSS_COINS, ROLE_STATS } from '../../game/roster'
 import { spawnCoins } from './Coins'
+import { rollDrop } from '../../game/drops'
 import { BOSSES } from '../../game/bosses'
 import { getStage } from '../../game/stages'
 import { onScreen } from '../../game/world'
@@ -87,10 +88,8 @@ export function Bullets() {
               s.incrementCombo()
               s.recordEnemyKill()
               spawnCoins(e.x, e.y, role.coins)
-              if (Math.random() < 0.35) {
-                const types = ['powerup', 'health', 'shield'] as const
-                s.addPickup({ x: e.x, y: 0.3, z: e.y, type: types[Math.floor(Math.random() * types.length)] })
-              }
+              const drop = rollDrop()
+              if (drop) s.addPickup({ x: e.x, y: 0.3, z: e.y, type: drop })
             }
             if (b.pierce) {
               // Keep flying; remember this enemy so it isn't hit again every frame

@@ -3,6 +3,7 @@ import type { BossId } from './bosses'
 import type { PathId } from './paths'
 import { MODEL_PATHS as M, kenneyLivery as kl, quatLivery as ql } from './models'
 import type { AirRole, AirSkin, EnemyType, GroundSkin } from './roster'
+import { buildWaves, type GenGroup } from './waveGen'
 
 export type ObjectiveId =
   | 'finish'
@@ -19,21 +20,7 @@ export interface StageObjective {
 }
 
 /** One scripted formation: `count` units follow `path` one after another, `gap` game-seconds apart. */
-export interface SpawnGroup {
-  type: EnemyType
-  path: PathId
-  /** Lane anchor(s); an array spawns one train per lane. */
-  x?: number | number[]
-  y?: number
-  count?: number
-  gap?: number
-  /** Side the path enters from (+1 / −1); 'both' spawns a mirrored twin train. */
-  m?: 1 | -1 | 'both'
-  amp?: number
-  speed?: number
-  /** Offset (game-seconds) of this group inside its wave. */
-  delay?: number
-}
+export type SpawnGroup = GenGroup
 
 export type Difficulty = 'EASY' | 'NORMAL' | 'HARD' | 'EXPERT' | 'INSANE'
 
@@ -312,12 +299,25 @@ const DEFS: StageDef[] = [
   },
 ]
 
-export const STAGES: StageConfig[] = DEFS.map((d) => ({
-  ...d,
-  maxWaves: d.waves.length,
-  hasBoss: true,
-  objectives: OBJECTIVES,
-}))
+/** Each stage's signature manoeuvres, mixed heavily into its generated waves. */
+const SIGNATURES: Record<number, PathId[]> = {
+  1: ['column', 'rise'],
+  2: ['sideDive', 'stairs'],
+  3: ['zigCross', 'boomerang'],
+  4: ['rise', 'stairs', 'riseStraight'],
+  5: ['column', 'sideDive', 'zigCross'],
+  6: ['boomerang', 'rise', 'stairs'],
+  7: ['riseStraight', 'zigCross', 'sideDive'],
+  8: ['column', 'boomerang', 'rise', 'stairs'],
+  9: ['sideDive', 'zigCross', 'riseStraight', 'boomerang'],
+  10: ['column', 'rise', 'riseStraight', 'sideDive', 'zigCross', 'boomerang', 'stairs'],
+}
+
+export const STAGES: StageConfig[] = DEFS.map((d) => {
+  // ~2 minutes of waves: the hand-authored ones plus a seeded, stage-specific mix
+  const waves = buildWaves({ stageId: d.id, waveInterval: d.waveInterval, authored: d.waves, signature: SIGNATURES[d.id] ?? [] })
+  return { ...d, waves, maxWaves: waves.length, hasBoss: true, objectives: OBJECTIVES }
+})
 
 export function getStage(id: number): StageConfig {
   return STAGES.find((s) => s.id === id) ?? STAGES[0]

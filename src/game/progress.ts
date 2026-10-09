@@ -1,7 +1,13 @@
 import { STAGES, type ObjectiveId } from './stages'
 import { PLANES } from './planes'
 
-const STORAGE_KEY = 'sky-striker-saga-v1'
+const GUEST_KEY = 'sky-striker-saga-v1'
+/** Guests save under GUEST_KEY; a logged-in account caches its cloud save under its own key. */
+let storageKey = GUEST_KEY
+
+export function setProgressScope(accountId: number | null): void {
+  storageKey = accountId === null ? GUEST_KEY : `sky-striker-saga-account-${accountId}`
+}
 
 export interface StageProgress {
   /** Best high score for this stage. */
@@ -32,11 +38,11 @@ function defaultProgress(): SagaProgress {
   return { stages, wallet: 0, owned: [PLANES[0].id], plane: PLANES[0].id }
 }
 
-export function loadProgress(): SagaProgress {
+/** Coerce a stored or server-sent save into a well-formed one. */
+export function normalizeProgress(input: unknown): SagaProgress {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return defaultProgress()
-    const parsed = JSON.parse(raw) as SagaProgress
+    if (!input || typeof input !== 'object') return defaultProgress()
+    const parsed = input as SagaProgress
     const base = defaultProgress()
     for (const s of STAGES) {
       const p = parsed.stages?.[s.id]
@@ -58,9 +64,28 @@ export function loadProgress(): SagaProgress {
   }
 }
 
+function readKey(key: string): SagaProgress {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? normalizeProgress(JSON.parse(raw)) : defaultProgress()
+  } catch {
+    return defaultProgress()
+  }
+}
+
+/** Save for the current scope (guest or the logged-in account's cache). */
+export function loadProgress(): SagaProgress {
+  return readKey(storageKey)
+}
+
+/** The guest save on this device, whatever scope is active (merged into an account on login). */
+export function loadGuestProgress(): SagaProgress {
+  return readKey(GUEST_KEY)
+}
+
 export function saveProgress(progress: SagaProgress): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(progress))
+    localStorage.setItem(storageKey, JSON.stringify(progress))
   } catch {
     /* ignore quota */
   }

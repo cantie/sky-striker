@@ -7,6 +7,7 @@ import { BOUNDS, view } from '../game/world'
 import { GAME_SPEED } from '../game/speed'
 import { MAX_WEAPON_POWER, WEAPON_TIERS } from '../game/weapon'
 import { getPlane } from '../game/planes'
+import type { RunReport } from '../net/api'
 import {
   buyPlane,
   choosePlane,
@@ -26,6 +27,7 @@ export type GameState =
   | 'results'
   | 'bossWarning'
   | 'hangar'
+  | 'leaderboard'
 
 export type { Biome } from '../game/biomes'
 export type { EnemyType } from '../game/roster'
@@ -95,7 +97,7 @@ interface GameStore {
   weaponPower: number
   /** Gun handed to the next stage via NEXT (in memory only; the saga map resets it). */
   carryWeapon: number
-  /** Screen the hangar returns to. */
+  /** Screen the hangar / leaderboard returns to. */
   hangarReturn: GameState
   /** Gold stars banked into the wallet by the last run. */
   lastGoldStars: number
@@ -121,6 +123,8 @@ interface GameStore {
   goToStageSelect: () => void
   openHangar: () => void
   closeHangar: () => void
+  /** Leaderboard screen (logged-in feature); returns to wherever it was opened from. */
+  openLeaderboard: () => void
   buyPlane: (id: string) => boolean
   choosePlane: (id: string) => void
   viewHangarPlane: (id: string) => void
@@ -173,6 +177,17 @@ const FLYOUT_SPEED = 28
 const COMBO_TIMEOUT = 2200
 
 let bid = 0, eid = 0, pid = 0, xid = 0
+
+/** Server sync hooks, registered by the account store (keeps this module free of network code). */
+export interface CloudHooks {
+  reportRun: (run: RunReport) => void
+  buyPlane: (id: string) => void
+  selectPlane: (id: string) => void
+}
+let cloud: CloudHooks | null = null
+export function setCloudHooks(hooks: CloudHooks) {
+  cloud = hooks
+}
 
 const emptyRunStats = (): RunStats => ({
   enemiesSpawned: 0,
@@ -262,13 +277,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
   viewHangarPlane: (id) => set({ hangarPlane: id }),
   closeHangar: () => set((s) => ({ gameState: s.hangarReturn })),
+  openLeaderboard: () => set((s) => ({ gameState: 'leaderboard', hangarReturn: s.gameState })),
   buyPlane: (id) => {
     const next = buyPlane(get().progress, id)
     if (!next) return false
     set({ progress: next })
+    cloud?.buyPlane(id)
     return true
   },
-  choosePlane: (id) => set((s) => ({ progress: choosePlane(s.progress, id) })),
+  choosePlane: (id) => {
+    set((s) => ({ progress: choosePlane(s.progress, id) }))
+    cloud?.selectPlane(id)
+  },
 
   selectStage: (id) => set({ selectedStageId: id }),
 
@@ -305,7 +325,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
       playerMaxHp: plane.hp + (easy ? 2 : 0),
       shieldMs: plane.skill === 'autoShield' ? 5000 : easy ? 6000 : 0,
       victoryMs: 0, flyout: false,
-      // Carried over from the last cleared stage; easy start guarantees at least level 2
       // Kept only when arriving via NEXT; easy start guarantees at least level 2
       weaponPower: Math.max(get().carryWeapon, easy ? WEAPON_TIERS : 0),
       invincibleUntil: Date.now() + 1500,
@@ -530,6 +549,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       enemies: [],
       bullets: [],
       boss: null,
+    })
+    // Logged in: record the run; the server's updated save replaces the local one
+    cloud?.reportRun({
+      stageId: s.currentStageId, score: s.score, won, goldStars: s.stars, earned,
+      planeId: s.progress.plane, kills: stats.enemiesKilled, spawned: stats.enemiesSpawned,
     })
   },
 

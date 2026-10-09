@@ -6,3 +6,5 @@ screenshots
 .cursor/
 _origin/
 skills-lock.json
+.env
+.shots

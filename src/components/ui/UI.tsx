@@ -6,6 +6,7 @@ import { HUD } from './HUD'
 import { PauseMenu } from './PauseMenu'
 import { ResultsScreen } from './ResultsScreen'
 import { Hangar } from './Hangar'
+import { Leaderboard } from './Leaderboard'
 
 export function UI() {
   const gameState = useGameStore((s) => s.gameState)
@@ -18,6 +19,7 @@ export function UI() {
       {gameState === 'paused' && <PauseMenu />}
       {gameState === 'results' && <ResultsScreen />}
       {gameState === 'hangar' && <Hangar />}
+      {gameState === 'leaderboard' && <Leaderboard />}
     </>
   )
 }

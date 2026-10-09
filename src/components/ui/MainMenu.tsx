@@ -3,6 +3,7 @@ import { useGameStore } from '../../store/gameStore'
 import { sounds, syncMute } from '../../hooks/useAudio'
 import { countStars, totalStarsPossible } from '../../game/progress'
 import { STAGES } from '../../game/stages'
+import { AccountPanel } from './Account'
 
 export function MainMenu() {
   const goToStageSelect = useGameStore((s) => s.goToStageSelect)
@@ -10,6 +11,7 @@ export function MainMenu() {
   const toggleMute = useGameStore((s) => s.toggleMute)
   const progress = useGameStore((s) => s.progress)
   const openHangar = useGameStore((s) => s.openHangar)
+  const openLeaderboard = useGameStore((s) => s.openLeaderboard)
 
   const totalEarned = STAGES.reduce((n, s) => n + countStars(progress, s.id), 0)
   const totalPossible = STAGES.reduce((n, s) => n + totalStarsPossible(s.id), 0)
@@ -45,12 +47,20 @@ export function MainMenu() {
         </button>
         <button
           type="button"
+          onClick={() => { sounds.uiSelect(); openLeaderboard() }}
+          style={{ ...btnPrimary, background: 'linear-gradient(180deg, #b38bff, #6a3ad6)', color: '#fff', boxShadow: '0 6px 0 #3e1f8a' }}
+        >
+          🏆 LEADERBOARD
+        </button>
+        <button
+          type="button"
           onClick={() => { sounds.uiClick(); toggleMute(); syncMute() }}
           style={btnGhost}
         >
           {isMuted ? '🔇 Unmute' : '🔊 Mute'}
         </button>
-        <div style={{ marginTop: 22, color: 'rgba(255,255,255,0.75)', fontSize: 13, lineHeight: 1.5 }}>
+        <AccountPanel />
+        <div style={{ marginTop: 16, color: 'rgba(255,255,255,0.75)', fontSize: 13, lineHeight: 1.5 }}>
           Drag to move · Auto-fire · WASD / arrows on desktop<br />
           Tip: <code>?boss</code>, <code>?easy</code>, <code>?biome=ocean</code>
         </div>

@@ -12,7 +12,9 @@ export function HUD() {
   const stars = useGameStore((s) => s.stars)
   const playerHp = useGameStore((s) => s.playerHp)
   const playerMaxHp = useGameStore((s) => s.playerMaxHp)
-  const playerShield = useGameStore((s) => s.playerShield)
+  const shieldMs = useGameStore((s) => s.shieldMs)
+  const victoryMs = useGameStore((s) => s.victoryMs)
+  const flyout = useGameStore((s) => s.flyout)
   const weapon = weaponStats(useGameStore((s) => s.weaponPower))
   const boss = useGameStore((s) => s.boss)
   const isMuted = useGameStore((s) => s.isMuted)
@@ -20,8 +22,7 @@ export function HUD() {
   const pauseGame = useGameStore((s) => s.pauseGame)
   const gameState = useGameStore((s) => s.gameState)
   const currentStageId = useGameStore((s) => s.currentStageId)
-  const hpPct = (playerHp / playerMaxHp) * 100
-  const hpColor = hpPct > 50 ? '#4caf50' : hpPct > 25 ? '#ff9800' : '#f44336'
+  const hpColor = playerHp > 2 ? '#4caf50' : playerHp === 2 ? '#ff9800' : '#f44336'
 
   return (
     <div style={{ position: 'absolute', inset: 0, padding: 'max(0.5rem, env(safe-area-inset-top)) max(0.5rem, env(safe-area-inset-right)) max(0.5rem, env(safe-area-inset-bottom)) max(0.5rem, env(safe-area-inset-left))', pointerEvents: 'none', zIndex: 5 }}>
@@ -36,14 +37,23 @@ export function HUD() {
         <div style={statusPanel}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ ...label, color: hpColor }}>HP</span>
-            <div style={track}>
-              <div style={{ width: `${Math.max(0, Math.min(100, hpPct))}%`, height: '100%', background: hpColor, transition: 'width 0.2s' }} />
-              {playerShield > 0 && (
-                // Shield rides on top of the HP bar as a thin blue strip
-                <div style={{ position: 'absolute', left: 0, top: 0, height: 3, width: `${Math.min(100, playerShield)}%`, background: '#4fc3f7', boxShadow: '0 0 4px #4fc3f7' }} />
-              )}
+            {/* One segment per hit the hull can still take */}
+            <div style={{ display: 'flex', gap: 3, flex: 1 }}>
+              {Array.from({ length: playerMaxHp }, (_, i) => (
+                <div key={i} style={{ flex: 1, height: 7, borderRadius: 2, background: i < playerHp ? hpColor : 'rgba(255,255,255,0.15)', boxShadow: i < playerHp ? `0 0 4px ${hpColor}` : 'none' }} />
+              ))}
             </div>
           </div>
+          {shieldMs > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+              <span style={{ ...label, color: '#4fc3f7' }}>SHD</span>
+              {/* Temporary shield countdown */}
+              <div style={track}>
+                <div style={{ width: `${Math.min(100, (shieldMs / SHIELD_BAR_MS) * 100)}%`, height: '100%', background: '#4fc3f7', boxShadow: '0 0 4px #4fc3f7' }} />
+              </div>
+              <span style={{ color: '#9be7ff', fontSize: 10, fontWeight: 800, width: 18, textAlign: 'right' }}>{Math.ceil(shieldMs / 1000)}s</span>
+            </div>
+          )}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
             <span style={{ ...label, color: '#ff9800' }}>LV{weapon.level}</span>
             {/* Tier pips inside the current level */}
@@ -70,6 +80,19 @@ export function HUD() {
         </div>
       )}
 
+      {(victoryMs > 0 || flyout) && (
+        <div style={{ position: 'absolute', top: '32%', left: 0, right: 0, textAlign: 'center' }}>
+          <div style={{ fontSize: 'clamp(1.6rem, 7vw, 2.4rem)', fontWeight: 900, color: '#ffd23f', textShadow: '0 0 18px #ff9800, 0 2px 0 #7a4a00' }}>
+            {flyout ? 'STAGE CLEAR' : 'BOSS DOWN!'}
+          </div>
+          {!flyout && (
+            <div style={{ marginTop: 6, color: '#fff', fontWeight: 800, fontSize: 14, textShadow: shadow }}>
+              GRAB THE STARS · <span style={{ color: '#ffd23f', fontSize: 20 }}>{Math.ceil(victoryMs / 1000)}</span>
+            </div>
+          )}
+        </div>
+      )}
+
       {gameState === 'bossWarning' && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ fontSize: 'clamp(1.8rem, 7vw, 3rem)', fontWeight: 900, color: '#ff1744', textShadow: '0 0 20px #ff1744', animation: 'pulse 0.6s infinite' }}>⚠ WARNING ⚠<br />BOSS INCOMING</div>
@@ -81,6 +104,8 @@ export function HUD() {
 }
 
 const shadow = '0 1px 3px rgba(0,0,0,0.85)'
+/** Shield bar is full at a fresh pickup (8 s); longer stacks just stay full. */
+const SHIELD_BAR_MS = 8000
 const statusPanel: CSSProperties = {
   flex: '0 1 170px', minWidth: 110, padding: '5px 8px', borderRadius: 10,
   background: 'rgba(6,14,28,0.55)', border: '1px solid rgba(255,255,255,0.12)',

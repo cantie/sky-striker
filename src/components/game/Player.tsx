@@ -11,9 +11,9 @@ import { getPlane } from '../../game/planes'
 const MISSILE_EVERY = 1.4
 const NOVA_EVERY = 5
 const NOVA_BOLTS = 18
-const REGEN_DELAY_MS = 3000
-const REGEN_PER_S = 7
-const REGEN_CAP = 60
+/** AEGIS: a shield of AUTO_SHIELD_MS (real) switches on every AUTO_SHIELD_EVERY game-seconds (~18 s real). */
+const AUTO_SHIELD_EVERY = 10
+const AUTO_SHIELD_MS = 5000
 /** Wingman drone slots relative to the plane. */
 const WINGMEN: [number, number][] = [[-1.6, -0.7], [1.6, -0.7]]
 
@@ -25,7 +25,7 @@ export function Player() {
   const lastShot = useRef(0)
   const lastWing = useRef(0)
   const prevX = useRef(0)
-  const skillClock = useRef({ missile: 0, nova: 0 })
+  const skillClock = useRef({ missile: 0, nova: 0, shield: 0 })
   const planeId = useGameStore((s) => s.progress.plane)
   const plane = getPlane(planeId)
   const dims = useModelDims(plane.model)
@@ -48,16 +48,18 @@ export function Player() {
 
     if (navLights.current) navLights.current.visible = Date.now() % 900 < 160
     if (shieldRing.current) {
-      const sh = s.playerShield
-      shieldRing.current.visible = sh > 0
-      // Stronger shield → brighter bubble, with a slow breathing pulse
-      const pulse = 1 + Math.sin(Date.now() * 0.004) * 0.04
-      shieldRing.current.scale.setScalar(pulse)
-      const strength = Math.min(1, sh / 100)
+      // Temporary shield bubble; flickers during its last 1.5 s as a warning
+      const left = s.shieldMs
+      const ending = left > 0 && left < 1500 && Math.floor(Date.now() / 110) % 2 === 0
+      shieldRing.current.visible = left > 0 && !ending
+      shieldRing.current.scale.setScalar(1 + Math.sin(Date.now() * 0.004) * 0.04)
       const [bubble, rim] = shieldRing.current.children as THREE.Mesh[]
-      ;(bubble.material as THREE.MeshBasicMaterial).opacity = 0.08 + strength * 0.12
-      ;(rim.material as THREE.MeshBasicMaterial).opacity = 0.3 + strength * 0.4
+      ;(bubble.material as THREE.MeshBasicMaterial).opacity = 0.2
+      ;(rim.material as THREE.MeshBasicMaterial).opacity = 0.7
     }
+
+    // Victory fly-out: hands off the trigger, the plane just climbs off screen
+    if (s.flyout) return
 
     const now = Date.now()
     const w = weaponStats(weaponPower)
@@ -98,11 +100,11 @@ export function Player() {
         s.addShake(0.2)
       }
     }
-    if (plane.skill === 'shieldRegen') {
-      // invincibleUntil is set on every hit, so "time since last hit" falls out of it
-      const sinceHit = now - (invincibleUntil - 1200)
-      if (sinceHit > REGEN_DELAY_MS && s.playerShield < REGEN_CAP) {
-        useGameStore.setState({ playerShield: Math.min(REGEN_CAP, s.playerShield + REGEN_PER_S * dt) })
+    if (plane.skill === 'autoShield') {
+      skillClock.current.shield += dt
+      if (skillClock.current.shield >= AUTO_SHIELD_EVERY) {
+        skillClock.current.shield = 0
+        s.addShield(AUTO_SHIELD_MS)
       }
     }
   })

@@ -154,11 +154,10 @@ export function Enemies() {
       const interval = fireMs / st.fireRateMult / 1000
       if (fireMs > 0 && role.shot !== 'none' && e.entered && inFireZone(nx, ny) && e.age - e.lastShot > interval) {
         e.lastShot = e.age
-        const dmg = role.damage * st.damageMult
         const shoot = (ang: number, ox = 0) => s.addBullet({
           x: nx + Math.cos(ang) * ox, y: 0.4, z: ny - Math.sin(ang) * ox,
           vx: Math.sin(ang) * bulletSpeed, vy: 0, vz: Math.cos(ang) * bulletSpeed,
-          isEnemy: true, damage: dmg, radius: ENEMY_BULLET.radius,
+          isEnemy: true, damage: 1, radius: ENEMY_BULLET.radius,
         })
         if (role.shot === 'aimed') shoot(e.aim)
         else if (role.shot === 'spread3') [-0.28, 0, 0.28].forEach((d) => shoot(e.aim + d))
@@ -174,7 +173,7 @@ export function Enemies() {
     for (const e of useGameStore.getState().enemies) {
       if (isGround(e.type)) continue
       if (Math.hypot(e.x - s.playerX, e.y - s.playerY) < 0.9) {
-        s.damagePlayer(20 * st.damageMult)
+        s.damagePlayer(1)
         s.addExplosion(e.x, 0.2, e.y, 1.2)
         s.removeEnemy(e.id)
         sounds.enemyHit()

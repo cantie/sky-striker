@@ -6,10 +6,9 @@ import { sounds } from '../../hooks/useAudio'
 /** Stat bars normalised against the best plane in each category. */
 const MAX_HP = Math.max(...PLANES.map((p) => p.hp))
 const statsOf = (p: PlaneDef) => [
-  { label: 'HULL', value: p.hp / MAX_HP, color: '#4caf50' },
+  { label: `HULL · ${p.hp} HITS`, value: p.hp / MAX_HP, color: '#4caf50' },
   { label: 'FIREPOWER', value: p.damage / 1.25, color: '#ff9800' },
   { label: 'FIRE RATE', value: (1 / p.fireRate) / 1.4, color: '#ffd23f' },
-  { label: 'ARMOR', value: (1 / p.armor) / 1.35, color: '#4fc3f7' },
 ]
 
 /** Sky Force–style hangar: the plane turns on a pad in the 3D scene behind this overlay. */
@@ -157,7 +156,7 @@ const card: CSSProperties = {
 }
 const planeName: CSSProperties = { fontWeight: 900, fontSize: '1.5rem', letterSpacing: 2, textShadow: '0 0 12px currentColor' }
 const skillBox: CSSProperties = { background: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: '8px 10px' }
-const statLabel: CSSProperties = { width: 72, color: '#cfe8f7', fontSize: 10, fontWeight: 800, letterSpacing: 0.5 }
+const statLabel: CSSProperties = { width: 92, color: '#cfe8f7', fontSize: 10, fontWeight: 800, letterSpacing: 0.5 }
 const statTrack: CSSProperties = { flex: 1, height: 6, background: 'rgba(255,255,255,0.1)', borderRadius: 3, overflow: 'hidden' }
 const thumbs: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(9, 1fr)', gap: 4 }
 const thumb: CSSProperties = {

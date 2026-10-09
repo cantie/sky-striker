@@ -52,8 +52,6 @@ export interface StageConfig {
   bossHp: number
   /** Multiplier on enemy & boss HP. */
   enemyHpMult: number
-  /** Multiplier on all enemy & boss bullet/collision damage. */
-  damageMult: number
   bulletSpeedMult: number
   /** >1 fires more often. */
   fireRateMult: number
@@ -85,7 +83,7 @@ const DEFS: StageDef[] = [
   {
     id: 1, name: 'STAGE 1', subtitle: 'Jungle Coast', difficulty: 'EASY', biome: 'jungle',
     waveInterval: 3200, boss: 'vulture', bossHp: 1500,
-    enemyHpMult: 0.85, damageMult: 0.8, bulletSpeedMult: 1, fireRateMult: 0.9, basicFire: 0,
+    enemyHpMult: 0.85, bulletSpeedMult: 1, fireRateMult: 0.9, basicFire: 0,
     skins: {
       basic: air(M.speederA, 1.25, kl('#c9cbd2', '#c0242f', '#2a1216', '#ff3b2f'), '#ff6a3d'),
       fast: air(M.racer, 1.15, kl('#f3e7c6', '#e88a0c', '#2b1b08', '#ffd23f'), '#ffcf4a'),
@@ -107,7 +105,7 @@ const DEFS: StageDef[] = [
   {
     id: 2, name: 'STAGE 2', subtitle: 'Desert Storm', difficulty: 'EASY', biome: 'desert',
     waveInterval: 3000, boss: 'crawler', bossHp: 2000,
-    enemyHpMult: 1, damageMult: 0.9, bulletSpeedMult: 1.04, fireRateMult: 1, basicFire: 0,
+    enemyHpMult: 1, bulletSpeedMult: 1.04, fireRateMult: 1, basicFire: 0,
     skins: {
       basic: air(M.speederC, 1.3, kl('#e2c48a', '#9a5a22', '#2a1a0a', '#ff8a2a'), '#ffa040', 2),
       fast: air(M.racer, 1.15, kl('#d8b070', '#b03a1a', '#2a120a', '#ffcf4a'), '#ffcf4a'),
@@ -129,7 +127,7 @@ const DEFS: StageDef[] = [
   {
     id: 3, name: 'STAGE 3', subtitle: 'Coral Archipelago', difficulty: 'NORMAL', biome: 'ocean',
     waveInterval: 2900, boss: 'galleon', bossHp: 2600,
-    enemyHpMult: 1.15, damageMult: 1, bulletSpeedMult: 1.08, fireRateMult: 1.05, basicFire: 0,
+    enemyHpMult: 1.15, bulletSpeedMult: 1.08, fireRateMult: 1.05, basicFire: 0,
     skins: {
       basic: air(M.ship7, 1.35, ql('#dfe6f0', '#1d2a4a', '#2a8cff', '#2a8cff'), '#5ab4ff'),
       fast: air(M.speederC, 1.2, kl('#e8f4f4', '#14a0a0', '#0a2424', '#4affe0'), '#4affe0', 2),
@@ -151,7 +149,7 @@ const DEFS: StageDef[] = [
   {
     id: 4, name: 'STAGE 4', subtitle: 'Ember Woods', difficulty: 'NORMAL', biome: 'autumn',
     waveInterval: 2800, boss: 'hornet', bossHp: 3200,
-    enemyHpMult: 1.3, damageMult: 1.1, bulletSpeedMult: 1.12, fireRateMult: 1.1, basicFire: 0,
+    enemyHpMult: 1.3, bulletSpeedMult: 1.12, fireRateMult: 1.1, basicFire: 0,
     skins: {
       basic: air(M.ship3, 1.35, ql('#e8d6c0', '#3a1a10', '#ff6a1a', '#ff4a10'), '#ff8a3d', 2),
       fast: air(M.racer, 1.15, kl('#2a1a14', '#c0242f', '#120a08', '#ff4a1a'), '#ff5a2a'),
@@ -173,7 +171,7 @@ const DEFS: StageDef[] = [
   {
     id: 5, name: 'STAGE 5', subtitle: 'Frozen Frontier', difficulty: 'HARD', biome: 'arctic',
     waveInterval: 2700, boss: 'warden', bossHp: 3900,
-    enemyHpMult: 1.5, damageMult: 1.2, bulletSpeedMult: 1.16, fireRateMult: 1.15, basicFire: 2800,
+    enemyHpMult: 1.5, bulletSpeedMult: 1.16, fireRateMult: 1.15, basicFire: 2800,
     skins: {
       basic: air(M.speederA, 1.25, kl('#f2f8ff', '#3a7ab8', '#0e1e2e', '#45c8ff'), '#7fe0ff'),
       fast: air(M.ship4, 1.4, ql('#eef6ff', '#1a3a5a', '#45c8ff', '#45c8ff'), '#9be8ff'),
@@ -196,7 +194,7 @@ const DEFS: StageDef[] = [
   {
     id: 6, name: 'STAGE 6', subtitle: 'Red Canyon', difficulty: 'HARD', biome: 'canyon',
     waveInterval: 2600, boss: 'breaker', bossHp: 4600,
-    enemyHpMult: 1.7, damageMult: 1.32, bulletSpeedMult: 1.2, fireRateMult: 1.2, basicFire: 2600,
+    enemyHpMult: 1.7, bulletSpeedMult: 1.2, fireRateMult: 1.2, basicFire: 2600,
     skins: {
       basic: air(M.speederB, 1.3, kl('#d08a5a', '#7a2a14', '#24100a', '#ffb02e'), '#ffb02e', 2),
       fast: air(M.racer, 1.15, kl('#24140e', '#d02a1a', '#0a0604', '#ff3a1a'), '#ff4a2a'),
@@ -219,7 +217,7 @@ const DEFS: StageDef[] = [
   {
     id: 7, name: 'STAGE 7', subtitle: 'Murk Marshes', difficulty: 'EXPERT', biome: 'swamp',
     waveInterval: 2500, boss: 'wraith', bossHp: 5400,
-    enemyHpMult: 1.9, damageMult: 1.45, bulletSpeedMult: 1.24, fireRateMult: 1.25, basicFire: 2400,
+    enemyHpMult: 1.9, bulletSpeedMult: 1.24, fireRateMult: 1.25, basicFire: 2400,
     skins: {
       basic: air(M.ship4, 1.4, ql('#5a7a4a', '#0e1a10', '#9bff5a', '#6aff3a'), '#9bff5a'),
       fast: air(M.speederC, 1.2, kl('#3a4a2a', '#8aff2a', '#0a1006', '#c8ff3a'), '#c8ff3a', 2),
@@ -242,7 +240,7 @@ const DEFS: StageDef[] = [
   {
     id: 8, name: 'STAGE 8', subtitle: 'Neon Metropolis', difficulty: 'EXPERT', biome: 'city',
     waveInterval: 2400, boss: 'hive', bossHp: 6200,
-    enemyHpMult: 2.15, damageMult: 1.6, bulletSpeedMult: 1.28, fireRateMult: 1.3, basicFire: 2200,
+    enemyHpMult: 2.15, bulletSpeedMult: 1.28, fireRateMult: 1.3, basicFire: 2200,
     skins: {
       basic: air(M.speederA, 1.25, kl('#2a2a3a', '#ff2ab8', '#0a0a14', '#ff2ab8', 1.8), '#ff4ad8'),
       fast: air(M.racer, 1.15, kl('#1a2a3a', '#2af0ff', '#06101a', '#2af0ff', 1.8), '#4af0ff'),
@@ -266,7 +264,7 @@ const DEFS: StageDef[] = [
   {
     id: 9, name: 'STAGE 9', subtitle: 'Magma Rift', difficulty: 'INSANE', biome: 'volcano',
     waveInterval: 2300, boss: 'leviathan', bossHp: 7100,
-    enemyHpMult: 2.4, damageMult: 1.75, bulletSpeedMult: 1.32, fireRateMult: 1.35, basicFire: 2000,
+    enemyHpMult: 2.4, bulletSpeedMult: 1.32, fireRateMult: 1.35, basicFire: 2000,
     skins: {
       basic: air(M.ship6, 1.4, ql('#3a2a26', '#120604', undefined, '#ff4a10'), '#ff6a2a', 2),
       fast: air(M.speederC, 1.2, kl('#1e1614', '#ff5a10', '#080404', '#ff7a1a', 1.8), '#ff8a3d', 2),
@@ -290,7 +288,7 @@ const DEFS: StageDef[] = [
   {
     id: 10, name: 'STAGE 10', subtitle: 'Iron Citadel', difficulty: 'INSANE', biome: 'fortress',
     waveInterval: 2200, boss: 'citadel', bossHp: 8000,
-    enemyHpMult: 2.7, damageMult: 1.9, bulletSpeedMult: 1.36, fireRateMult: 1.4, basicFire: 1800,
+    enemyHpMult: 2.7, bulletSpeedMult: 1.36, fireRateMult: 1.4, basicFire: 1800,
     skins: {
       basic: air(M.ship7, 1.35, ql('#8a92a4', '#14161c', '#ff1a3a', '#ff1a3a'), '#ff3a5a'),
       fast: air(M.ship4, 1.4, ql('#9aa2b4', '#101218', '#ff1a3a', '#ff1a3a'), '#ff5a7a'),

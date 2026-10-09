@@ -3,7 +3,8 @@ import { getStage, type ObjectiveId, type StageConfig } from '../game/stages'
 import { isBiome, type Biome } from '../game/biomes'
 import type { EnemyType } from '../game/roster'
 import type { PathId } from '../game/paths'
-import { BOUNDS } from '../game/world'
+import { BOUNDS, view } from '../game/world'
+import { GAME_SPEED } from '../game/speed'
 import { MAX_WEAPON_POWER, WEAPON_TIERS } from '../game/weapon'
 import { getPlane } from '../game/planes'
 import {
@@ -81,7 +82,12 @@ interface GameStore {
   gameState: GameState
   score: number; combo: number; comboTimer: number; stars: number
   playerX: number; playerY: number; playerHp: number; playerMaxHp: number
-  playerShield: number; invincibleUntil: number
+  /** Real ms left on the temporary shield (0 = none); a shield absorbs every hit. */
+  shieldMs: number
+  invincibleUntil: number
+  /** After the boss dies: real ms left to scoop up stars, then the plane flies off the top. */
+  victoryMs: number
+  flyout: boolean
   /** Weapon progression index (see game/weapon). */
   weaponPower: number
   /** Gun handed to the next stage via NEXT (in memory only; the saga map resets it). */
@@ -121,9 +127,11 @@ interface GameStore {
   pauseGame: () => void; resumeGame: () => void
   setPlayerPosition: (x: number, y: number) => void
   movePlayer: (dx: number, dy: number) => void
-  damagePlayer: (amount: number) => void
-  healPlayer: (amount: number) => void
-  addShield: (amount: number) => void
+  /** Costs `hits` hull points (bullets/rams 1, boss laser 2) unless shielded or invulnerable. */
+  damagePlayer: (hits?: number) => void
+  healPlayer: (hits: number) => void
+  /** Adds `ms` (real time) to the temporary shield. */
+  addShield: (ms: number) => void
   upgradeWeapon: () => void
   addBullet: (b: Omit<Bullet, 'id'>) => void
   removeBullet: (id: string) => void
@@ -155,8 +163,10 @@ interface GameStore {
 }
 
 const IFRAMES = 1200
-/** Real ms between a boss going down and the results screen. */
-const BOSS_OUTRO_MS = 2800
+/** Real ms the player gets to collect the boss's stars before flying out. */
+const VICTORY_COLLECT_MS = 5000
+/** Fly-off speed after the victory window (world units per real second). */
+const FLYOUT_SPEED = 28
 const COMBO_TIMEOUT = 2200
 
 let bid = 0, eid = 0, pid = 0, xid = 0
@@ -216,8 +226,8 @@ export function evaluateObjectives(
 export const useGameStore = create<GameStore>((set, get) => ({
   gameState: 'menu',
   score: 0, combo: 0, comboTimer: 0, stars: 0,
-  playerX: 0, playerY: -4, playerHp: 100, playerMaxHp: 100,
-  playerShield: 0, weaponPower: 0, carryWeapon: 0, hangarReturn: 'menu', lastGoldStars: 0, hangarPlane: 'hawk', invincibleUntil: 0,
+  playerX: 0, playerY: -4, playerHp: 3, playerMaxHp: 3,
+  shieldMs: 0, victoryMs: 0, flyout: false, weaponPower: 0, carryWeapon: 0, hangarReturn: 'menu', lastGoldStars: 0, hangarPlane: 'hawk', invincibleUntil: 0,
   bullets: [], enemies: [], boss: null, pickups: [], explosions: [],
   waveIndex: 0, waveTimer: 0, bossSpawned: false, pendingSpawns: 0,
   scrollOffset: 0, biome: 'jungle', isMuted: false, easyMode: false,
@@ -285,9 +295,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       selectedStageId: stageId,
       score: 0, combo: 0, comboTimer: 0, stars: 0,
       playerX: 0, playerY: -4,
-      playerHp: Math.round(plane.hp * (easy ? 1.5 : 1)),
-      playerMaxHp: Math.round(plane.hp * (easy ? 1.5 : 1)),
-      playerShield: Math.max(plane.startShield, easy ? 50 : 0),
+      // Easy mode: two extra hits and a short launch shield
+      playerHp: plane.hp + (easy ? 2 : 0),
+      playerMaxHp: plane.hp + (easy ? 2 : 0),
+      shieldMs: plane.skill === 'autoShield' ? 5000 : easy ? 6000 : 0,
+      victoryMs: 0, flyout: false,
       // Carried over from the last cleared stage; easy start guarantees at least level 2
       // Kept only when arriving via NEXT; easy start guarantees at least level 2
       weaponPower: Math.max(get().carryWeapon, easy ? WEAPON_TIERS : 0),
@@ -314,7 +326,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   pauseGame: () => { if (get().gameState === 'playing') set({ gameState: 'paused' }) },
   resumeGame: () => { if (get().gameState === 'paused') set({ gameState: 'playing' }) },
 
-  setPlayerPosition: (x, y) => set({
+  setPlayerPosition: (x, y) => get().flyout ? undefined : set({
     playerX: Math.max(BOUNDS.minX, Math.min(BOUNDS.maxX, x)),
     playerY: Math.max(BOUNDS.minY, Math.min(BOUNDS.maxY, y)),
   }),
@@ -323,19 +335,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
     get().setPlayerPosition(playerX + dx, playerY + dy)
   },
 
-  damagePlayer: (amount) => {
-    const { invincibleUntil, playerShield, playerHp, easyMode, runStats } = get()
-    if (Date.now() < invincibleUntil) return
-    const armor = getPlane(get().progress.plane).armor
-    let rem = (easyMode ? amount * 0.6 : amount) * armor
-    let shield = playerShield
-    if (shield > 0) {
-      if (shield >= rem) { shield -= rem; rem = 0 }
-      else { rem -= shield; shield = 0 }
+  damagePlayer: (hits = 1) => {
+    const { invincibleUntil, shieldMs, playerHp, runStats, victoryMs, flyout } = get()
+    if (Date.now() < invincibleUntil || victoryMs > 0 || flyout) return
+    // An active shield simply eats the hit
+    if (shieldMs > 0) {
+      set({ screenShake: Math.max(get().screenShake, 0.15) })
+      return
     }
-    const hp = Math.max(0, playerHp - rem)
+    const hp = Math.max(0, playerHp - hits)
     set({
-      playerShield: shield,
       playerHp: hp,
       invincibleUntil: Date.now() + IFRAMES,
       hitFlash: 0.35,
@@ -346,7 +355,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   healPlayer: (n) => set((s) => ({ playerHp: Math.min(s.playerMaxHp, s.playerHp + n) })),
-  addShield: (n) => set((s) => ({ playerShield: Math.min(100, s.playerShield + n) })),
+  addShield: (ms) => set((s) => ({ shieldMs: s.shieldMs + ms })),
   upgradeWeapon: () => set((s) => ({ weaponPower: Math.min(MAX_WEAPON_POWER, s.weaponPower + 1) })),
 
   addBullet: (b) => set((s) => ({ bullets: [...s.bullets, { ...b, id: `b${bid++}` }] })),
@@ -395,18 +404,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!boss) return false
     const hp = boss.hp - damage
     if (hp <= 0) {
-      // Victory lap: enemy fire vanishes and the player gets a moment to scoop up the boss's stars
-      const runStart = get().scrollOffset
+      // Victory window: enemy fire vanishes and the player has a few seconds to scoop up the
+      // boss's stars (anything left uncollected is lost); tick() then flies the plane out
       set((s) => ({
         boss: null,
         screenShake: 0.8,
         bullets: s.bullets.filter((b) => !b.isEnemy),
+        enemies: [],
         runStats: { ...s.runStats, bossDefeated: true },
+        victoryMs: VICTORY_COLLECT_MS,
       }))
-      setTimeout(() => {
-        // Skip if the player has already left / restarted in the meantime
-        if (get().gameState === 'playing' && get().scrollOffset >= runStart) get().finishStageWin()
-      }, BOSS_OUTRO_MS)
       return true
     }
     set({ boss: { ...boss, hp } })
@@ -541,6 +548,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
       muzzleFlash: Math.max(0, st.muzzleFlash - dt * 0.004),
       hitFlash: Math.max(0, st.hitFlash - dt * 0.002),
     }))
+    // Timers below run on real time (dt arrives as game ms)
+    const realDt = dt / GAME_SPEED
+    if (s.shieldMs > 0) set({ shieldMs: Math.max(0, s.shieldMs - realDt) })
+    if (s.victoryMs > 0) {
+      const left = s.victoryMs - realDt
+      set(left > 0 ? { victoryMs: left } : { victoryMs: 0, flyout: true })
+    } else if (s.flyout) {
+      // Full throttle straight up and off the top of the screen, then the results
+      const y = s.playerY + (FLYOUT_SPEED * realDt) / 1000
+      set({ playerY: y })
+      if (y > view.top + 3) get().finishStageWin()
+    }
     get().updateWave(dt)
     get().updateScroll(dt)
   },

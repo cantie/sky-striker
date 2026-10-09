@@ -12,8 +12,9 @@ import { sounds } from '../../hooks/useAudio'
 import { BossLaser, LASER_CHARGE, LASER_FIRE, LASER_HALF_WIDTH, LASER_LOCK, type LaserState } from './BossLaser'
 
 /** Boss bullets before stage scaling (game units / game-second). */
-const BOSS_BULLET = { speed: 8, radius: 0.15, damage: 13 }
-const LASER_DAMAGE = 24
+const BOSS_BULLET = { speed: 8, radius: 0.15 }
+/** A laser hit costs two hull points (normal bullets cost one). */
+const LASER_HITS = 2
 const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a))
 
 type Volley = { at: number; fire: () => void }
@@ -190,7 +191,7 @@ export function Boss() {
         const dx = s.playerX - nx, dz = s.playerY - nz
         const along = dx * Math.sin(L.angle) + dz * Math.cos(L.angle)
         const perp = Math.abs(dx * Math.cos(L.angle) - dz * Math.sin(L.angle))
-        if (along > 0 && perp < LASER_HALF_WIDTH + 0.35) s.damagePlayer(LASER_DAMAGE * stage.damageMult)
+        if (along > 0 && perp < LASER_HALF_WIDTH + 0.35) s.damagePlayer(LASER_HITS)
         if (L.t >= LASER_FIRE) L.stage = 'idle'
       }
     }
@@ -208,7 +209,6 @@ export function Boss() {
         sounds.shield()
       }
       const speed = BOSS_BULLET.speed * stage.bulletSpeedMult
-      const dmg = BOSS_BULLET.damage * stage.damageMult
       const shoot = (ang: number, mul = 1, ox = 0, oz = 0) => {
         const st = useGameStore.getState()
         const bb = st.boss
@@ -216,7 +216,7 @@ export function Boss() {
         st.addBullet({
           x: bb.x + ox, y: 0.4, z: bb.y - def.radius * 0.5 + oz,
           vx: Math.sin(ang) * speed * mul, vy: 0, vz: Math.cos(ang) * speed * mul,
-          isEnemy: true, damage: dmg, radius: BOSS_BULLET.radius,
+          isEnemy: true, damage: 1, radius: BOSS_BULLET.radius,
         })
       }
       const aimAt = () => {

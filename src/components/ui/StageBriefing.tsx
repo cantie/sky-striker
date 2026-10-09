@@ -62,7 +62,7 @@ export function StageBriefing() {
           {' · '}
           {stage.biome.toUpperCase()} · {stage.maxWaves} waves
           <br />
-          Enemy HP ×{stage.enemyHpMult.toFixed(2)} · Damage ×{stage.damageMult.toFixed(2)}
+          Enemy HP ×{stage.enemyHpMult.toFixed(2)} · Bullet speed ×{stage.bulletSpeedMult.toFixed(2)}
         </div>
 
         <button type="button" style={planeRow} onClick={() => { sounds.uiClick(); openHangar() }}>

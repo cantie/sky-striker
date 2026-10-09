@@ -106,6 +106,8 @@ function PickupItem({ pickup, type }: { pickup: Pickup; type: DropType }) {
 
 /** Hover within this distance of a survivor… */
 const RESCUE_RADIUS = 2.6
+/** Shield pickup duration (real ms). */
+const SHIELD_MS = 8000
 /** …for this many real seconds to lift them out. */
 const RESCUE_SECONDS = 2
 const ARC_STEPS = 64
@@ -223,8 +225,8 @@ export function Pickups() {
         const collected = s.collectPickup(p.id)
         if (collected) {
           if (collected.type === 'powerup') { s.upgradeWeapon(); sounds.powerup() }
-          else if (collected.type === 'health') { s.healPlayer(25); sounds.pickup() }
-          else if (collected.type === 'shield') { s.addShield(30); sounds.pickup() }
+          else if (collected.type === 'health') { s.healPlayer(1); sounds.pickup() }
+          else if (collected.type === 'shield') { s.addShield(SHIELD_MS); sounds.pickup() }
           else { s.addStar(); s.addScore(50); sounds.pickup() }
         }
         continue

@@ -1,4 +1,4 @@
-import type { StageConfig } from '../stages'
+import { getStage, type StageConfig } from '../stages'
 import { ROLE_STATS, type EnemyType, type ShotKind } from '../roster'
 import type { PathId, PathParams } from '../paths'
 import { inWorld } from '../world'
@@ -66,4 +66,16 @@ export function stageScript(stage: StageConfig, easy = false): ScriptedEnemy[] {
     }
   }
   return out
+}
+
+const byStage = new Map<number, Map<string, ScriptedEnemy>>()
+
+/** The stage script indexed by enemy id (memoized) — where a server-named enemy is at a given time. */
+export function scriptById(stageId: number): Map<string, ScriptedEnemy> {
+  let m = byStage.get(stageId)
+  if (!m) {
+    m = new Map(stageScript(getStage(stageId)).map((e) => [e.id, e]))
+    byStage.set(stageId, m)
+  }
+  return m
 }

@@ -7,6 +7,8 @@
     "dev": "vite --port 5847 --host 0.0.0.0",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
+    "gen:coop": "node scripts/gen-coop-data.mjs",
+    "nakama:install": "node scripts/nakama-install.mjs",
     "preview": "vite preview --port 4173 --host 0.0.0.0",
     "export:zip": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/export-deploy.ps1"
   },

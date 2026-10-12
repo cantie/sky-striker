@@ -1,6 +1,7 @@
 import { useGameStore, type Enemy, type PickupType } from '../../store/gameStore'
 import { BOSS_COINS, ROLE_STATS } from '../../game/roster'
 import { rollDrop } from '../../game/drops'
+import { BOSS_SCORE, POD_SCORE, RESCUE_SCORE } from '../../game/scoring'
 import { sounds } from '../../hooks/useAudio'
 import { spawnCoins } from './Coins'
 
@@ -32,16 +33,16 @@ export function enemyKilled(e: Enemy, opts: { mine: boolean; rollDrops: boolean 
 export function bossKilled(x: number, y: number, opts: { mine: boolean }): void {
   const s = useGameStore.getState()
   s.addExplosion(x, 0.4, y, 3)
-  if (opts.mine) s.addScore(5000)
+  if (opts.mine) s.addScore(BOSS_SCORE)
   spawnCoins(x, y, BOSS_COINS)
 }
 
 /** What a collected pickup does for us. */
 export function applyPickup(type: PickupType): void {
   const s = useGameStore.getState()
-  if (type === 'rescue') { s.addScore(300); s.addStar(); sounds.powerup() }
+  if (type === 'rescue') { s.addScore(RESCUE_SCORE); s.addStar(); sounds.powerup() }
   else if (type === 'powerup') { s.upgradeWeapon(); sounds.powerup() }
   else if (type === 'health') { s.healPlayer(1); sounds.pickup() }
   else if (type === 'shield') { s.addShield(SHIELD_MS); sounds.pickup() }
-  else { s.addStar(); s.addScore(50); sounds.pickup() }
+  else { s.addStar(); s.addScore(POD_SCORE); sounds.pickup() }
 }

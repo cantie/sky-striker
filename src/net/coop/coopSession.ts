@@ -1,30 +1,40 @@
 import type { PickupType } from '../../store/gameStore'
-import { GAME_SPEED } from '../../game/speed'
 import { STEP_GAME, runSteps, setFrameDriver, stepCount } from '../../game/sim/clock'
 import { setNetHooks, type NetHooks } from '../../game/sim/net'
+import { scriptById, scriptedPos } from '../../game/sim/stageScript'
 import { GROUND_SPEED } from '../../game/world'
+import { GAME_SPEED } from '../../game/speed'
 import { ClockSync } from './clockSync'
 import { InterpolationBuffer } from './interpolation'
-import { HITS_BATCH_MS, Op, POS_HZ, type Hit, type Phase, type PlayerState, type ServerMessage, type ServerMessages } from './protocol'
-import type { ConnectOptions, RoomInfo, Transport } from './transport'
+import {
+  HITS_BATCH_MS, IN_RUN, Op, POS_HZ, list,
+  type DropInfo, type Hit, type Phase, type PhaseInfo, type PlayerState, type RunSummary, type ServerMessage, type TeamStats,
+} from './protocol'
+import { Listeners, type ConnectOptions, type RoomInfo, type Transport } from './transport'
 
 /** How the session touches the game. The real one is storeWorld.ts; tests pass a fake. */
 export interface WorldAdapter {
-  /** Begin the shared run (same stage + seed on every client). */
-  startRun(stageId: number, seed: number): void
+  /** A stage of the shared run begins (same stage + seed on every client). */
+  startStage(info: { stageId: number; seed: number; stageIndex: number }): void
   /** Our plane right now. */
   self(): { x: number; y: number; fire: boolean; power: number; plane: string; hp: number }
   enemyHp(id: string, hp: number): void
   bossHp(hp: number): void
-  /** Server says it's dead. `mine` = our hit finished it (we score). */
+  /** Server says it's dead. `mine` = our hit finished it. */
   enemyDead(id: string, mine: boolean): void
   /** A drop at (x, z) in the current stage time. */
   drop(id: string, type: PickupType, x: number, z: number): void
   /** Somebody got pickup `id`; apply it if it's us. */
   picked(id: string, mine: boolean, type: PickupType): void
-  /** Enemy `id` fires its volley toward `ang`. */
-  aimed(id: string, ang: number): void
-  phase(phase: Phase, info: ServerMessages[typeof Op.PHASE]): void
+  /** Enemy `id` fires its volley at the point (x, y): its target, as seen on our screen. */
+  aimed(id: string, at: { x: number; y: number }): void
+  /** We are down (rejoined a run in progress while down). */
+  down(x: number, y: number): void
+  /** A teammate revived us at (x, y) with `hp`. */
+  revived(x: number, y: number, hp: number): void
+  phase(phase: Phase, info: PhaseInfo): void
+  /** The connection dropped before the run ended. */
+  lost(reason: string): void
 }
 
 export interface Teammate {
@@ -33,14 +43,23 @@ export interface Teammate {
   alive: boolean; fire: boolean; power: number; plane: string; hp: number
 }
 
+export interface RosterEntry { id: string; name: string; plane: string; ready: boolean }
+/** A downed player's beacon. */
+export interface Downed { id: string; x: number; y: number; self: boolean }
+
 export interface SessionStatus {
   phase: Phase
   roomId: string | null
+  code: string | null
   selfId: string | null
   rtt: number
   /** Positive: we are behind the shared stage clock by this many steps. */
   behind: number
   teammates: number
+  stageIndex: number
+  stages: number
+  /** We've said READY. */
+  ready: boolean
 }
 
 const PING_EVERY_MS = 1000
@@ -52,26 +71,37 @@ const CATCHUP_AFTER = 30
 type Timer = ReturnType<typeof setInterval>
 
 /**
- * One co-op run on the client: lobby → countdown → playing → result. Sends our position (POS,
- * 20 Hz), batched hits (HITS, 100 ms), GOT_HIT / PICKUP / READY / RESYNC, keeps the server clock
- * and teammates' interpolation buffers, and applies server events to the game via WorldAdapter.
- * While active it drives the simulation clock from the shared stage clock and installs NetHooks.
+ * One co-op run on the client — the whole campaign: lobby → (countdown → playing → boss →
+ * stageClear) per stage → complete | failed. Sends our position (POS, 20 Hz), batched hits
+ * (HITS, 100 ms), GOT_HIT / PICKUP / REVIVE / READY / RESYNC; keeps the server clock, the roster
+ * and teammates' interpolation buffers; applies server events through WorldAdapter. While a stage
+ * runs it drives the simulation clock from the shared stage clock and installs NetHooks.
  */
 export class CoopSession {
   readonly clock: ClockSync
   phase: Phase = 'lobby'
   room: RoomInfo | null = null
+  stageIndex = 0
+  stages = 0
+  team: TeamStats = { score: 0, kills: 0 }
+  summary: RunSummary | null = null
   private stageT0 = 0
   private stageId = 1
   private seed = 0
   private running = false
+  private stopped = false
+  private saidReady = false
+  private me: { name: string; plane: string; hp: number; dataVersion: string } | null = null
   private hits: Hit[] = []
   private settled = new Set<string>()
   private mates = new Map<string, { buf: InterpolationBuffer; state: PlayerState; name: string }>()
   private names = new Map<string, string>()
+  private members = new Map<string, RosterEntry>()
+  private downed = new Map<string, { x: number; y: number }>()
   private bossTargetId: string | null = null
   private timers: Timer[] = []
   private unsubs: (() => void)[] = []
+  private stopListeners = new Listeners<[]>()
   private lastBehind = 0
 
   constructor(
@@ -86,18 +116,24 @@ export class CoopSession {
     return this.room?.selfId ?? null
   }
 
-  /** Connect, enter a room and say READY. `room`: create one, join by id, or matchmake. */
-  async start(opts: ConnectOptions & { plane: string; hp: number; stageId: number; room: 'create' | 'match' | { join: string } }): Promise<RoomInfo> {
+  /** Connect and enter a room: create one (with a code), join by code, or quick match. */
+  async start(opts: ConnectOptions & { plane: string; hp: number; dataVersion: string; room: 'create' | 'match' | { code: string } }): Promise<RoomInfo> {
+    this.me = { name: opts.name, plane: opts.plane, hp: opts.hp, dataVersion: opts.dataVersion }
     await this.transport.connect(opts)
     this.unsubs.push(
       this.transport.onMessage((m) => this.handle(m)),
-      this.transport.onDisconnect(() => this.stop()),
+      this.transport.onDisconnect((reason) => {
+        if (this.stopped) return
+        const ended = this.phase === 'complete' || this.phase === 'failed'
+        void this.stop()
+        if (!ended) this.world.lost(reason)
+      }),
     )
     this.room = opts.room === 'create'
-      ? await this.transport.createRoom({ stageId: opts.stageId })
+      ? await this.transport.createRoom()
       : opts.room === 'match'
-        ? await this.transport.matchmake({ stageId: opts.stageId, size: 2 })
-        : await this.transport.joinRoom(opts.room.join)
+        ? await this.transport.matchmake()
+        : await this.transport.joinRoom(opts.room.code)
     this.names.set(this.room.selfId, opts.name)
     // A quick burst of pings so the clock is good before the countdown ends
     for (let i = 0; i < 5; i++) setTimeout(() => this.ping(), i * 120)
@@ -106,18 +142,34 @@ export class CoopSession {
       setInterval(() => this.sendPos(), 1000 / POS_HZ),
       setInterval(() => this.flushHits(), HITS_BATCH_MS),
     )
-    this.transport.send(Op.READY, { name: opts.name, plane: opts.plane, hp: opts.hp })
     return this.room
   }
 
+  /** Lobby: we're ready to launch (the run starts when everyone is). */
+  ready(): void {
+    if (!this.me) return
+    this.saidReady = true
+    this.transport.send(Op.READY, { ...this.me })
+  }
+
+  /** We hovered over `id`'s beacon long enough. */
+  revive(id: string): void {
+    this.transport.send(Op.REVIVE, { id })
+  }
+
   async stop(): Promise<void> {
+    if (this.stopped) return
+    this.stopped = true
     this.timers.forEach(clearInterval)
     this.timers = []
     this.unsubs.forEach((u) => u())
     this.unsubs = []
     this.detach()
     await this.transport.leave().catch(() => {})
+    this.stopListeners.emit()
   }
+
+  onStop(cb: () => void): () => void { return this.stopListeners.add(cb) }
 
   /** Ask for a SNAPSHOT (e.g. we fell far behind or came back from a hidden tab). */
   resync(): void {
@@ -166,10 +218,19 @@ export class CoopSession {
     return out
   }
 
+  downedPlayers(): Downed[] {
+    return [...this.downed].map(([id, p]) => ({ id, x: p.x, y: p.y, self: id === this.selfId }))
+  }
+
+  roster(): RosterEntry[] {
+    return [...this.members.values()]
+  }
+
   status(): SessionStatus {
     return {
-      phase: this.phase, roomId: this.room?.roomId ?? null, selfId: this.selfId,
+      phase: this.phase, roomId: this.room?.roomId ?? null, code: this.room?.code ?? null, selfId: this.selfId,
       rtt: Math.round(this.clock.rtt), behind: this.lastBehind, teammates: this.mates.size,
+      stageIndex: this.stageIndex, stages: this.stages, ready: this.saidReady,
     }
   }
 
@@ -182,8 +243,9 @@ export class CoopSession {
         this.clock.addSample(m.data.c, m.data.s)
         break
       case Op.STATES:
-        this.bossTargetId = m.data.bossTarget
-        for (const p of m.data.players) {
+        this.bossTargetId = m.data.bossTarget ?? null
+        if (m.data.team) this.team = m.data.team
+        for (const p of list(m.data.players)) {
           if (p.id === me) continue
           let mate = this.mates.get(p.id)
           if (!mate) {
@@ -194,32 +256,52 @@ export class CoopSession {
           mate.buf.push({ t: p.t, x: p.x, y: p.y })
         }
         break
-      case Op.PLAYER:
-        if (m.data.name) this.names.set(m.data.id, m.data.name)
-        if (m.data.left) this.mates.delete(m.data.id)
-        else {
-          const mate = this.mates.get(m.data.id)
-          if (mate) {
-            mate.state = { ...mate.state, hp: m.data.hp, alive: m.data.alive }
-            if (m.data.name) mate.name = m.data.name
-          }
+      case Op.PLAYER: {
+        const d = m.data
+        if (d.name) this.names.set(d.id, d.name)
+        if (d.left) {
+          this.mates.delete(d.id)
+          this.downed.delete(d.id)
+          if (this.phase === 'lobby') this.members.delete(d.id)
+          break
         }
+        if (d.name !== undefined || d.plane !== undefined || d.ready !== undefined) {
+          const prev = this.members.get(d.id)
+          this.members.set(d.id, {
+            id: d.id, name: d.name ?? prev?.name ?? 'Pilot', plane: d.plane ?? prev?.plane ?? 'hawk', ready: d.ready ?? prev?.ready ?? false,
+          })
+        }
+        const mate = this.mates.get(d.id)
+        if (mate) {
+          mate.state = { ...mate.state, hp: d.hp, alive: d.alive }
+          if (d.name) mate.name = d.name
+        }
+        if (!d.alive && d.x !== undefined && d.y !== undefined) this.downed.set(d.id, { x: d.x, y: d.y })
+        if (d.alive) this.downed.delete(d.id)
+        if (d.id === me && d.revived && d.x !== undefined && d.y !== undefined) this.world.revived(d.x, d.y, d.hp)
         break
+      }
       case Op.PHASE:
         this.applyPhase(m.data)
         break
       case Op.SNAPSHOT: {
         const d = m.data
-        this.settled = new Set([...d.dead, ...d.taken])
-        this.applyPhase({ phase: d.phase, stageId: d.stageId, seed: d.seed, stageT0: d.stageT0, bossHp: d.bossHp ?? undefined }, true)
-        for (const [id, hp] of d.hp) this.world.enemyHp(id, hp)
-        for (const id of d.dead) this.world.enemyDead(id, false)
-        const t = this.stageTime()
-        for (const p of d.pickups) this.world.drop(p.id, p.type, p.x, p.z - (t - p.t) * GROUND_SPEED)
+        this.settled = new Set([...list(d.dead), ...list(d.taken)])
+        if (d.team) this.team = d.team
+        this.applyPhase({ ...d, bossHp: d.bossHp ?? undefined }, true)
+        for (const [id, hp] of list(d.hp)) this.world.enemyHp(id, hp)
+        for (const id of list(d.dead)) this.world.enemyDead(id, false)
+        for (const p of list(d.pickups)) this.placeDrop(p)
+        this.downed.clear()
+        for (const p of list(d.players)) {
+          if (p.alive) continue
+          this.downed.set(p.id, { x: p.x, y: p.y })
+          if (p.id === me) this.world.down(p.x, p.y)
+        }
         break
       }
       case Op.ENEMY_HP:
-        for (const [id, hp] of m.data.hp) {
+        for (const [id, hp] of list(m.data.hp)) {
           if (id === 'boss') this.world.bossHp(hp)
           else this.world.enemyHp(id, hp)
         }
@@ -228,38 +310,58 @@ export class CoopSession {
         this.settled.add(m.data.id)
         this.world.enemyDead(m.data.id, m.data.by === me)
         break
-      case Op.DROP: {
-        const d = m.data
-        // It has been riding the map since it dropped
-        const z = d.z - Math.max(0, this.stageTime() - d.t) * GROUND_SPEED
-        this.world.drop(d.id, d.type, d.x, z)
+      case Op.DROP:
+        this.placeDrop(m.data)
         break
-      }
       case Op.PICKED:
         this.settled.add(m.data.id)
         this.world.picked(m.data.id, m.data.by === me, m.data.type)
         break
       case Op.AIMED:
-        if (this.running) this.world.aimed(m.data.id, m.data.ang)
+        if (this.running) this.world.aimed(m.data.id, this.positionOf(m.data.target))
         break
     }
   }
 
-  private applyPhase(d: ServerMessages[typeof Op.PHASE], fromSnapshot = false): void {
+  /** Where player `id` is on our screen (us: exactly; a teammate: interpolated). */
+  private positionOf(id: string): { x: number; y: number } {
+    if (id !== this.selfId) {
+      const t = this.teammates().find((m) => m.id === id)
+      if (t) return { x: t.x, y: t.y }
+    }
+    const s = this.world.self()
+    return { x: s.x, y: s.y }
+  }
+
+  /** A server drop falls where its enemy was, and has ridden the map since. */
+  private placeDrop(p: DropInfo): void {
+    const e = scriptById(this.stageId).get(p.enemy)
+    if (!e) return
+    const at = scriptedPos(e, p.t)
+    const z = at.y - Math.max(0, this.stageTime() - p.t) * GROUND_SPEED
+    this.world.drop(p.id, p.type, at.x, z)
+  }
+
+  private applyPhase(d: PhaseInfo, fromSnapshot = false): void {
     const prev = this.phase
     this.phase = d.phase
     this.stageT0 = d.stageT0
-    const fresh = !this.running || d.stageId !== this.stageId || d.seed !== this.seed
-    if (fresh && d.phase !== 'lobby' && d.phase !== 'victory' && d.phase !== 'failed') {
+    this.stages = d.stages
+    if (d.team) this.team = d.team
+    if (d.summary) this.summary = d.summary
+    const fresh = IN_RUN.has(d.phase) && (!this.running || d.stageIndex !== this.stageIndex || d.seed !== this.seed)
+    if (fresh) {
+      this.stageIndex = d.stageIndex
       this.stageId = d.stageId
       this.seed = d.seed
-      // A new run starts clean; a snapshot brings its own settled set
+      // A new stage starts clean; a snapshot brings its own settled set
       if (!fromSnapshot) this.settled.clear()
-      this.world.startRun(d.stageId, d.seed)
+      this.downed.clear()
+      this.world.startStage({ stageId: d.stageId, seed: d.seed, stageIndex: d.stageIndex })
       this.attach()
     }
-    if (prev !== d.phase) this.world.phase(d.phase, d)
-    if (d.phase === 'victory' || d.phase === 'failed') this.detach()
+    if (prev !== d.phase || fresh) this.world.phase(d.phase, d)
+    if (d.phase === 'complete' || d.phase === 'failed') this.detach()
   }
 
   // ── client → server ──

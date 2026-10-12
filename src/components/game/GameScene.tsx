@@ -18,6 +18,7 @@ import { BOUNDS, PLAYFIELD_MID_Z, setView } from '../../game/world'
 import { ORDER, frame } from '../../game/sim/clock'
 import { useSimStep } from '../../game/sim/useSimStep'
 import { Teammates } from './Teammates'
+import { ReviveBeacon } from './ReviveBeacon'
 /** Half-extents with padding so the ship stays inside the visible area on mobile + desktop. */
 const HALF_W = (BOUNDS.maxX - BOUNDS.minX) / 2 + 1.1
 const HALF_H = (BOUNDS.maxY - BOUNDS.minY) / 2 + 1.4
@@ -71,7 +72,7 @@ export function GameScene() {
       keys.current.add(e.key.toLowerCase())
       if (e.key === 'Escape') {
         const st = useGameStore.getState()
-        if (st.gameState === 'playing') st.pauseGame()
+        if (st.gameState === 'playing' && st.mode !== 'coop') st.pauseGame()
         else if (st.gameState === 'paused') st.resumeGame()
       }
       if (e.key.toLowerCase() === 'b' && useGameStore.getState().gameState === 'menu') {
@@ -217,6 +218,7 @@ export function GameScene() {
             <Explosions />
             <Coins />
             {coop && <Teammates />}
+            {coop && <ReviveBeacon />}
           </>
         )}
       </Suspense>

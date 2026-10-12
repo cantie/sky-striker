@@ -1,10 +1,11 @@
-import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { STAGES } from '../../game/stages'
 import { stageScript } from '../../game/sim/stageScript'
 import { getPlane } from '../../game/planes'
 import { weaponStats } from '../../game/weapon'
 import { buildCoopData, maxDps, scriptedPickupKind, toLua } from './coopData'
+// The committed server data, as text (vite ?raw import)
+import committedLua from '../../../nakama/modules/skystriker_data.lua?raw'
 
 describe('co-op data', () => {
   const data = buildCoopData()
@@ -50,7 +51,6 @@ describe('co-op data', () => {
   })
 
   it('the committed Lua data is up to date (run `npm run gen:coop` after changing stages)', () => {
-    const file = readFileSync('nakama/modules/skystriker_data.lua', 'utf8')
-    expect(file).toContain(`version="${data.version}"`)
+    expect(committedLua).toContain(`version="${data.version}"`)
   })
 })

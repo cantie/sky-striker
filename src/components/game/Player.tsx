@@ -39,7 +39,7 @@ export function Player() {
     const s = useGameStore.getState()
     if (step === 0) { sinceShot.current = 0; sinceWing.current = 0; skillClock.current = { missile: 0, nova: 0, shield: 0 } }
     // Victory fly-out: hands off the trigger, the plane just climbs off screen
-    if (s.gameState !== 'playing' || s.flyout) return
+    if (s.gameState !== 'playing' || s.flyout || s.down) return
     const { playerX, playerY, weaponPower } = s
     sinceShot.current += realDt * 1000
     sinceWing.current += realDt * 1000
@@ -104,7 +104,7 @@ export function Player() {
     group.current.rotation.x = THREE.MathUtils.lerp(group.current.rotation.x, Math.min(0.25, Math.abs(vx) * 0.4), 0.1)
 
     const blink = Date.now() < invincibleUntil && Math.floor(Date.now() / 80) % 2 === 0
-    group.current.visible = !blink
+    group.current.visible = !blink && !s.down
 
     if (navLights.current) navLights.current.visible = Date.now() % 900 < 160
     if (shieldRing.current) {

@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties } from 'react'
 import { useGameStore } from '../../store/gameStore'
 import { useAccount } from '../../store/account'
 import { api, type LeaderboardMetric, type LeaderboardResult } from '../../net/api'
+import { coopLeaderboard, type CoopBoard, type CoopBoardResult, type CoopRow } from '../../net/coop/coopApi'
 import { sounds } from '../../hooks/useAudio'
 import { LoginButtons } from './Account'
 
@@ -11,7 +12,14 @@ const TABS: { id: LeaderboardMetric; label: string; unit: string }[] = [
   { id: 'goldStars', label: 'GOLD STARS', unit: '★' },
 ]
 
+const COOP_TABS: { id: CoopBoard; label: string }[] = [
+  { id: 'stage', label: 'FURTHEST STAGE' },
+  { id: 'kills', label: 'TEAM KILLS' },
+  { id: 'score', label: 'TEAM SCORE' },
+]
+
 const MEDALS = ['🥇', '🥈', '🥉']
+const fmtTime = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`
 
 /** Rankings by total best score, objective stars and lifetime gold stars (logged-in only). */
 export function Leaderboard() {
@@ -20,18 +28,34 @@ export function Leaderboard() {
   const [tab, setTab] = useState<LeaderboardMetric>('score')
   const [data, setData] = useState<LeaderboardResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [mode, setMode] = useState(useGameStore.getState().leaderboardMode)
+  const [coopTab, setCoopTab] = useState<CoopBoard>('stage')
+  const [coopData, setCoopData] = useState<CoopBoardResult | null>(null)
 
   useEffect(() => {
-    if (status !== 'user') return
+    if (status !== 'user' || mode !== 'solo') return
     let live = true
     setData(null)
     setError(null)
     api.leaderboard(tab).then((d) => live && setData(d)).catch((e) => live && setError(e.message || 'Could not load the leaderboard'))
     return () => { live = false }
-  }, [tab, status])
+  }, [tab, mode, status])
+
+  useEffect(() => {
+    if (status !== 'user' || mode !== 'coop') return
+    let live = true
+    setCoopData(null)
+    setError(null)
+    coopLeaderboard(coopTab).then((d) => live && setCoopData(d)).catch((e) => live && setError(e.message || 'Could not load the co-op leaderboard'))
+    return () => { live = false }
+  }, [coopTab, mode, status])
 
   const unit = TABS.find((t) => t.id === tab)!.unit
   const inTop = data?.rows.some((r) => r.playerId === data.me.playerId)
+  const coopValue = (r: CoopRow) => coopTab === 'stage'
+    ? `Stage ${r.score} · ${fmtTime(r.metadata?.timeMs ?? 0)}`
+    : `${r.score.toLocaleString()} ${coopTab === 'kills' ? 'kills' : 'pts'}`
+  const coopMe = coopData?.me && !coopData.rows.some((r) => r.mine) ? coopData.me : null
 
   return (
     <div style={overlay}>
@@ -53,35 +77,76 @@ export function Leaderboard() {
           </div>
         ) : (
           <>
-            <div style={tabs}>
-              {TABS.map((t) => (
-                <button key={t.id} type="button" onClick={() => { sounds.uiClick(); setTab(t.id) }}
-                  style={{ ...tabBtn, ...(t.id === tab ? tabActive : {}) }}>{t.label}</button>
+            <div style={{ ...tabs, gridTemplateColumns: 'repeat(2, 1fr)' }}>
+              {(['solo', 'coop'] as const).map((m) => (
+                <button key={m} type="button" onClick={() => { sounds.uiClick(); setMode(m) }} style={{ ...tabBtn, ...(m === mode ? tabActive : {}) }}>
+                  {m === 'solo' ? 'SOLO' : 'CO-OP'}
+                </button>
               ))}
             </div>
-            <div style={list}>
-              {error && <div style={{ color: '#ff8a80', textAlign: 'center', padding: 20 }}>{error}</div>}
-              {!error && !data && <div style={{ color: '#8eb8d4', textAlign: 'center', padding: 20 }}>Loading…</div>}
-              {data && data.rows.length === 0 && <div style={{ color: '#8eb8d4', textAlign: 'center', padding: 20 }}>No pilots ranked yet — be the first!</div>}
-              {data?.rows.map((r) => {
-                const mine = r.playerId === data.me.playerId
-                return (
-                  <div key={r.playerId} style={{ ...row, ...(mine ? rowMine : {}) }}>
-                    <span style={rankCell}>{r.rank <= 3 ? MEDALS[r.rank - 1] : r.rank}</span>
-                    <span style={{ flex: 1, color: mine ? '#ffd54a' : '#e8f4ff', fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {r.name}{mine ? ' (you)' : ''}
-                    </span>
-                    <span style={{ color: '#ffd54a', fontWeight: 900 }}>{r.value.toLocaleString()} <span style={{ fontSize: 10, color: '#8eb8d4' }}>{unit}</span></span>
+            {mode === 'coop' ? (
+              <>
+                <div style={tabs}>
+                  {COOP_TABS.map((t) => (
+                    <button key={t.id} type="button" onClick={() => { sounds.uiClick(); setCoopTab(t.id) }}
+                      style={{ ...tabBtn, ...(t.id === coopTab ? tabActive : {}) }}>{t.label}</button>
+                  ))}
+                </div>
+                <div style={list}>
+                  {error && <div style={{ color: '#ff8a80', textAlign: 'center', padding: 20 }}>{error}</div>}
+                  {!error && !coopData && <div style={{ color: '#8eb8d4', textAlign: 'center', padding: 20 }}>Loading…</div>}
+                  {coopData && coopData.rows.length === 0 && <div style={{ color: '#8eb8d4', textAlign: 'center', padding: 20 }}>No squads ranked yet — fly a co-op run!</div>}
+                  {coopData?.rows.map((r) => (
+                    <div key={r.owner} style={{ ...row, ...(r.mine ? rowMine : {}) }}>
+                      <span style={rankCell}>{r.rank <= 3 ? MEDALS[r.rank - 1] : r.rank}</span>
+                      <span style={{ flex: 1, color: r.mine ? '#ffd54a' : '#e8f4ff', fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {r.names}
+                      </span>
+                      <span style={{ color: '#ffd54a', fontWeight: 900 }}>{coopValue(r)}</span>
+                    </div>
+                  ))}
+                </div>
+                {coopMe && (
+                  <div style={{ ...row, ...rowMine }}>
+                    <span style={rankCell}>{coopMe.rank}</span>
+                    <span style={{ flex: 1, color: '#ffd54a', fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{coopMe.names}</span>
+                    <span style={{ color: '#ffd54a', fontWeight: 900 }}>{coopValue(coopMe)}</span>
                   </div>
-                )
-              })}
-            </div>
-            {data && !inTop && (
-              <div style={{ ...row, ...rowMine }}>
-                <span style={rankCell}>{data.me.rank ?? '—'}</span>
-                <span style={{ flex: 1, color: '#ffd54a', fontWeight: 800 }}>You</span>
-                <span style={{ color: '#ffd54a', fontWeight: 900 }}>{data.me.value.toLocaleString()} <span style={{ fontSize: 10, color: '#8eb8d4' }}>{unit}</span></span>
-              </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div style={tabs}>
+                  {TABS.map((t) => (
+                    <button key={t.id} type="button" onClick={() => { sounds.uiClick(); setTab(t.id) }}
+                      style={{ ...tabBtn, ...(t.id === tab ? tabActive : {}) }}>{t.label}</button>
+                  ))}
+                </div>
+                <div style={list}>
+                  {error && <div style={{ color: '#ff8a80', textAlign: 'center', padding: 20 }}>{error}</div>}
+                  {!error && !data && <div style={{ color: '#8eb8d4', textAlign: 'center', padding: 20 }}>Loading…</div>}
+                  {data && data.rows.length === 0 && <div style={{ color: '#8eb8d4', textAlign: 'center', padding: 20 }}>No pilots ranked yet — be the first!</div>}
+                  {data?.rows.map((r) => {
+                    const mine = r.playerId === data.me.playerId
+                    return (
+                      <div key={r.playerId} style={{ ...row, ...(mine ? rowMine : {}) }}>
+                        <span style={rankCell}>{r.rank <= 3 ? MEDALS[r.rank - 1] : r.rank}</span>
+                        <span style={{ flex: 1, color: mine ? '#ffd54a' : '#e8f4ff', fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {r.name}{mine ? ' (you)' : ''}
+                        </span>
+                        <span style={{ color: '#ffd54a', fontWeight: 900 }}>{r.value.toLocaleString()} <span style={{ fontSize: 10, color: '#8eb8d4' }}>{unit}</span></span>
+                      </div>
+                    )
+                  })}
+                </div>
+                {data && !inTop && (
+                  <div style={{ ...row, ...rowMine }}>
+                    <span style={rankCell}>{data.me.rank ?? '—'}</span>
+                    <span style={{ flex: 1, color: '#ffd54a', fontWeight: 800 }}>You</span>
+                    <span style={{ color: '#ffd54a', fontWeight: 900 }}>{data.me.value.toLocaleString()} <span style={{ fontSize: 10, color: '#8eb8d4' }}>{unit}</span></span>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}

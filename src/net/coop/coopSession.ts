@@ -63,6 +63,8 @@ export interface SessionStatus {
 }
 
 const PING_EVERY_MS = 1000
+/** Nothing from the server for this long mid-run (not even a PONG): the match is gone. */
+const SILENT_MS = 5000
 /** Steps per frame: a little faster than real time to absorb jitter; much faster to catch up. */
 const SMOOTH_STEPS = 3
 const CATCHUP_STEPS = 240
@@ -103,6 +105,7 @@ export class CoopSession {
   private unsubs: (() => void)[] = []
   private stopListeners = new Listeners<[]>()
   private lastBehind = 0
+  private lastHeard = 0
 
   constructor(
     private transport: Transport,
@@ -137,8 +140,9 @@ export class CoopSession {
     this.names.set(this.room.selfId, opts.name)
     // A quick burst of pings so the clock is good before the countdown ends
     for (let i = 0; i < 5; i++) setTimeout(() => this.ping(), i * 120)
+    this.lastHeard = this.now()
     this.timers.push(
-      setInterval(() => this.ping(), PING_EVERY_MS),
+      setInterval(() => { this.ping(); this.watchdog() }, PING_EVERY_MS),
       setInterval(() => this.sendPos(), 1000 / POS_HZ),
       setInterval(() => this.flushHits(), HITS_BATCH_MS),
     )
@@ -237,6 +241,7 @@ export class CoopSession {
   // ── server → client ──
 
   handle(m: ServerMessage): void {
+    this.lastHeard = this.now()
     const me = this.selfId
     switch (m.op) {
       case Op.PONG:
@@ -368,6 +373,16 @@ export class CoopSession {
 
   private ping(): void {
     this.transport.send(Op.PING, { c: this.now() })
+  }
+
+  /**
+   * The socket can stay up while the match's node is gone (matches live on any pod): we would fly on
+   * alone forever. The server answers every PING, so silence mid-run means it's over.
+   */
+  private watchdog(): void {
+    if (this.stopped || !IN_RUN.has(this.phase) || this.now() - this.lastHeard < SILENT_MS) return
+    void this.stop()
+    this.world.lost('The co-op server stopped responding')
   }
 
   private sendPos(): void {

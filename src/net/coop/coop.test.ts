@@ -205,6 +205,20 @@ describe('loopback co-op session', () => {
     server.stopTimer()
   })
 
+  it('a server that goes silent mid-run sends us back (lost) instead of flying on alone', async () => {
+    const { server, clients: [c] } = await setup({ bot: true })
+    await vi.advanceTimersByTimeAsync(3200)
+    expect(c.session.phase).toBe('playing')
+    // The match's node died but our socket is fine: no STATES, no PONG, no disconnect
+    server.stopTimer()
+    server.receive = () => {}
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(c.calls.lost).toBeUndefined()   // a short stall is fine
+    await vi.advanceTimersByTimeAsync(4000)
+    expect(c.calls.lost).toHaveLength(1)
+    expect(net()).toBeNull()
+  })
+
   it('a snapshot with {} arrays (Nakama Lua) does not crash', async () => {
     const fw = fakeWorld()
     const s = new CoopSession(new LoopbackTransport(new LoopbackServer()), fw.world)

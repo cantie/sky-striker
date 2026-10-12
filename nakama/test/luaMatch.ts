@@ -15,10 +15,12 @@ export interface StorageObj { collection: string; key: string; user_id: string; 
 
 export const presence = (id: string): Presence => ({ user_id: id, session_id: `s-${id}`, username: id, node: 'node1' })
 
-/** Dispatched messages from the harness (an empty `to` list comes back as {} through Lua JSON). */
-const unwire = (raw: string): Sent[] =>
-  (JSON.parse(raw) as { op: number; data: string; to: unknown }[])
+/** Dispatched messages from the harness (empty lists come back as {} through Lua JSON). */
+const unwire = (raw: string): Sent[] => {
+  const sent = JSON.parse(raw) as { op: number; data: string; to: unknown }[] | Record<string, never>
+  return (Array.isArray(sent) ? sent : [])
     .map((s) => ({ op: s.op, data: JSON.parse(s.data), to: Array.isArray(s.to) ? (s.to as string[]) : null }))
+}
 
 /** skystriker_coop.lua running in fengari against the mock nakama module (see harness.lua). */
 export class LuaMatch {

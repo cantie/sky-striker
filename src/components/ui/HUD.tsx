@@ -1,5 +1,7 @@
-import type { CSSProperties, ReactNode } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import { useGameStore } from '../../store/gameStore'
+import { stopCoop } from '../../net/coop/active'
+import { useCoopStatus } from './useCoop'
 import { syncMute, sounds } from '../../hooks/useAudio'
 import { getStage } from '../../game/stages'
 import { BOSSES } from '../../game/bosses'
@@ -22,13 +24,18 @@ export function HUD() {
   const pauseGame = useGameStore((s) => s.pauseGame)
   const gameState = useGameStore((s) => s.gameState)
   const currentStageId = useGameStore((s) => s.currentStageId)
+  const coop = useGameStore((s) => s.mode === 'coop')
+  const down = useGameStore((s) => s.down)
+  const { team, status } = useCoopStatus()
+  const [leaving, setLeaving] = useState(false)
   const hpColor = playerHp > 2 ? '#4caf50' : playerHp === 2 ? '#ff9800' : '#f44336'
 
   return (
     <div style={{ position: 'absolute', inset: 0, padding: 'max(0.5rem, env(safe-area-inset-top)) max(0.5rem, env(safe-area-inset-right)) max(0.5rem, env(safe-area-inset-bottom)) max(0.5rem, env(safe-area-inset-left))', pointerEvents: 'none', zIndex: 5 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
         <div style={{ minWidth: 64 }}>
-          <div style={{ fontSize: 'clamp(1.1rem, 4vw, 1.5rem)', fontWeight: 800, color: '#fff', textShadow: shadow, lineHeight: 1.1 }}>{score.toLocaleString()}</div>
+          <div style={{ fontSize: 'clamp(1.1rem, 4vw, 1.5rem)', fontWeight: 800, color: '#fff', textShadow: shadow, lineHeight: 1.1 }}>{(coop ? team.score : score).toLocaleString()}</div>
+          {coop && <div style={{ color: '#3dff8a', fontWeight: 800, fontSize: 11, textShadow: shadow }}>TEAM · STAGE {(status?.stageIndex ?? 0) + 1}/{status?.stages ?? 10}</div>}
           <div style={{ color: '#ffd700', fontWeight: 800, fontSize: 12, textShadow: shadow }}>
             ★ {stars}{combo > 0 && <span style={{ marginLeft: 6 }}>{combo}x</span>}
           </div>
@@ -67,7 +74,7 @@ export function HUD() {
 
         <div style={{ display: 'flex', gap: 6, pointerEvents: 'auto', marginLeft: 'auto' }}>
           <IconBtn onClick={() => { sounds.uiClick(); toggleMute(); syncMute() }}>{isMuted ? '🔇' : '🔊'}</IconBtn>
-          <IconBtn onClick={pauseGame}>⏸</IconBtn>
+          <IconBtn onClick={coop ? () => setLeaving(true) : pauseGame}>{coop ? '⏏' : '⏸'}</IconBtn>
         </div>
       </div>
 
@@ -96,6 +103,25 @@ export function HUD() {
       {gameState === 'bossWarning' && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ fontSize: 'clamp(1.8rem, 7vw, 3rem)', fontWeight: 900, color: '#ff1744', textShadow: '0 0 20px #ff1744', animation: 'pulse 0.6s infinite' }}>⚠ WARNING ⚠<br />BOSS INCOMING</div>
+        </div>
+      )}
+      {coop && down && (
+        <div style={{ position: 'absolute', bottom: '18%', left: 0, right: 0, textAlign: 'center', pointerEvents: 'none' }}>
+          <div style={{ fontSize: 'clamp(1.3rem, 6vw, 2rem)', fontWeight: 900, color: '#ff5252', textShadow: '0 0 14px #ff1744' }}>SHOT DOWN</div>
+          <div style={{ color: '#fff', fontWeight: 800, fontSize: 13, textShadow: shadow }}>Hang on — your wingmate can revive you at your beacon</div>
+        </div>
+      )}
+      {coop && leaving && (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', pointerEvents: 'auto' }}>
+          <div style={{ background: 'rgba(10,24,44,0.95)', borderRadius: 16, padding: 18, textAlign: 'center', color: '#fff', maxWidth: 300 }}>
+            <div style={{ fontWeight: 900, marginBottom: 6 }}>Leave the run?</div>
+            <div style={{ fontSize: 12, color: '#9fd6ff', marginBottom: 12 }}>The game keeps going for your wingmate. You can rejoin with the room code.</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button style={{ flex: 1, padding: 10, borderRadius: 10, border: 'none', fontWeight: 800 }} onClick={() => setLeaving(false)}>STAY</button>
+              <button style={{ flex: 1, padding: 10, borderRadius: 10, border: 'none', fontWeight: 800, background: '#ff5252', color: '#fff' }}
+                onClick={() => { setLeaving(false); void stopCoop().then(() => useGameStore.getState().setGameState('coopLobby')) }}>LEAVE</button>
+            </div>
+          </div>
         </div>
       )}
       <style>{`@keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.08)} }`}</style>

@@ -12,7 +12,7 @@ export function CoopBadge() {
       const st = s.status()
       const t = s.stageTime()
       const count = st.phase === 'countdown' && t < 0 ? ` · START IN ${Math.ceil(-t / GAME_SPEED)}` : ''
-      setText(`CO-OP · ${sessionLabel()} · RTT ${st.rtt}ms · ${st.teammates} WINGMATE${st.teammates === 1 ? '' : 'S'}${count}`)
+      setText(`CO-OP · ${sessionLabel()} · STAGE ${st.stageIndex + 1}/${st.stages || '?'} · RTT ${st.rtt}ms · ${st.teammates} WINGMATE${st.teammates === 1 ? '' : 'S'}${count}`)
     }, 250)
     return () => clearInterval(id)
   }, [])

@@ -12,6 +12,7 @@ export function MainMenu() {
   const progress = useGameStore((s) => s.progress)
   const openHangar = useGameStore((s) => s.openHangar)
   const openLeaderboard = useGameStore((s) => s.openLeaderboard)
+  const openCoopLobby = useGameStore((s) => s.openCoopLobby)
 
   const totalEarned = STAGES.reduce((n, s) => n + countStars(progress, s.id), 0)
   const totalPossible = STAGES.reduce((n, s) => n + totalStarsPossible(s.id), 0)
@@ -37,6 +38,13 @@ export function MainMenu() {
           style={btnPrimary}
         >
           PLAY
+        </button>
+        <button
+          type="button"
+          onClick={() => { sounds.uiSelect(); openCoopLobby() }}
+          style={{ ...btnPrimary, background: 'linear-gradient(180deg, #5dffa0, #1fae5b)', color: '#062312', boxShadow: '0 6px 0 #11733a' }}
+        >
+          👥 CO-OP
         </button>
         <button
           type="button"

@@ -32,8 +32,6 @@ local function size() local n = 0 for _ in pairs(present) do n = n + 1 end retur
 function H.preload_data(src) package.preload["skystriker_data"] = assert(load(src, "=skystriker_data")) return "" end
 function H.load() mod = require("skystriker_coop") return "" end
 function H.set_time(ms) nk.now = tonumber(ms) return "" end
-function H.set_users(j) nk.users = nk.json_decode(j) return "" end
-function H.set_accounts(j) for id, custom in pairs(nk.json_decode(j)) do nk.accounts[id] = custom end return "" end
 function H.set_env(j) env = nk.json_decode(j) return "" end
 function H.rpc(id, user_id, payload) return nk.rpcs[id](ctx(user_id ~= "" and user_id or nil), payload) end
 
@@ -106,7 +104,7 @@ function H.dump()
   for _, o in pairs(nk.storage) do storage[#storage + 1] = o end
   local matches = {}
   for id, m in pairs(nk.matches) do matches[id] = { label = m.label, size = m.size } end
-  return nk.json_encode({ matches = matches, boards = boards, storage = storage, requests = nk.requests })
+  return nk.json_encode({ matches = matches, boards = boards, storage = storage, logs = nk.logs })
 end
 
 return H

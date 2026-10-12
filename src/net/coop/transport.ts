@@ -16,8 +16,6 @@ export interface ConnectOptions {
   /** Stable id (game account id) and display name. */
   userId: string
   name: string
-  /** Bearer token the server verifies (game login). */
-  token?: string
   /** Sent with the join so the server can refuse a mismatched build. */
   plane?: string
   dataVersion?: string

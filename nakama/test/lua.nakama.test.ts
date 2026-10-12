@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Op } from '../../src/net/coop/protocol'
+import { Op, list } from '../../src/net/coop/protocol'
 import { RULES } from '../../src/net/coop/coopData'
 import { clearStage, playing, testData } from '../../src/net/coop/serverConformance'
 import { LuaMatch, presence } from './luaMatch'
@@ -8,64 +8,55 @@ import { luaDriver } from './luaDriver'
 const READY = { name: 'x', plane: 'hawk', hp: 3, dataVersion: 'test' }
 
 describe('Lua match: joining', () => {
-  it('refuses a bad token, a wrong data version and a third player', () => {
+  const names = (d: ReturnType<typeof luaDriver>, id: string) =>
+    d.drain(id).filter((m) => m.op === Op.PLAYER).map((m) => (m.data as { name?: string }).name)
+
+  it('refuses a wrong data version and a third player', () => {
     const d = luaDriver(testData())
-    expect(d.match.join(presence('eve'), { token: 'nope', dataVersion: 'test' })).toMatchObject({ ok: false, reason: expect.stringMatching(/log/i) })
     expect(d.join('alice', { dataVersion: 'old' })).toMatchObject({ ok: false, reason: expect.stringMatching(/version/i) })
     expect(d.join('alice').ok).toBe(true)
     expect(d.join('bob').ok).toBe(true)
     expect(d.join('carol')).toMatchObject({ ok: false, reason: expect.stringMatching(/full/i) })
   })
 
-  it("refuses someone else's login token on a Nakama account (custom id must be skystriker-<game id>)", () => {
+  it('logs why a join was refused', () => {
     const d = luaDriver(testData())
-    expect(d.join('alice').ok).toBe(true)
-    d.match.setAccounts({ mallory: 'skystriker-99' })
-    expect(d.match.join(presence('mallory'), { token: 'tok-alice', dataVersion: 'test' })).toMatchObject({ ok: false, reason: expect.stringMatching(/log in/i) })
+    d.join('alice', { dataVersion: 'old' })
+    expect(list(d.match.dump().logs)).toContainEqual(expect.stringMatching(/^warn: .*alice.*version/i))
   })
 
-  it('one game account cannot take both seats', () => {
-    const d = luaDriver(testData())
-    expect(d.join('alice').ok).toBe(true)
-    // A second Nakama account claiming the same game id (alice is game id 1)
-    d.match.setAccounts({ alice2: 'skystriker-1' })
-    expect(d.match.join(presence('alice2'), { token: 'tok-alice', dataVersion: 'test' })).toMatchObject({ ok: false, reason: expect.stringMatching(/already/i) })
-  })
-
-  it("a dropped seat can't be taken over with another pilot's login", () => {
-    const d = luaDriver(testData())
-    d.join('alice'); d.join('bob')
-    d.send('alice', Op.READY, READY); d.send('bob', Op.READY, READY)
-    d.advance(50)
-    d.leave('bob')
-    expect(d.join('carol').ok).toBe(false)               // (registers carol's login: game id 3)
-    expect(d.match.join(presence('bob'), { token: 'tok-carol', dataVersion: 'test' })).toMatchObject({ ok: false })
-    expect(d.join('bob').ok).toBe(true)                  // bob himself may come back
-  })
-
-  it('without SKYSTRIKER_API_URL, logins are checked at https://sf.zingplay.dev', () => {
+  it('no login needed: a fresh Nakama account joins with the name it sends', () => {
     const m = new LuaMatch({ data: testData() })
-    m.setUsers({ 'tok-a': { id: 7, name: 'A' } })
-    m.setAccounts({ a: 'skystriker-7' })
     m.init({ code: 'ABCDE' })
-    expect(m.join(presence('a'), { token: 'tok-a', dataVersion: 'test' }).ok).toBe(true)
-    expect(m.dump().requests).toEqual(['https://sf.zingplay.dev/api/me'])
+    expect(m.join(presence('a'), { name: 'Maverick', dataVersion: 'test' }).ok).toBe(true)
+    const roster = m.drain().filter((s) => s.op === Op.PLAYER).map((s) => (s.data as { name?: string }).name)
+    expect(roster).toEqual(['Maverick'])
   })
 
-  it('SKYSTRIKER_API_URL overrides the default', () => {
+  it('the sent name is trimmed and capped at 24 characters; a blank one becomes Pilot', () => {
+    const d = luaDriver(testData())
+    d.join('alice', { name: '  Ace  ' })
+    d.join('bob', { name: 'x'.repeat(40) })
+    expect(names(d, 'alice')).toEqual(expect.arrayContaining(['Ace', 'x'.repeat(24)]))
+    const e = luaDriver(testData())
+    e.join('alice', { name: '   ' })
+    expect(names(e, 'alice')).toEqual(['Pilot'])
+  })
+
+  it('one Nakama account cannot take both seats', () => {
     const d = luaDriver(testData())
     expect(d.join('alice').ok).toBe(true)
-    expect(d.match.dump().requests).toEqual(['http://game.test/api/me'])
+    expect(d.join('alice')).toMatchObject({ ok: false, reason: expect.stringMatching(/already/i) })
   })
 
-  it('uses the verified account name, not the READY name', () => {
+  it('keeps the name from the join, not the READY one', () => {
     const d = luaDriver(testData())
     d.join('alice')
-    d.send('alice', Op.READY, { ...READY, name: 'Impostor' })
+    d.send('alice', Op.READY, { ...READY, name: 'Renamed' })
     d.advance(50)
-    const roster = d.drain('alice').filter((m) => m.op === Op.PLAYER).map((m) => (m.data as { name?: string }).name)
+    const roster = names(d, 'alice')
     expect(roster).toContain('ALICE')
-    expect(roster).not.toContain('Impostor')
+    expect(roster).not.toContain('Renamed')
   })
 
   it('a non-member cannot join a run in progress', () => {
@@ -178,7 +169,7 @@ describe('Lua match: leaderboards', () => {
     slow.advance(5000)
     slow.send('alice', Op.GOT_HIT, { hits: 3, hp: 0 }); slow.send('bob', Op.GOT_HIT, { hits: 3, hp: 0 })
     slow.advance(50)
-    const fast = luaDriver(data, m, 3)         // a second pair (game ids 3 & 4: carol & dave), down at once
+    const fast = luaDriver(data, m)            // a second pair (carol & dave), down at once
     fast.join('carol'); fast.join('dave')
     fast.send('carol', Op.READY, READY); fast.send('dave', Op.READY, READY)
     fast.advance(RULES.countdownMs + 100)

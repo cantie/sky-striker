@@ -5,7 +5,7 @@ import { nakamaConfig, nakamaRpc, nakamaSession } from './nakamaClient'
 
 /**
  * Transport over the Sky Striker co-op match (nakama/modules/skystriker_coop.lua): rooms come from
- * the skystriker_* RPCs, the match verifies our game login from the join metadata.
+ * the skystriker_* RPCs; the join metadata carries our display name, plane and data version.
  */
 export class NakamaTransport implements Transport {
   private socket: Socket | null = null
@@ -17,7 +17,7 @@ export class NakamaTransport implements Transport {
 
   async connect(opts: ConnectOptions): Promise<void> {
     this.playerId = opts.userId
-    this.meta = { token: opts.token ?? '', plane: opts.plane ?? 'hawk', dataVersion: opts.dataVersion ?? '' }
+    this.meta = { name: opts.name, plane: opts.plane ?? 'hawk', dataVersion: opts.dataVersion ?? '' }
     const { client, session } = await nakamaSession(opts.userId)
     const socket = client.createSocket(nakamaConfig().useSSL, false)
     socket.onmatchdata = (d) => {

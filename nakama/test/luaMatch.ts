@@ -60,9 +60,6 @@ export class LuaMatch {
   }
 
   setTime(ms: number): void { this.call('set_time', String(ms)) }
-  setUsers(users: Record<string, { id: number; name: string }>): void { this.call('set_users', JSON.stringify(users)) }
-  /** Nakama user id → custom id (the module checks it is `skystriker-<game id>` of the login). */
-  setAccounts(accounts: Record<string, string>): void { this.call('set_accounts', JSON.stringify(accounts)) }
   setEnv(env: Record<string, string>): void { this.call('set_env', JSON.stringify(env)) }
   rpc<T = any>(id: string, userId: string, payload: unknown): T {
     return JSON.parse(this.call('rpc', id, userId, typeof payload === 'string' ? payload : JSON.stringify(payload)) || '{}')
@@ -80,7 +77,7 @@ export class LuaMatch {
   drain(): Sent[] { return unwire(this.call('drain')) }
   ended(): boolean { return this.call('ended') === 'true' }
   dataSummary(): { version: string; stages: number; enemies: number; maxDps: number } { return JSON.parse(this.call('data_summary')) }
-  dump(): { matches: Record<string, { label: string; size: number }>; boards: Record<string, LbRecord[]>; storage: StorageObj[]; requests: string[] } {
+  dump(): { matches: Record<string, { label: string; size: number }>; boards: Record<string, LbRecord[]>; storage: StorageObj[]; logs: string[] } {
     return JSON.parse(this.call('dump'))
   }
 }

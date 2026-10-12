@@ -1,7 +1,7 @@
 -- Test double for Nakama's Lua `nakama` module: deterministic time, an in-memory match list,
--- leaderboards (operator "best", desc) and storage, and an HTTP stub for /api/me.
+-- leaderboards (operator "best", desc) and storage.
 local json = require("json")
-local nk = { now = 0, users = {}, rpcs = {}, matches = {}, boards = {}, storage = {}, logs = {}, next_match = 0, next_uuid = 0 }
+local nk = { now = 0, rpcs = {}, matches = {}, boards = {}, storage = {}, logs = {}, next_match = 0, next_uuid = 0 }
 
 nk.json_encode = json.encode
 nk.json_decode = json.decode
@@ -100,25 +100,6 @@ function nk.storage_read(list)
 end
 function nk.storage_write(list)
   for _, o in ipairs(list) do nk.storage[skey(o)] = o end
-end
-
--- Nakama user id → custom id ("skystriker-<game id>"), set by the tests
-nk.accounts = {}
-function nk.account_get_id(user_id)
-  local custom = nk.accounts[user_id]
-  if not custom then error("account not found: " .. tostring(user_id)) end
-  return { user_id = user_id, username = user_id, custom_id = custom }
-end
-
-nk.requests = {}
-function nk.http_request(url, method, headers, content, timeout)
-  nk.requests[#nk.requests + 1] = url
-  local token = headers and headers.Authorization and headers.Authorization:match("^Bearer (.+)$")
-  local user = token and nk.users[token]
-  if url:match("/api/me$") and user then
-    return 200, {}, json.encode({ user = user, progress = {} })
-  end
-  return 401, {}, '{"message":"Unauthorized"}'
 end
 
 -- Not MD5, but stable 32 hex chars, which is all the module relies on

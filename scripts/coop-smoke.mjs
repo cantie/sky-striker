@@ -1,18 +1,10 @@
 // End-to-end smoke against a running Nakama with the co-op module (nakama/docker-compose.yml):
-// stub /api/me, two clients, create → join by code → READY → kill → both down → leaderboard row.
+// two clients, create → join by code → READY → kill → both down → leaderboard row.
 //   node scripts/coop-smoke.mjs [host=127.0.0.1] [port=7350]
-import http from 'node:http'
 import { Client } from '@heroiclabs/nakama-js'
 import { createServer } from 'vite'
 
 const [host = '127.0.0.1', port = '7350'] = process.argv.slice(2)
-const USERS = { 'tok-1': { id: 1, name: 'ALPHA' }, 'tok-2': { id: 2, name: 'BRAVO' } }
-const api = http.createServer((req, res) => {
-  const u = USERS[(req.headers.authorization ?? '').replace('Bearer ', '')]
-  res.writeHead(u ? 200 : 401, { 'Content-Type': 'application/json' })
-  res.end(JSON.stringify(u ? { user: u, progress: {} } : { message: 'Unauthorized' }))
-}).listen(7999)
-
 const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' })
 const { coopData } = await vite.ssrLoadModule('/src/net/coop/coopData.ts')
 const data = coopData()
@@ -20,21 +12,21 @@ await vite.close()
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const enc = (o) => JSON.stringify(o)
-async function pilot(tok, gid) {
+async function pilot(name, gid) {
   const client = new Client('defaultkey', host, port, false)
-  // Same custom id as the game client: the match checks it belongs to the token's game account
+  // Same custom id as the game client
   const session = await client.authenticateCustom(`skystriker-${gid}`, true)
   const socket = client.createSocket(false, false)
   const inbox = []
   socket.onmatchdata = (d) => inbox.push({ op: d.op_code, data: JSON.parse(new TextDecoder().decode(d.data)) })
   await socket.connect(session, true)
   const rpc = async (id, p) => { const r = await client.rpc(session, id, p); return typeof r.payload === 'string' ? JSON.parse(r.payload) : r.payload }
-  return { client, session, socket, inbox, rpc, meta: { token: tok, plane: 'hawk', dataVersion: data.version } }
+  return { client, session, socket, inbox, rpc, meta: { name, plane: 'hawk', dataVersion: data.version } }
 }
 const phase = (p) => p.inbox.filter((m) => m.op === 106).at(-1)?.data.phase
 
 try {
-  const a = await pilot('tok-1', 1), b = await pilot('tok-2', 2)
+  const a = await pilot('ALPHA', 1), b = await pilot('BRAVO', 2)
   const room = await a.rpc('skystriker_create_match', {})
   console.log('room', room)
   const ma = await a.socket.joinMatch(room.matchId, undefined, a.meta)
@@ -61,6 +53,5 @@ try {
   console.error('SMOKE FAILED:', e)
   process.exitCode = 1
 } finally {
-  api.close()
   setTimeout(() => process.exit(process.exitCode), 200)
 }

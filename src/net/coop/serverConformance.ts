@@ -5,7 +5,7 @@ import type { ShotKind } from '../../game/roster'
 
 /** One authoritative co-op server under test (LoopbackServer or the Lua match). */
 export interface ServerDriver {
-  join(id: string, meta?: Partial<{ token: string; dataVersion: string; plane: string }>): { ok: boolean; reason?: string }
+  join(id: string, meta?: Partial<{ name: string; dataVersion: string; plane: string }>): { ok: boolean; reason?: string }
   leave(id: string): void
   send<K extends ClientOp>(id: string, op: K, data: ClientMessages[K]): void
   /** Move the server clock forward, ticking at the server rate. */

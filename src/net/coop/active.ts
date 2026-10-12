@@ -1,6 +1,5 @@
 import { useGameStore } from '../../store/gameStore'
 import { useAccount } from '../../store/account'
-import { readToken } from '../api'
 import { CoopSession } from './coopSession'
 import { coopData } from './coopData'
 import { LoopbackServer, LoopbackTransport } from './loopbackServer'
@@ -27,7 +26,7 @@ function track(session: CoopSession, name: string): void {
   if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__coop = session
 }
 
-/** Enter a co-op room on the Nakama cluster (needs a game login; the match verifies it). */
+/** Enter a co-op room on the Nakama cluster (needs a game login for a stable account and name). */
 export async function startNakamaCoop(room: 'create' | 'match' | { code: string }): Promise<CoopSession> {
   await stopCoop()
   const { status, user } = useAccount.getState()
@@ -36,7 +35,7 @@ export async function startNakamaCoop(room: 'create' | 'match' | { code: string 
   track(session, 'ONLINE')
   try {
     const info = await session.start({
-      userId: String(user.id), name: user.name, token: readToken() ?? '',
+      userId: String(user.id), name: user.name,
       plane: useGameStore.getState().progress.plane, hp: selfHp(), dataVersion: coopData().version, room,
     })
     if (info.code) sessionStorage.setItem(ROOM_KEY, info.code)

@@ -14,7 +14,6 @@ Single-player is unchanged.
 |------|------|------|
 | nakama-cluster | `modules/skystriker_coop.lua` | Match handler, RPCs, leaderboards |
 | nakama-cluster | `modules/skystriker_data.lua` | **Generated** stage data (do not edit by hand) |
-| nakama-cluster | config / helm | Runtime env `SKYSTRIKER_API_URL` |
 | sky-striker | `scripts/gen-coop-data.ts` | Writes `skystriker_data.lua` from `stageScript()` (`npm run gen:coop -- --out <path>`) |
 | sky-striker | `src/net/coop/*` | Protocol, Nakama transport, session (multi-stage), loopback server |
 | sky-striker | `src/components/ui/Coop*.tsx`, game components | Lobby, results, revive beacon, team HUD, leaderboard tabs |
@@ -97,12 +96,12 @@ Same responsibilities as today's `LoopbackServer`, with two changes so the serve
   fans out across cluster nodes.
 - `skystriker_find_match {}` → `{matchId}`: an open public room, or a new public one.
 
-**Identity**: co-op requires a game login (the NestJS session). The client calls
-`authenticateCustom("ss-<playerId>")`, then `joinMatch(matchId, undefined, {token, plane, dataVersion})`.
-`match_join_attempt` calls `GET ${SKYSTRIKER_API_URL}/api/me` with `Authorization: Bearer <token>`
-(`nk.http_request`). It accepts only a 200 whose `user.id` matches the `ss-` id. The verified
-`{id, name}` is kept in match state. It rejects a bad token, a full room, a wrong data version, and a
-non-member once the run has started.
+**Identity**: the client still needs a game login, which gives it a stable account and a name. It calls
+`authenticateCustom("skystriker-<playerId>")`, then `joinMatch(matchId, undefined, {name, plane, dataVersion})`.
+The match does not call the game server. A player is their Nakama account (`presence.user_id`, one seat
+each), and the display name is the `name` the client sends (trimmed, at most 24 characters, blank →
+"Pilot"). It rejects a full room, a wrong data version, and a non-member once the run has started, and
+logs every refusal with its reason.
 
 **Client config**: `VITE_NAKAMA_HOST` (default `nakama.zingplay.dev`), `VITE_NAKAMA_PORT` (`443`),
 `VITE_NAKAMA_SSL` (`true`), `VITE_NAKAMA_KEY` (`defaultkey`).
@@ -127,7 +126,7 @@ Created at module load (`nk.leaderboard_create`, authoritative, sort `desc`, ope
 rises, so a subscore tiebreak mixed runs. One number per board keeps a record whole. The RPC decodes the
 stage board back to `score` = stages, `subscore` = time rank.)
 
-- **Owner** = the pair. A UUID is formatted from `nk.md5_hash` of the two sorted game player ids.
+- **Owner** = the pair. A UUID is formatted from `nk.md5_hash` of the two sorted Nakama user ids.
   Username is `"A & B"`. Metadata holds `{players:[{id,name,plane}], stages, kills, score, timeMs}`.
 - **When written**: when the run ends (`complete`, `failed`, or everyone left after stage 1 started).
   A player left alone still records the pair.
@@ -182,7 +181,6 @@ reference implementation of the Lua handler: same phases, same rules, same messa
   - Run a local single node via docker compose with `modules/` mounted.
   - `scripts/coop-smoke.mjs` (nakama-js, 2 clients) covers create → join by code → READY →
     countdown → hits kill an enemy → GOT_HIT to 0 → REVIVE → failed → leaderboard row written.
-  - `SKYSTRIKER_API_URL` points at a stub that answers `/api/me`.
 - **Manual**: two browser tabs against the local Nakama + dev server.
 
 ## Out of scope
@@ -200,3 +198,6 @@ Decided while planning and kept in the build:
   the generated data as `rules`. Lua reads them from there, so TS stays the single source.
 - **Rejoin:** a member re-entering a running match gets a SNAPSHOT right on join (no READY needed). The last
   room code is kept in `sessionStorage` for a REJOIN button.
+- **No login check on the server (changed after the build):** the match no longer calls `/api/me` with the
+  game token. It trusts the client's name, and leaderboard pairs are keyed by Nakama user ids. The cost: anyone
+  who can open a Nakama session can fly co-op under any name.

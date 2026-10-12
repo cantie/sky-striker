@@ -3,15 +3,13 @@ import type { ServerDriver } from '../../src/net/coop/serverConformance'
 import type { CoopData } from '../../src/net/coop/coopData'
 import { LuaMatch, presence, type Sent } from './luaMatch'
 
-/** The Lua match behind the ServerDriver interface; each player logs in with token `tok-<id>`. */
-export function luaDriver(data: CoopData, m = new LuaMatch({ data }), firstGid = 1): ServerDriver & { match: LuaMatch } {
+/** The Lua match behind the ServerDriver interface; each player joins as `<ID>` (upper-cased). */
+export function luaDriver(data: CoopData, m = new LuaMatch({ data })): ServerDriver & { match: LuaMatch } {
   let now = 1_700_000_000_000
   const tickMs = 1000 / TICK_RATE
   const inbox = new Map<string, ServerMessage[]>()
   const joined = new Set<string>()
   let queue: { from: ReturnType<typeof presence>; op: number; data: unknown }[] = []
-  const users: Record<string, { id: number; name: string }> = {}
-  m.setEnv({ SKYSTRIKER_API_URL: 'http://game.test' })
   m.setTime(now)
   m.init({ public: false, code: 'ABCDE' })
   const deliver = (sent: Sent[]) => {
@@ -22,12 +20,8 @@ export function luaDriver(data: CoopData, m = new LuaMatch({ data }), firstGid =
   return {
     match: m,
     join: (id, meta = {}) => {
-      users[`tok-${id}`] ??= { id: Object.keys(users).length + firstGid, name: id.toUpperCase() }
-      m.setUsers(users)
-      // The Nakama account behind presence `id` is that pilot's own game account
-      m.setAccounts({ [id]: `skystriker-${users[`tok-${id}`].id}` })
       inbox.set(id, inbox.get(id) ?? [])
-      const res = m.join(presence(id), { token: `tok-${id}`, dataVersion: data.version, plane: 'hawk', ...meta })
+      const res = m.join(presence(id), { name: id.toUpperCase(), dataVersion: data.version, plane: 'hawk', ...meta })
       if (res.ok) joined.add(id)
       deliver(m.drain())
       return res

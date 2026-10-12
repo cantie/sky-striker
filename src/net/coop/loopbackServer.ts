@@ -143,7 +143,7 @@ export class LoopbackServer {
         m.ready = true
         m.plane = d.plane
         if (this.phase === 'lobby') {
-          // Nakama uses the verified account name instead
+          // (Nakama takes the name sent with the join instead)
           m.name = d.name
           m.maxHp = m.hp = clampHp(d.hp)
           this.roster()

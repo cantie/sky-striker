@@ -1,6 +1,5 @@
 # Local single-node Nakama with the Sky Striker co-op module, for the smoke test / two-tab play.
 #   docker compose -f nakama/docker-compose.yml up -d
-# SKYSTRIKER_API_URL must reach the game's /api (the smoke test runs a stub on :7999).
 services:
   postgres:
     image: postgres:16-alpine
@@ -22,9 +21,7 @@ services:
       - >
         /nakama/nakama migrate up --database.address postgres:localdb@postgres:5432/nakama &&
         exec /nakama/nakama --name nakama1 --database.address postgres:localdb@postgres:5432/nakama
-        --logger.level DEBUG --runtime.env "SKYSTRIKER_API_URL=${SKYSTRIKER_API_URL:-http://host.docker.internal:7999}"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+        --logger.level DEBUG
     volumes:
       - ./modules:/nakama/data/modules:ro
     ports:

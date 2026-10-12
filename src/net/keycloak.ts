@@ -17,8 +17,11 @@ function randomBase64Url(size: number): string {
   return base64Url(bytes)
 }
 
-/** Where Keycloak sends the user back: the game's own URL (must be in KEYCLOAK_REDIRECT_URIS). */
-export const redirectUri = () => `${window.location.origin}${window.location.pathname}`
+/**
+ * Where Keycloak sends the user back: the game's own URL without a trailing slash
+ * (`https://host`, `https://host/sub`) — must match KEYCLOAK_REDIRECT_URIS / the client config exactly.
+ */
+export const redirectUri = () => `${window.location.origin}${window.location.pathname.replace(/\/+$/, '')}`
 
 export async function startKeycloakLogin(issuer: string, clientId: string): Promise<void> {
   const verifier = randomBase64Url(32)

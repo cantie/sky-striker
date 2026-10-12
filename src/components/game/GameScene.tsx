@@ -22,6 +22,10 @@ const CAMERA_Y = 50
 
 /** World +Z offset so the plane sits slightly above the finger/cursor (screen-up). */
 const POINTER_OFFSET_Z = 1.2
+/** Top flying speed toward the touch point (world units per real second). */
+const PLAYER_SPEED = 18
+/** Within this distance the plane eases in instead of stopping dead. */
+const EASE_DIST = 1.5
 
 export function GameScene() {
   const { camera, gl, size } = useThree()
@@ -29,6 +33,8 @@ export function GameScene() {
   const sizeRef = useRef(size)
   sizeRef.current = size
   const pointerActive = useRef(false)
+  /** Where the finger/cursor wants the plane; the plane flies there at PLAYER_SPEED. */
+  const target = useRef<{ x: number; z: number } | null>(null)
   const hitOverlay = useRef<THREE.Mesh>(null)
   const gameState = useGameStore((s) => s.gameState)
   useAudio()
@@ -51,7 +57,10 @@ export function GameScene() {
 
   const setFromPointer = (clientX: number, clientY: number) => {
     const { x, z } = pointerToWorld(clientX, clientY)
-    useGameStore.getState().setPlayerPosition(x, z)
+    target.current = {
+      x: Math.max(BOUNDS.minX, Math.min(BOUNDS.maxX, x)),
+      z: Math.max(BOUNDS.minY, Math.min(BOUNDS.maxY, z)),
+    }
   }
 
   useEffect(() => {
@@ -129,11 +138,32 @@ export function GameScene() {
     if (s.gameState === 'playing') {
       // Top-down ortho: screen-right = world −X, screen-up = +Z
       const sp = 0.14 * GAME_SPEED
-      if (keys.current.has('w') || keys.current.has('arrowup')) s.movePlayer(0, sp)
-      if (keys.current.has('s') || keys.current.has('arrowdown')) s.movePlayer(0, -sp)
-      if (keys.current.has('a') || keys.current.has('arrowleft')) s.movePlayer(sp, 0)
-      if (keys.current.has('d') || keys.current.has('arrowright')) s.movePlayer(-sp, 0)
+      const k = keys.current
+      const up = k.has('w') || k.has('arrowup'), down = k.has('s') || k.has('arrowdown')
+      const left = k.has('a') || k.has('arrowleft'), right = k.has('d') || k.has('arrowright')
+      if (up || down || left || right) target.current = null // keyboard takes over
+      if (up) s.movePlayer(0, sp)
+      if (down) s.movePlayer(0, -sp)
+      if (left) s.movePlayer(sp, 0)
+      if (right) s.movePlayer(-sp, 0)
+
+      // Fly toward the touch point at the plane's speed (no teleport); ease in over the last stretch
+      const t = target.current
+      if (t) {
+        const dx = t.x - s.playerX, dz = t.z - s.playerY
+        const dist = Math.hypot(dx, dz)
+        if (dist < 0.01) {
+          if (!pointerActive.current) target.current = null
+        } else {
+          const speed = PLAYER_SPEED * Math.min(1, dist / EASE_DIST + 0.15)
+          const step = Math.min(dist, speed * dt)
+          s.setPlayerPosition(s.playerX + (dx / dist) * step, s.playerY + (dz / dist) * step)
+        }
+      }
       s.tick(dt * 1000 * GAME_SPEED)
+    } else if (s.gameState !== 'paused') {
+      // Menus / results / new run: drop any leftover touch target
+      target.current = null
     }
 
     // Fit full playfield on any aspect (mobile portrait + desktop landscape)

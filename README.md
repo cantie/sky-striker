@@ -33,6 +33,8 @@ npm run dev
 Migrations run automatically when the server boots. Server tests: `cd server && npm test`.
 
 ## Deploy (one container: game + API)
+Manual upload to Dokploy: `npm run export:zip` → `export/sky-striker.zip`, then follow [DEPLOY.md](./DEPLOY.md).
+
 The server serves the built game on `/` and the API on `/api`, so a single image is the whole app.
 ```bash
 cp .env.example .env          # fill in Keycloak + JWT_SECRET (+ DB password)

@@ -24,9 +24,17 @@ export function readOidcIdentity(claims: Record<string, unknown> | undefined, us
   return { sub, username: clip(merged.preferred_username), email: clip(merged.email), displayName: clip(merged.name) }
 }
 
-/** Keycloak compares redirect_uri exactly, without query/hash. */
+/** Keycloak compares redirect_uri exactly: drop query/hash, keep the path as the client sent it. */
 export function tokenRedirectUri(redirectUri: string): string {
   return redirectUri.split('#')[0].split('?')[0]
+}
+
+/** Token-request body with redirect_uri forced to the exact authorize-request value. */
+export function withExactRedirect<T>(body: T, redirectUri: string): T | URLSearchParams {
+  if (!(body instanceof URLSearchParams) || !body.has('redirect_uri')) return body
+  const next = new URLSearchParams(body)
+  next.set('redirect_uri', redirectUri)
+  return next
 }
 
 const normalize = (v: string) => v.trim().replace(/\/$/, '')
@@ -56,6 +64,10 @@ export class KeycloakOidc {
     try {
       const oidc = await import('openid-client')
       const config = await oidc.discovery(new URL(issuer), clientId, clientSecret)
+      // openid-client derives redirect_uri from a URL object, which re-adds a trailing "/" to
+      // origin-only URLs. Send exactly the URI used in the authorize request instead.
+      const exactRedirect = tokenRedirectUri(input.redirectUri)
+      config[oidc.customFetch] = (url, init) => fetch(url, { ...init, body: withExactRedirect(init.body, exactRedirect) } as RequestInit)
       const callbackUrl = new URL(tokenRedirectUri(input.redirectUri))
       callbackUrl.searchParams.set('code', input.code)
       callbackUrl.searchParams.set('iss', issuer.replace(/\/$/, ''))

@@ -32,5 +32,8 @@ COPY --from=client /app/dist ./client
 COPY server/start.sh ./start.sh
 RUN sed -i 's/\r$//' ./start.sh && chmod +x ./start.sh
 EXPOSE 3100
+# Healthy once the API answers and the database is reachable (migrations done)
+HEALTHCHECK --interval=15s --timeout=5s --start-period=40s --retries=5 \
+  CMD wget -qO- "http://127.0.0.1:${PORT}/api/health" >/dev/null 2>&1 || exit 1
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["./start.sh"]

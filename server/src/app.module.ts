@@ -5,6 +5,7 @@ import { JwtModule } from '@nestjs/jwt'
 import { ServeStaticModule } from '@nestjs/serve-static'
 import { TypeOrmModule } from '@nestjs/typeorm'
 import { AuthController } from './auth/auth.controller'
+import { HealthController } from './health.controller'
 import { AuthGuard } from './auth/auth.guard'
 import { KeycloakOidc } from './auth/oidc'
 import { LeaderboardController, LeaderboardService } from './leaderboard/leaderboard'
@@ -48,7 +49,7 @@ const clientDir = process.env.CLIENT_DIR?.trim() || join(__dirname, '..', '..', 
     // The game itself, same origin as /api — one deploy serves both
     ServeStaticModule.forRoot({ rootPath: clientDir, exclude: ['/api/{*path}'] }),
   ],
-  controllers: [AuthController, MeController, RunsController, LeaderboardController],
+  controllers: [HealthController, AuthController, MeController, RunsController, LeaderboardController],
   providers: [KeycloakOidc, AuthGuard, PlayersService, ProgressService, RunsService, LeaderboardService],
 })
 export class AppModule {}

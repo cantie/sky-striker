@@ -184,3 +184,15 @@ reference implementation of the Lua handler: same phases, same rules, same messa
 ## Out of scope
 More than 2 players. Chat. Co-op rewards to saga or gold stars. Restoring a room after its pod dies
 (clients return to the lobby, per the cluster's recreate policy). A spectator camera beyond the overlay.
+
+## Implementation notes
+Decided while planning and kept in the build:
+- **Lua source of truth:** `sky-striker/nakama/modules/*.lua`, tested next to the TS reference (one conformance
+  suite drives both `LoopbackServer` and the Lua match). `npm run nakama:install` copies the files into
+  `nakama-cluster/modules/`.
+- **AIMED target:** a random living player. The server has no enemy positions, so "nearest" is impossible;
+  each client computes the angle itself.
+- **Rule constants** (countdown, stage-clear time, revive HP, DPS cap, drop odds, game speed) are written into
+  the generated data as `rules`. Lua reads them from there, so TS stays the single source.
+- **Rejoin:** a member re-entering a running match gets a SNAPSHOT right on join (no READY needed). The last
+  room code is kept in `sessionStorage` for a REJOIN button.

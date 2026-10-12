@@ -53,16 +53,26 @@ end
 
 local function better(a, b) return a.score > b.score or (a.score == b.score and a.subscore > b.subscore) end
 
+-- Operator "best", desc, as Nakama's SQL does it (core_leaderboard.go): score and subscore are each
+-- GREATEST(old, new) on their own, and metadata/username are replaced whenever either one improves.
 function nk.leaderboard_record_write(id, owner, username, score, subscore, metadata)
-  assert(math.floor(score) == score and math.floor(subscore or 0) == (subscore or 0), "scores must be integers")
+  subscore = subscore or 0
+  assert(math.floor(score) == score and math.floor(subscore) == subscore, "scores must be integers")
   local b = assert(nk.boards[id], "no leaderboard " .. id)
-  local rec = { leaderboard_id = id, owner_id = owner, username = username, score = score, subscore = subscore or 0, metadata = metadata }
   local old = b.records[owner]
-  if not old or better(rec, old) then b.records[owner] = rec end
+  if not old then
+    b.records[owner] = { leaderboard_id = id, owner_id = owner, username = username, score = score, subscore = subscore, metadata = metadata }
+  elseif old.score < score or old.subscore < subscore then
+    old.score, old.subscore = math.max(old.score, score), math.max(old.subscore, subscore)
+    if metadata ~= nil then old.metadata = metadata end
+    if username ~= nil then old.username = username end
+  end
   return b.records[owner]
 end
 
 function nk.leaderboard_records_list(id, owners, limit, cursor, expiry)
+  -- Like Nakama (runtime_lua_nakama.go): an empty owners table returns one empty table, no top rows
+  if type(owners) == "table" and #owners == 0 then return {} end
   local b = assert(nk.boards[id], "no leaderboard " .. id)
   local all = {}
   for _, r in pairs(b.records) do all[#all + 1] = r end

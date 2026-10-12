@@ -23,6 +23,8 @@ local EMPTY_TICKS = TICK_RATE * 30      -- nobody connected for 30 s → close t
 local END_LINGER_TICKS = TICK_RATE * 60 -- keep a finished run around for a minute
 local CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 local BOARDS = { stage = "skystriker_coop_stage", kills = "skystriker_coop_kills", score = "skystriker_coop_score" }
+-- Stage board score = stages cleared × STAGE_SCALE + (STAGE_SCALE − 1 − run seconds): further first, then faster
+local STAGE_SCALE = 10000000
 local R = data.rules
 local floor, max, min = math.floor, math.max, math.min
 
@@ -151,10 +153,13 @@ local function write_records(state)
   local s = state.summary
   local username = table.concat(names, " & "):sub(1, 120)
   local meta = { players = players, stages = s.stagesCleared, kills = s.kills, score = s.score, timeMs = s.timeMs, result = s.result }
-  local secs = floor(s.timeMs / 1000)
-  try("record stage", nk.leaderboard_record_write, BOARDS.stage, owner, username, floor(s.stagesCleared), max(0, 1000000000 - secs), meta)
-  try("record kills", nk.leaderboard_record_write, BOARDS.kills, owner, username, floor(s.kills), floor(s.stagesCleared), meta)
-  try("record score", nk.leaderboard_record_write, BOARDS.score, owner, username, floor(s.score), floor(s.stagesCleared), meta)
+  -- One number per board and subscore 0: Nakama's "best" raises score and subscore separately and
+  -- replaces the metadata when either rises, so a tiebreak in the subscore would mix runs
+  local secs = min(STAGE_SCALE - 1, floor(s.timeMs / 1000))
+  local stage_score = floor(s.stagesCleared) * STAGE_SCALE + (STAGE_SCALE - 1 - secs)
+  try("record stage", nk.leaderboard_record_write, BOARDS.stage, owner, username, stage_score, 0, meta)
+  try("record kills", nk.leaderboard_record_write, BOARDS.kills, owner, username, floor(s.kills), 0, meta)
+  try("record score", nk.leaderboard_record_write, BOARDS.score, owner, username, floor(s.score), 0, meta)
   for _, id in ipairs(state.order) do remember_pair(id, owner) end
 end
 
@@ -658,10 +663,13 @@ local function rpc_find_match(context, payload)
   return nk.json_encode({ matchId = match_id, code = code })
 end
 
-local function row(r, mine)
+local function row(r, mine, board)
   local meta = r.metadata
   if type(meta) == "string" then meta = decode(meta) end
-  return { rank = r.rank, owner = r.owner_id, names = r.username, score = r.score, subscore = r.subscore, metadata = meta, mine = mine or nil }
+  local score, subscore = r.score, r.subscore
+  -- The stage board's single number back to (stages cleared, time rank) for the client
+  if board == BOARDS.stage then score, subscore = floor(r.score / STAGE_SCALE), r.score % STAGE_SCALE end
+  return { rank = r.rank, owner = r.owner_id, names = r.username, score = score, subscore = subscore, metadata = meta, mine = mine or nil }
 end
 
 local function rpc_leaderboard(context, payload)
@@ -672,16 +680,17 @@ local function rpc_leaderboard(context, payload)
   local owners = context.user_id and read_pairs(context.user_id) or {}
   local mine = {}
   for _, o in ipairs(owners) do mine[o] = true end
-  local ok, records, owner_records = pcall(nk.leaderboard_records_list, board, owners, limit, nil, 0)
+  -- Nakama returns nothing at all (not even the top rows) for an empty owners table
+  local ok, records, owner_records = pcall(nk.leaderboard_records_list, board, #owners > 0 and owners or nil, limit, nil, 0)
   if not ok then
     nk.logger_error(MODULE .. ": leaderboard list failed: " .. tostring(records))
     return nk.json_encode({ rows = {} })
   end
   local rows = {}
-  for _, r in ipairs(records or {}) do rows[#rows + 1] = row(r, mine[r.owner_id]) end
+  for _, r in ipairs(records or {}) do rows[#rows + 1] = row(r, mine[r.owner_id], board) end
   local me = nil
   for _, r in ipairs(owner_records or {}) do
-    if r.rank and (not me or r.rank < me.rank) then me = row(r, true) end
+    if r.rank and (not me or r.rank < me.rank) then me = row(r, true, board) end
   end
   return nk.json_encode({ rows = rows, me = me })
 end

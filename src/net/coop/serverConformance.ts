@@ -47,7 +47,7 @@ function lobby(d: ServerDriver): void {
 }
 
 /** Both ready, countdown over, now `playing`; inboxes drained. */
-function playing(d: ServerDriver): void {
+export function playing(d: ServerDriver): void {
   lobby(d)
   d.advance(RULES.countdownMs + 100)
   expect(d.phase()).toBe('playing')
@@ -67,7 +67,7 @@ function killWave(d: ServerDriver, stage: CoopStage): void {
   }
 }
 
-function clearStage(d: ServerDriver, stage: CoopStage): void {
+export function clearStage(d: ServerDriver, stage: CoopStage): void {
   killWave(d, stage)
   expect(d.phase()).toBe('bossWarning')
   d.advance(RULES.bossWarningMs + 100)

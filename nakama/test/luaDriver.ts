@@ -4,7 +4,7 @@ import type { CoopData } from '../../src/net/coop/coopData'
 import { LuaMatch, presence, type Sent } from './luaMatch'
 
 /** The Lua match behind the ServerDriver interface; each player logs in with token `tok-<id>`. */
-export function luaDriver(data: CoopData, m = new LuaMatch({ data })): ServerDriver & { match: LuaMatch } {
+export function luaDriver(data: CoopData, m = new LuaMatch({ data }), firstGid = 1): ServerDriver & { match: LuaMatch } {
   let now = 1_700_000_000_000
   const tickMs = 1000 / TICK_RATE
   const inbox = new Map<string, ServerMessage[]>()
@@ -22,7 +22,7 @@ export function luaDriver(data: CoopData, m = new LuaMatch({ data })): ServerDri
   return {
     match: m,
     join: (id, meta = {}) => {
-      users[`tok-${id}`] ??= { id: Object.keys(users).length + 1, name: id.toUpperCase() }
+      users[`tok-${id}`] ??= { id: Object.keys(users).length + firstGid, name: id.toUpperCase() }
       m.setUsers(users)
       inbox.set(id, inbox.get(id) ?? [])
       const res = m.join(presence(id), { token: `tok-${id}`, dataVersion: data.version, plane: 'hawk', ...meta })

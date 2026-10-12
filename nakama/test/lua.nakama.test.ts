@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Op } from '../../src/net/coop/protocol'
 import { RULES } from '../../src/net/coop/coopData'
-import { testData } from '../../src/net/coop/serverConformance'
+import { clearStage, playing, testData } from '../../src/net/coop/serverConformance'
 import { LuaMatch, presence } from './luaMatch'
 import { luaDriver } from './luaDriver'
 
@@ -91,7 +91,10 @@ describe('Lua match: leaderboards', () => {
     }
     expect(boards.skystriker_coop_kills[0].score).toBe(1)
     expect(boards.skystriker_coop_score[0].score).toBe(100)
-    expect(boards.skystriker_coop_stage[0].score).toBe(0)
+    // stages cleared × 1e7 + (1e7 − 1 − seconds): 0 stages, a few seconds
+    expect(Math.floor(boards.skystriker_coop_stage[0].score / 1e7)).toBe(0)
+    expect(boards.skystriker_coop_stage[0].score).toBeGreaterThan(1e7 - 60)
+    expect(boards.skystriker_coop_kills[0].subscore).toBe(0)
     expect(storage.filter((o) => o.key === 'pairs')).toHaveLength(2)
   })
 
@@ -100,9 +103,54 @@ describe('Lua match: leaderboards', () => {
     const res = d.match.rpc<{ rows: { rank: number; names: string; mine?: boolean }[]; me?: { rank: number } }>('skystriker_leaderboard', 'alice', { board: 'kills' })
     expect(res.rows[0]).toMatchObject({ rank: 1, names: 'ALICE & BOB', mine: true })
     expect(res.me?.rank).toBe(1)
+    // A pilot who never flew co-op (no pair list) still sees the top rows
     const stranger = d.match.rpc<{ rows: unknown[]; me?: unknown }>('skystriker_leaderboard', 'zed', { board: 'kills' })
+    expect(stranger.rows).toHaveLength(1)
     expect(stranger.me).toBeUndefined()
     expect(d.match.rpc('skystriker_leaderboard', 'alice', { board: 'nope' })).toMatchObject({ error: 'Unknown board' })
+  })
+
+  it('stage board: a later, shorter run never replaces a further one (time and details stay with it)', () => {
+    const data = testData()
+    const m = new LuaMatch({ data })
+    // Run 1: clear stage 1, then both go down in stage 2
+    const d1 = luaDriver(data, m)
+    playing(d1)
+    clearStage(d1, data.stages[0])
+    d1.advance(RULES.stageClearMs + RULES.countdownMs + 200)
+    d1.send('alice', Op.GOT_HIT, { hits: 3, hp: 0 }); d1.send('bob', Op.GOT_HIT, { hits: 3, hp: 0 })
+    d1.advance(50)
+    expect(d1.phase()).toBe('failed')
+    // Run 2, same pair: down at once (0 stages, much quicker)
+    const d2 = luaDriver(data, m)
+    playing(d2)
+    d2.send('alice', Op.GOT_HIT, { hits: 3, hp: 0 }); d2.send('bob', Op.GOT_HIT, { hits: 3, hp: 0 })
+    d2.advance(50)
+    expect(d2.phase()).toBe('failed')
+    type Row = { score: number; metadata?: { stages?: number; timeMs?: number } }
+    const res = m.rpc<{ rows: Row[] }>('skystriker_leaderboard', 'alice', { board: 'stage' })
+    expect(res.rows).toHaveLength(1)
+    expect(res.rows[0].score).toBe(1)
+    expect(res.rows[0].metadata?.stages).toBe(1)
+    expect(res.rows[0].metadata?.timeMs).toBeGreaterThan(RULES.stageClearMs)
+  })
+
+  it('stage board: same stages, the faster run ranks first', () => {
+    const data = testData()
+    const m = new LuaMatch({ data })
+    const slow = luaDriver(data, m)            // alice & bob, down after 5 s
+    playing(slow)
+    slow.advance(5000)
+    slow.send('alice', Op.GOT_HIT, { hits: 3, hp: 0 }); slow.send('bob', Op.GOT_HIT, { hits: 3, hp: 0 })
+    slow.advance(50)
+    const fast = luaDriver(data, m, 3)         // a second pair (game ids 3 & 4: carol & dave), down at once
+    fast.join('carol'); fast.join('dave')
+    fast.send('carol', Op.READY, READY); fast.send('dave', Op.READY, READY)
+    fast.advance(RULES.countdownMs + 100)
+    fast.send('carol', Op.GOT_HIT, { hits: 3, hp: 0 }); fast.send('dave', Op.GOT_HIT, { hits: 3, hp: 0 })
+    fast.advance(50)
+    const res = m.rpc<{ rows: { names: string }[] }>('skystriker_leaderboard', 'carol', { board: 'stage' })
+    expect(res.rows.map((r) => r.names)).toEqual(['CAROL & DAVE', 'ALICE & BOB'])
   })
 
   it('an abandoned match closes itself', () => {

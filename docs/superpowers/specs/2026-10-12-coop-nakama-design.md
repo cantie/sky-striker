@@ -119,9 +119,13 @@ Created at module load (`nk.leaderboard_create`, authoritative, sort `desc`, ope
 
 | Id | score | subscore | Meaning |
 |----|-------|----------|---------|
-| `skystriker_coop_stage` | stages cleared (0–10) | `10^9 − runSeconds` | Furthest stage; ties → faster |
-| `skystriker_coop_kills` | team kills | stages cleared | Most kills |
-| `skystriker_coop_score` | team score | stages cleared | Highest team score |
+| `skystriker_coop_stage` | `stages × 10^7 + (10^7 − 1 − runSeconds)` | 0 | Furthest stage; ties → faster |
+| `skystriker_coop_kills` | team kills | 0 | Most kills |
+| `skystriker_coop_score` | team score | 0 | Highest team score |
+
+(Final review: Nakama's `best` raises score and subscore separately and replaces the metadata when either
+rises, so a subscore tiebreak mixed runs. One number per board keeps a record whole. The RPC decodes the
+stage board back to `score` = stages, `subscore` = time rank.)
 
 - **Owner** = the pair. A UUID is formatted from `nk.md5_hash` of the two sorted game player ids.
   Username is `"A & B"`. Metadata holds `{players:[{id,name,plane}], stages, kills, score, timeMs}`.

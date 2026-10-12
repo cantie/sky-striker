@@ -2,8 +2,11 @@ import { useEffect, useMemo, useRef, type RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useGameStore, type Pickup, type PickupType } from '../../store/gameStore'
-import { sounds } from '../../hooks/useAudio'
-import { GROUND_Y, WORLD_SCROLL, view } from '../../game/world'
+import { GROUND_SPEED, GROUND_Y, view } from '../../game/world'
+import { ORDER } from '../../game/sim/clock'
+import { net } from '../../game/sim/net'
+import { useSimStep } from '../../game/sim/useSimStep'
+import { applyPickup } from './effects'
 
 /** Floating drops (rescue survivors are 3D figures on the ground, see Survivor). */
 type DropType = Exclude<PickupType, 'rescue'>
@@ -106,8 +109,6 @@ function PickupItem({ pickup, type }: { pickup: Pickup; type: DropType }) {
 
 /** Hover within this distance of a survivor… */
 const RESCUE_RADIUS = 2.6
-/** Shield pickup duration (real ms). */
-const SHIELD_MS = 8000
 /** …for this many real seconds to lift them out. */
 const RESCUE_SECONDS = 2
 const ARC_STEPS = 64
@@ -193,15 +194,19 @@ function Survivor({ pickup }: { pickup: Pickup }) {
 
 export function Pickups() {
   const pickups = useGameStore((s) => s.pickups)
-  const lastScroll = useRef(0)
 
-  useFrame((_, rawDt) => {
+  useSimStep(ORDER.pickups, ({ dt, realDt }) => {
     const s = useGameStore.getState()
     if (s.gameState !== 'playing') return
-    let scrollDelta = s.scrollOffset - lastScroll.current
-    lastScroll.current = s.scrollOffset
-    if (scrollDelta < 0 || scrollDelta > 0.2) scrollDelta = 0
-    const groundMove = scrollDelta * WORLD_SCROLL
+    // Everything here sits on the map and scrolls with it
+    const groundMove = dt * GROUND_SPEED
+    const n = net()
+    // Single-player: ours right away. Co-op: claim it; the server's PICKED says who got it
+    const take = (p: Pickup) => {
+      if (!s.collectPickup(p.id)) return
+      if (n) n.pickup(p.id)
+      else applyPickup(p.type)
+    }
 
     const next = []
     for (const p of s.pickups) {
@@ -210,10 +215,10 @@ export function Pickups() {
         const z = p.z - groundMove
         const near = Math.hypot(p.x - s.playerX, z - s.playerY) < RESCUE_RADIUS
         const progress = near
-          ? (p.progress ?? 0) + rawDt / RESCUE_SECONDS
-          : Math.max(0, (p.progress ?? 0) - rawDt / (RESCUE_SECONDS * 2))
+          ? (p.progress ?? 0) + realDt / RESCUE_SECONDS
+          : Math.max(0, (p.progress ?? 0) - realDt / (RESCUE_SECONDS * 2))
         if (progress >= 1) {
-          if (s.collectPickup(p.id)) { s.addScore(300); s.addStar(); sounds.powerup() }
+          take(p)
           continue
         }
         if (z > view.bottom - 2) next.push({ ...p, z, progress })
@@ -222,13 +227,7 @@ export function Pickups() {
       // Floating drops ride the map too
       const z = p.z - groundMove
       if (Math.hypot(p.x - s.playerX, z - s.playerY) < 0.85) {
-        const collected = s.collectPickup(p.id)
-        if (collected) {
-          if (collected.type === 'powerup') { s.upgradeWeapon(); sounds.powerup() }
-          else if (collected.type === 'health') { s.healPlayer(1); sounds.pickup() }
-          else if (collected.type === 'shield') { s.addShield(SHIELD_MS); sounds.pickup() }
-          else { s.addStar(); s.addScore(50); sounds.pickup() }
-        }
+        take(p)
         continue
       }
       if (z > view.bottom - 1) next.push({ ...p, z })

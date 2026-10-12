@@ -20,20 +20,35 @@ export function setView(halfW: number, halfH: number) {
   view.bottom = PLAYFIELD_MID_Z - halfH
 }
 
-/** Spawn/exit lines just outside the visible area. */
-export const edges = () => ({
-  top: view.top + 1.8,
-  bottom: view.bottom - 1.8,
-  side: view.halfW + 1.8,
-})
+/**
+ * Canonical world frame, identical on every device. The game is always at most 9:16 wide, so the
+ * visible width is fixed (8.3) and only the visible height varies (tall phones see more). Enemy
+ * spawn/exit edges and "has it entered / left" checks use this frame instead of the local viewport,
+ * so two co-op clients put the same enemy in the same place. Half-height 18 covers 19.5:9 phones.
+ */
+export const WORLD = { halfW: 8.3, top: PLAYFIELD_MID_Z + 18, bottom: PLAYFIELD_MID_Z - 18 }
 
-/** Enemies only shoot from inside both the screen and the player's playfield. */
+/** Spawn/exit lines just outside the canonical world frame. */
+const EDGES = { top: WORLD.top + 1.8, bottom: WORLD.bottom - 1.8, side: WORLD.halfW + 1.8 }
+export const edges = () => EDGES
+
+/** Enemies only shoot from inside the player's playfield (same on every device). */
 export function inFireZone(x: number, y: number): boolean {
-  const hw = Math.min(view.halfW, BOUNDS.maxX + 1.1) - 0.4
-  return Math.abs(x) < hw && y < Math.min(view.top, BOUNDS.maxY + 1.4) - 0.6 && y > view.bottom + 0.6
+  const hw = Math.min(WORLD.halfW, BOUNDS.maxX + 1.1) - 0.4
+  return Math.abs(x) < hw && y < Math.min(WORLD.top, BOUNDS.maxY + 1.4) - 0.6 && y > Math.max(WORLD.bottom, BOUNDS.minY - 1.4) + 0.6
 }
 
-/** Fully on screen (used to mark an enemy as having entered). */
+/** Inside the canonical world frame (enemy entered/left checks). */
+export function inWorld(x: number, y: number, margin = 0): boolean {
+  return Math.abs(x) < WORLD.halfW + margin && y < WORLD.top + margin && y > WORLD.bottom - margin
+}
+
+/** Inside this device's visible area (local-only things: bullets, pickups, coins). */
 export function onScreen(x: number, y: number, margin = 0): boolean {
   return Math.abs(x) < view.halfW + margin && y < view.top + margin && y > view.bottom - margin
 }
+
+/** store.scrollOffset grows by this much per game-millisecond while playing. */
+export const SCROLL_PER_GAME_MS = 0.00042
+/** Ground units ride the terrain: world units scrolled per game-second. */
+export const GROUND_SPEED = SCROLL_PER_GAME_MS * 1000 * WORLD_SCROLL

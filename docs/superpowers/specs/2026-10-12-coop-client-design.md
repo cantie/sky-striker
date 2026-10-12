@@ -41,6 +41,19 @@ Hits flash and subtract estimated HP locally; enemies explode only on `ENEMY_DEA
 server, aimed shots from `AIMED`, teammate drawn from interpolation, gold stars per player. Single-player
 code paths never enter these branches.
 
+## Implementation notes
+- Gameplay systems run in `useSimStep(ORDER.x, …)`; rendering stays in `useFrame`. Pure, shareable
+  logic: `game/spawns.ts` (wave expansion, `enemyPos`), `game/dropRules.ts`, `game/sim/stageScript.ts`.
+- `game/sim/net.ts` is the only seam gameplay sees (`net()` is null in single-player): `hit`, `pickup`,
+  `gotHit`, `bossTarget`, `spawnAllowed` (settled ids are not re-spawned by a client catching up).
+- Kill/pickup effects live in `components/game/effects.ts`, shared by the single-player path and the
+  co-op adapter (`net/coop/storeWorld.ts`).
+- Co-op frame driver: steps toward `floor(stageTime / STEP)`, ≤3 steps/frame normally, ≤240 when >30
+  behind. Teammate cannon = ghost bolts (no damage, stop on contact).
+- Opcodes PING=8 / PONG=109 added for clock sync. Nakama side expected: RPC `create_coop_match`,
+  matchmaker hook with `+properties.stage:<id>`, match handler speaking `protocol.ts`.
+- Not yet: lobby/matchmaking UI, revive/spectate when one player is down, co-op flag on run reports.
+
 ## D. Testing
 Vitest unit tests: RNG reproducibility, stage-script determinism, clock sync, interpolation, protocol,
 loopback server flow. Single-player regression via the existing bot (≈126 s to boss on stage 1, drop caps)

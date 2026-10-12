@@ -3,8 +3,10 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useGameStore } from '../../store/gameStore'
 import { sounds } from '../../hooks/useAudio'
-import { gameDt } from '../../game/speed'
-import { WORLD_SCROLL, view } from '../../game/world'
+import { GROUND_SPEED, view } from '../../game/world'
+import { ORDER } from '../../game/sim/clock'
+import { rand } from '../../game/sim/rng'
+import { useSimStep } from '../../game/sim/useSimStep'
 import { getPlane } from '../../game/planes'
 
 /**
@@ -21,9 +23,9 @@ const coins: Coin[] = []
 /** Spray `count` stars out of (x, z). */
 export function spawnCoins(x: number, z: number, count: number) {
   for (let i = 0; i < count && coins.length < MAX; i++) {
-    const ang = Math.random() * Math.PI * 2
-    const speed = 3 + Math.random() * 5 + Math.min(count, 30) * 0.08
-    coins.push({ x, z, vx: Math.sin(ang) * speed, vz: Math.cos(ang) * speed, spin: (Math.random() - 0.5) * 8, rot: Math.random() * 6, age: 0, locked: false })
+    const ang = rand('coins') * Math.PI * 2
+    const speed = 3 + rand('coins') * 5 + Math.min(count, 30) * 0.08
+    coins.push({ x, z, vx: Math.sin(ang) * speed, vz: Math.cos(ang) * speed, spin: (rand('coins') - 0.5) * 8, rot: rand('coins') * 6, age: 0, locked: false })
   }
 }
 
@@ -51,20 +53,15 @@ export function Coins() {
   const core = useRef<THREE.InstancedMesh>(null)
   const dummy = useMemo(() => new THREE.Object3D(), [])
   const geos = useMemo(() => ({ gold: starShape(0.38, 0.17), rim: starShape(0.52, 0.26), core: starShape(0.16, 0.07) }), [])
-  const lastScroll = useRef(0)
   const lastSound = useRef(0)
 
-  useFrame((_, rawDt) => {
+  useSimStep(ORDER.coins, ({ dt, step }) => {
     const s = useGameStore.getState()
-    // New run (scroll restarted) or left the stage → clear leftovers
-    if (s.scrollOffset < lastScroll.current || s.gameState === 'menu' || s.gameState === 'stageSelect' || s.gameState === 'briefing') coins.length = 0
-    // How far the terrain scrolled this frame — loose stars ride along with it
-    const scrollDelta = s.scrollOffset - lastScroll.current
-    const groundMove = scrollDelta > 0 && scrollDelta < 0.2 ? scrollDelta * WORLD_SCROLL : 0
-    lastScroll.current = s.scrollOffset
-
+    // First step of a new run: nothing left over from the last one
+    if (step === 0) coins.length = 0
     if (s.gameState === 'playing') {
-      const dt = gameDt(rawDt)
+      // Loose stars sit on the map and ride along with the terrain
+      const groundMove = dt * GROUND_SPEED
       // MAGNETAR's skill: far longer reach
       const magnet = MAGNET * (getPlane(s.progress.plane).skill === 'magnet' ? 3 : 1)
       let picked = 0
@@ -78,9 +75,9 @@ export function Coins() {
           // Fly straight at the plane with no inertia, so a star can never overshoot, orbit or
           // get flung away — it just keeps closing in until it is collected.
           const speed = HOME_SPEED + HOME_ACCEL * c.age
-          const step = speed * dt
-          if (step >= d) { c.x = s.playerX; c.z = s.playerY }
-          else { c.x += (dx / d) * step; c.z += (dz / d) * step }
+          const move = speed * dt
+          if (move >= d) { c.x = s.playerX; c.z = s.playerY }
+          else { c.x += (dx / d) * move; c.z += (dz / d) * move }
         } else {
           // Burst slows down; the star then sits on the map and scrolls with it
           const damp = Math.pow(0.04, dt)
@@ -104,6 +101,12 @@ export function Coins() {
         if (now - lastSound.current > 70) { sounds.pickup(); lastSound.current = now }
       }
     }
+  })
+
+  useFrame(() => {
+    // Left the stage → clear leftovers
+    const { gameState } = useGameStore.getState()
+    if (gameState === 'menu' || gameState === 'stageSelect' || gameState === 'briefing') coins.length = 0
 
     for (const [mesh, y] of [[rim.current, 0.55], [gold.current, 0.6], [core.current, 0.65]] as const) {
       if (!mesh) continue

@@ -4,7 +4,11 @@ import * as THREE from 'three'
 import { useGameStore } from '../../store/gameStore'
 import { getStage, type StageConfig } from '../../game/stages'
 import { BOSSES, type BossAttack, type BossDef } from '../../game/bosses'
-import { GROUND_Y, view } from '../../game/world'
+import { GROUND_Y, WORLD } from '../../game/world'
+import { ORDER } from '../../game/sim/clock'
+import { net } from '../../game/sim/net'
+import { rand } from '../../game/sim/rng'
+import { useSimStep } from '../../game/sim/useSimStep'
 import { ShipModel } from './Model'
 import { Vehicle } from './Vehicles'
 import { gameDt } from '../../game/speed'
@@ -41,7 +45,7 @@ function movePos(def: BossDef, t: number, hy: number, amp: number) {
 function planAttack(
   kind: BossAttack, at: number, phase: number, stage: StageConfig, def: BossDef,
   shoot: (ang: number, speedMul?: number, ox?: number, oz?: number) => void,
-  aimAt: () => number, bossX: () => number,
+  aimAt: () => number, bossX: () => number, targetX: () => number,
 ): Volley[] {
   const v: Volley[] = []
   const add = (dt: number, fire: () => void) => v.push({ at: at + dt, fire })
@@ -53,7 +57,7 @@ function planAttack(
     }
     case 'ring': {
       const n = 14 + phase * 4
-      const off = Math.random() * Math.PI
+      const off = rand('boss') * Math.PI
       add(0, () => { for (let i = 0; i < n; i++) shoot(off + (i / n) * Math.PI * 2, 0.75) })
       break
     }
@@ -77,8 +81,8 @@ function planAttack(
       // A row across the screen with a gap near the player — dodge through it
       for (let row = 0; row < (phase >= 2 ? 2 : 1); row++) {
         add(row * 0.45, () => {
-          const gapX = useGameStore.getState().playerX + (Math.random() - 0.5) * 2
-          const hw = Math.min(view.halfW, 8.5)
+          const gapX = targetX() + (rand('boss') - 0.5) * 2
+          const hw = Math.min(WORLD.halfW, 8.5)
           for (let x = -hw; x <= hw; x += 0.85) {
             if (Math.abs(x - gapX) < 1.3) continue
             shoot(Math.PI, 0.7, x - bossX(), -1)
@@ -95,7 +99,7 @@ function planAttack(
       break
     case 'scatter': {
       const n = 14 + phase * 4
-      add(0, () => { for (let i = 0; i < n; i++) shoot(Math.PI + (Math.random() - 0.5) * 2.4, 0.6 + Math.random() * 0.5) })
+      add(0, () => { for (let i = 0; i < n; i++) shoot(Math.PI + (rand('boss') - 0.5) * 2.4, 0.6 + rand('boss') * 0.5) })
       break
     }
     case 'burst':
@@ -136,11 +140,12 @@ export function Boss() {
   if (boss && boss.hp < prevHp.current) flashUntil.current = Date.now() + 90
   prevHp.current = boss?.hp ?? 0
 
-  useFrame((_, rawDt) => {
-    const dt = gameDt(rawDt)
+  useSimStep(ORDER.boss, ({ dt }) => {
     const s = useGameStore.getState()
     const b = s.boss
-    if (!b || s.gameState !== 'playing' || !group.current) return
+    if (!b || s.gameState !== 'playing') return
+    // Who the boss is after: in co-op the server picks; otherwise us
+    const target = net()?.bossTarget() ?? { x: s.playerX, y: s.playerY }
     if (b.intro >= 1) {
       // First frame of a fresh fight: drop timers/volleys left over from a previous run
       clock.current = 0; fightT.current = 0; nextAttack.current = 0.6; cycle.current = 0; volleys.current = []
@@ -148,8 +153,9 @@ export function Boss() {
     }
     clock.current += dt
 
-    const hy = Math.min(view.top - 5.5, 12)
-    const amp = Math.max(1.5, Math.min(5, view.halfW - def.radius - 0.8))
+    // Canonical frame, so every co-op client sees the boss in the same spot
+    const hy = Math.min(WORLD.top - 5.5, 12)
+    const amp = Math.max(1.5, Math.min(5, WORLD.halfW - def.radius - 0.8))
     let tx = 0, ty = hy
     if (b.intro > 0) {
       b.intro = Math.max(0, b.intro - dt * 0.45)
@@ -160,24 +166,16 @@ export function Boss() {
       const p = movePos(def, fightT.current, hy, amp)
       tx = p.x; ty = p.y
     }
-    const prevX = b.x
     const k = 1 - Math.pow(b.intro > 0 ? 0.03 : 0.02, dt)
     b.x = THREE.MathUtils.lerp(b.x, tx, k)
     b.y = THREE.MathUtils.lerp(b.y, ty, k)
-    group.current.position.set(b.x, def.ground ? GROUND_Y + 0.1 : 0.4, b.y)
-    if (bankGroup.current && dt > 0) {
-      const vx = (b.x - prevX) / dt
-      // Facing the player (rotated π), so world +X drift is the craft's right
-      const target = def.ground ? 0 : THREE.MathUtils.clamp(vx * 0.12, -0.45, 0.45)
-      bankGroup.current.rotation.z = THREE.MathUtils.lerp(bankGroup.current.rotation.z, target, 1 - Math.pow(0.01, dt))
-    }
 
     // Laser: charge (aim tracks the player, then locks) → beam
     const L = laser.current
     if (L.stage !== 'idle') {
       L.t += dt
       const nx = b.x, nz = b.y - def.radius * 0.6
-      const toPlayer = Math.atan2(s.playerX - nx, s.playerY - nz)
+      const toPlayer = Math.atan2(target.x - nx, target.y - nz)
       if (L.stage === 'charge') {
         if (L.t < LASER_CHARGE - LASER_LOCK) L.angle += wrapAngle(toPlayer - L.angle) * (1 - Math.pow(0.02, dt))
         if (L.t >= LASER_CHARGE) {
@@ -221,10 +219,12 @@ export function Boss() {
       }
       const aimAt = () => {
         const st = useGameStore.getState()
-        return st.boss ? Math.atan2(st.playerX - st.boss.x, st.playerY - (st.boss.y - def.radius * 0.5)) : Math.PI
+        const t = net()?.bossTarget() ?? { x: st.playerX, y: st.playerY }
+        return st.boss ? Math.atan2(t.x - st.boss.x, t.y - (st.boss.y - def.radius * 0.5)) : Math.PI
       }
       const bossX = () => useGameStore.getState().boss?.x ?? 0
-      volleys.current.push(...planAttack(kind, clock.current, b.phase, stage, def, shoot, aimAt, bossX))
+      const targetX = () => net()?.bossTarget()?.x ?? useGameStore.getState().playerX
+      volleys.current.push(...planAttack(kind, clock.current, b.phase, stage, def, shoot, aimAt, bossX, targetX))
     }
     if (volleys.current.length) {
       const due = volleys.current.filter((v) => v.at <= clock.current)
@@ -232,6 +232,21 @@ export function Boss() {
         volleys.current = volleys.current.filter((v) => v.at > clock.current)
         due.forEach((v) => v.fire())
       }
+    }
+    if (useGameStore.getState().boss === b) useGameStore.setState({ boss: { ...b } })
+  })
+
+  useFrame((_, rawDt) => {
+    const dt = gameDt(rawDt)
+    const b = useGameStore.getState().boss
+    if (!b || !group.current) return
+    const prevX = group.current.position.x
+    group.current.position.set(b.x, def.ground ? GROUND_Y + 0.1 : 0.4, b.y)
+    if (bankGroup.current && dt > 0) {
+      const vx = (b.x - prevX) / dt
+      // Facing the player (rotated π), so world +X drift is the craft's right
+      const target = def.ground ? 0 : THREE.MathUtils.clamp(vx * 0.12, -0.45, 0.45)
+      bankGroup.current.rotation.z = THREE.MathUtils.lerp(bankGroup.current.rotation.z, target, 1 - Math.pow(0.01, dt))
     }
 
     // Hit flash
@@ -243,7 +258,6 @@ export function Boss() {
         else { m.emissive.copy(baseEmissive.current![i].c); m.emissiveIntensity = baseEmissive.current![i].i }
       })
     }
-    if (useGameStore.getState().boss === b) useGameStore.setState({ boss: { ...b } })
   })
 
   if (!boss) return null

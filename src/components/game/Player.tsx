@@ -6,6 +6,8 @@ import { ShipModel, useModelDims } from './Model'
 import { gameDt, gameInterval } from '../../game/speed'
 import { PLAYER_BULLET_SPEED, weaponStats } from '../../game/weapon'
 import { getPlane } from '../../game/planes'
+import { ORDER } from '../../game/sim/clock'
+import { useSimStep } from '../../game/sim/useSimStep'
 
 /** Skill tuning (game-seconds unless noted). */
 const MISSILE_EVERY = 1.4
@@ -22,8 +24,9 @@ export function Player() {
   const navLights = useRef<THREE.Group>(null)
   const shieldRing = useRef<THREE.Group>(null)
   const bank = useRef(0)
-  const lastShot = useRef(0)
-  const lastWing = useRef(0)
+  /** Real ms since the last volley / wingman volley. */
+  const sinceShot = useRef(0)
+  const sinceWing = useRef(0)
   const prevX = useRef(0)
   const skillClock = useRef({ missile: 0, nova: 0, shield: 0 })
   const planeId = useGameStore((s) => s.progress.plane)
@@ -31,42 +34,21 @@ export function Player() {
   const dims = useModelDims(plane.model)
   const wingTip = (dims.x * plane.size) / 2 * 0.92
 
-  useFrame((_, rawDt) => {
-    const dt = gameDt(rawDt)
+  // Cannon + skills on the simulation clock; everything visual below in useFrame
+  useSimStep(ORDER.player, ({ dt, realDt, step }) => {
     const s = useGameStore.getState()
-    if (s.gameState !== 'playing' || !group.current) return
-    const { playerX, playerY, weaponPower, invincibleUntil } = s
-    group.current.position.set(playerX, 0.2, playerY)
-    const vx = playerX - prevX.current
-    prevX.current = playerX
-    bank.current = THREE.MathUtils.lerp(bank.current, -vx * 8, 1 - Math.pow(0.001, dt))
-    group.current.rotation.z = bank.current
-    group.current.rotation.x = THREE.MathUtils.lerp(group.current.rotation.x, Math.min(0.25, Math.abs(vx) * 0.4), 0.1)
-
-    const blink = Date.now() < invincibleUntil && Math.floor(Date.now() / 80) % 2 === 0
-    group.current.visible = !blink
-
-    if (navLights.current) navLights.current.visible = Date.now() % 900 < 160
-    if (shieldRing.current) {
-      // Temporary shield bubble; flickers during its last 1.5 s as a warning
-      const left = s.shieldMs
-      const ending = left > 0 && left < 1500 && Math.floor(Date.now() / 110) % 2 === 0
-      shieldRing.current.visible = left > 0 && !ending
-      shieldRing.current.scale.setScalar(1 + Math.sin(Date.now() * 0.004) * 0.04)
-      const [bubble, rim] = shieldRing.current.children as THREE.Mesh[]
-      ;(bubble.material as THREE.MeshBasicMaterial).opacity = 0.2
-      ;(rim.material as THREE.MeshBasicMaterial).opacity = 0.7
-    }
-
+    if (step === 0) { sinceShot.current = 0; sinceWing.current = 0; skillClock.current = { missile: 0, nova: 0, shield: 0 } }
     // Victory fly-out: hands off the trigger, the plane just climbs off screen
-    if (s.flyout) return
+    if (s.gameState !== 'playing' || s.flyout) return
+    const { playerX, playerY, weaponPower } = s
+    sinceShot.current += realDt * 1000
+    sinceWing.current += realDt * 1000
 
-    const now = Date.now()
     const w = weaponStats(weaponPower)
     const dmg = w.damage * plane.damage
     const pierce = plane.skill === 'pierce'
-    if (now - lastShot.current > gameInterval(w.interval * plane.fireRate)) {
-      lastShot.current = now
+    if (sinceShot.current > gameInterval(w.interval * plane.fireRate)) {
+      sinceShot.current = 0
       for (const sh of w.streams) {
         s.addBullet({ x: playerX + sh.x, y: 0.3, z: playerY + 0.6, vx: sh.vx, vy: 0, vz: PLAYER_BULLET_SPEED, isEnemy: false, damage: dmg, radius: w.radius, pierce })
       }
@@ -74,8 +56,8 @@ export function Player() {
     }
 
     // ── Plane skills ──
-    if (plane.skill === 'wingmen' && now - lastWing.current > gameInterval(w.interval * 1.3)) {
-      lastWing.current = now
+    if (plane.skill === 'wingmen' && sinceWing.current > gameInterval(w.interval * 1.3)) {
+      sinceWing.current = 0
       for (const [ox, oz] of WINGMEN) {
         s.addBullet({ x: playerX + ox, y: 0.3, z: playerY + oz + 0.5, vx: 0, vy: 0, vz: PLAYER_BULLET_SPEED, isEnemy: false, damage: dmg * 0.55, radius: 0.1 })
       }
@@ -106,6 +88,34 @@ export function Player() {
         skillClock.current.shield = 0
         s.addShield(AUTO_SHIELD_MS)
       }
+    }
+  })
+
+  useFrame((_, rawDt) => {
+    const dt = gameDt(rawDt)
+    const s = useGameStore.getState()
+    if (s.gameState !== 'playing' || !group.current) return
+    const { playerX, playerY, invincibleUntil } = s
+    group.current.position.set(playerX, 0.2, playerY)
+    const vx = playerX - prevX.current
+    prevX.current = playerX
+    bank.current = THREE.MathUtils.lerp(bank.current, -vx * 8, 1 - Math.pow(0.001, dt))
+    group.current.rotation.z = bank.current
+    group.current.rotation.x = THREE.MathUtils.lerp(group.current.rotation.x, Math.min(0.25, Math.abs(vx) * 0.4), 0.1)
+
+    const blink = Date.now() < invincibleUntil && Math.floor(Date.now() / 80) % 2 === 0
+    group.current.visible = !blink
+
+    if (navLights.current) navLights.current.visible = Date.now() % 900 < 160
+    if (shieldRing.current) {
+      // Temporary shield bubble; flickers during its last 1.5 s as a warning
+      const left = s.shieldMs
+      const ending = left > 0 && left < 1500 && Math.floor(Date.now() / 110) % 2 === 0
+      shieldRing.current.visible = left > 0 && !ending
+      shieldRing.current.scale.setScalar(1 + Math.sin(Date.now() * 0.004) * 0.04)
+      const [bubble, rim] = shieldRing.current.children as THREE.Mesh[]
+      ;(bubble.material as THREE.MeshBasicMaterial).opacity = 0.2
+      ;(rim.material as THREE.MeshBasicMaterial).opacity = 0.7
     }
   })
 

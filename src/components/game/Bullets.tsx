@@ -3,13 +3,14 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useGameStore } from '../../store/gameStore'
 import { sounds } from '../../hooks/useAudio'
-import { gameDt } from '../../game/speed'
-import { BOSS_COINS, ROLE_STATS } from '../../game/roster'
-import { spawnCoins } from './Coins'
-import { rollDrop } from '../../game/drops'
+import { ROLE_STATS } from '../../game/roster'
 import { BOSSES } from '../../game/bosses'
 import { getStage } from '../../game/stages'
 import { onScreen } from '../../game/world'
+import { ORDER } from '../../game/sim/clock'
+import { net } from '../../game/sim/net'
+import { useSimStep } from '../../game/sim/useSimStep'
+import { bossKilled, enemyKilled } from './effects'
 
 const MAX = 512
 /**
@@ -46,10 +47,11 @@ export function Bullets() {
   const missileRef = useRef<THREE.InstancedMesh>(null)
   const dummy = useMemo(() => new THREE.Object3D(), [])
 
-  useFrame((_, rawDt) => {
-    const dt = gameDt(rawDt)
+  useSimStep(ORDER.bullets, ({ dt }) => {
     const s = useGameStore.getState()
     if (s.gameState !== 'playing') return
+    // Co-op: the server owns enemy HP — report the hit, show it, and wait for ENEMY_DEAD
+    const n = net()
     const next = []
     const bossRadius = BOSSES[getStage(s.currentStageId).boss].radius
     for (const b of s.bullets) {
@@ -80,16 +82,14 @@ export function Bullets() {
           // Not hittable until it has actually flown onto the screen
           if (b.hits?.includes(e.id)) continue
           if (e.entered && Math.hypot(b.x - e.x, b.z - e.y) < role.radius + b.radius) {
-            const dead = s.damageEnemy(e.id, b.damage)
+            // Teammate's bolts are only a picture of their fire: they stop on contact, the hit is theirs to report
+            if (b.ghost) { hit = true; break }
             sounds.enemyHit()
-            if (dead) {
-              s.addExplosion(e.x, 0.2, e.y, e.type === 'heavy' || e.type === 'tank' ? 1.6 : 1)
-              s.addScore(role.score)
-              s.incrementCombo()
-              s.recordEnemyKill()
-              spawnCoins(e.x, e.y, role.coins)
-              const drop = rollDrop()
-              if (drop) s.addPickup({ x: e.x, y: 0.3, z: e.y, type: drop })
+            if (n) {
+              n.hit(e.id, b.damage)
+              s.estimateEnemyHit(e.id, b.damage)
+            } else if (s.damageEnemy(e.id, b.damage)) {
+              enemyKilled(e, { mine: true, rollDrops: true })
             }
             if (b.pierce) {
               // Keep flying; remember this enemy so it isn't hit again every frame
@@ -101,12 +101,15 @@ export function Bullets() {
           }
         }
         if (!hit && s.boss && s.boss.intro <= 0.5 && Math.hypot(b.x - s.boss.x, b.z - s.boss.y) < bossRadius) {
-          const dead = s.damageBoss(b.damage)
-          sounds.enemyHit()
-          if (dead) {
-            s.addExplosion(s.boss.x, 0.4, s.boss.y, 3)
-            s.addScore(5000)
-            spawnCoins(s.boss.x, s.boss.y, BOSS_COINS)
+          const { x, y } = s.boss
+          if (!b.ghost) {
+            sounds.enemyHit()
+            if (n) {
+              n.hit('boss', b.damage)
+              s.estimateBossHit(b.damage)
+            } else if (s.damageBoss(b.damage)) {
+              bossKilled(x, y, { mine: true })
+            }
           }
           hit = true
         }
@@ -119,7 +122,10 @@ export function Bullets() {
       if (!hit) next.push({ ...b })
     }
     useGameStore.setState({ bullets: next })
+  })
 
+  useFrame(() => {
+    const next = useGameStore.getState().bullets
     const players = next.filter((b) => !b.isEnemy && !b.homing).slice(0, MAX)
     const missiles = next.filter((b) => b.homing).slice(0, MAX)
     const enemies = next.filter((b) => b.isEnemy).slice(0, MAX)

@@ -15,6 +15,9 @@ import { Coins } from './Coins'
 import { HangarPreview } from './HangarPreview'
 import { GAME_SPEED } from '../../game/speed'
 import { BOUNDS, PLAYFIELD_MID_Z, setView } from '../../game/world'
+import { ORDER, frame } from '../../game/sim/clock'
+import { useSimStep } from '../../game/sim/useSimStep'
+import { Teammates } from './Teammates'
 /** Half-extents with padding so the ship stays inside the visible area on mobile + desktop. */
 const HALF_W = (BOUNDS.maxX - BOUNDS.minX) / 2 + 1.1
 const HALF_H = (BOUNDS.maxY - BOUNDS.minY) / 2 + 1.4
@@ -133,10 +136,11 @@ export function GameScene() {
     }
   }, [gl])
 
-  useFrame((_, dt) => {
+  // Gameplay: input + store timers, once per fixed simulation step
+  useSimStep(ORDER.scene, ({ realDt: dt }) => {
     const s = useGameStore.getState()
     if (s.gameState === 'playing') {
-      // Top-down ortho: screen-right = world −X, screen-up = +Z
+      // Top-down ortho: screen-right = world −X, screen-up = +Z (keyboard: per step, as it was per 60 Hz frame)
       const sp = 0.14 * GAME_SPEED
       const k = keys.current
       const up = k.has('w') || k.has('arrowup'), down = k.has('s') || k.has('arrowdown')
@@ -165,6 +169,12 @@ export function GameScene() {
       // Menus / results / new run: drop any leftover touch target
       target.current = null
     }
+  })
+
+  useFrame((_, dt) => {
+    // Run the fixed simulation steps that fit in this frame (co-op: tracks the server clock)
+    frame(dt)
+    const s = useGameStore.getState()
 
     // Fit full playfield on any aspect (mobile portrait + desktop landscape)
     if (camera instanceof THREE.OrthographicCamera) {
@@ -189,6 +199,7 @@ export function GameScene() {
     camera.rotateZ(ox * 0.015)
   })
 
+  const coop = useGameStore((s) => s.mode === 'coop')
   const showActors = gameState === 'playing' || gameState === 'paused' || gameState === 'bossWarning' || gameState === 'results'
 
   return (
@@ -205,6 +216,7 @@ export function GameScene() {
             <Pickups />
             <Explosions />
             <Coins />
+            {coop && <Teammates />}
           </>
         )}
       </Suspense>

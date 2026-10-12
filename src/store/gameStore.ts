@@ -3,8 +3,11 @@ import { getStage, type ObjectiveId, type StageConfig } from '../game/stages'
 import { isBiome, type Biome } from '../game/biomes'
 import type { EnemyType } from '../game/roster'
 import type { PathId } from '../game/paths'
-import { BOUNDS, view } from '../game/world'
+import { BOUNDS, SCROLL_PER_GAME_MS, view } from '../game/world'
 import { GAME_SPEED } from '../game/speed'
+import { randomSeed, seedRun } from '../game/sim/rng'
+import { resetClock } from '../game/sim/clock'
+import { net } from '../game/sim/net'
 import { MAX_WEAPON_POWER, WEAPON_TIERS } from '../game/weapon'
 import { getPlane } from '../game/planes'
 import type { RunReport } from '../net/api'
@@ -30,6 +33,7 @@ export type GameState =
   | 'leaderboard'
 
 export type { Biome } from '../game/biomes'
+export type GameMode = 'single' | 'coop'
 export type { EnemyType } from '../game/roster'
 
 export interface Bullet {
@@ -38,6 +42,8 @@ export interface Bullet {
   isEnemy: boolean; damage: number; radius: number
   /** Player skills: pass through enemies (remembering who was hit) / steer toward targets. */
   pierce?: boolean; hits?: string[]; homing?: boolean
+  /** Co-op: drawn from the teammate's fire — no damage, stops on contact. */
+  ghost?: boolean
 }
 export interface Enemy {
   id: string; x: number; y: number; z: number
@@ -106,6 +112,10 @@ interface GameStore {
   bullets: Bullet[]; enemies: Enemy[]; boss: Boss | null
   pickups: Pickup[]; explosions: Explosion[]
   waveIndex: number; waveTimer: number; bossSpawned: boolean
+  /** Seed for every gameplay RNG stream this run (random in single-player, shared in co-op). */
+  runSeed: number
+  /** Single-player (fully local) or co-op (server decides kills, drops, aimed shots). */
+  mode: GameMode
   /** Scripted units queued but not yet spawned (the boss waits for these too). */
   pendingSpawns: number
   scrollOffset: number; biome: Biome; isMuted: boolean; easyMode: boolean
@@ -130,7 +140,7 @@ interface GameStore {
   viewHangarPlane: (id: string) => void
   selectStage: (id: number) => void
   openBriefing: (id?: number) => void
-  startGame: (opts?: { skipToBoss?: boolean; easy?: boolean; stageId?: number }) => void
+  startGame: (opts?: { skipToBoss?: boolean; easy?: boolean; stageId?: number; seed?: number; mode?: GameMode }) => void
   pauseGame: () => void; resumeGame: () => void
   setPlayerPosition: (x: number, y: number) => void
   movePlayer: (dx: number, dy: number) => void
@@ -142,14 +152,24 @@ interface GameStore {
   upgradeWeapon: () => void
   addBullet: (b: Omit<Bullet, 'id'>) => void
   removeBullet: (id: string) => void
-  addEnemy: (e: Omit<Enemy, 'id'>) => void
+  /** Pass an id for scripted enemies (stable across clients); otherwise one is generated. */
+  addEnemy: (e: Omit<Enemy, 'id'> & { id?: string }) => void
   removeEnemy: (id: string) => void
   damageEnemy: (id: string, damage: number) => boolean
+  /** Co-op: show our hit right away without killing — the server's ENEMY_DEAD does that. */
+  estimateEnemyHit: (id: string, damage: number) => void
+  /** Co-op: authoritative HP from the server. */
+  setEnemyHp: (id: string, hp: number) => void
   recordEnemyKill: () => void
   spawnBoss: () => void
   damageBoss: (damage: number) => boolean
+  /** Co-op counterparts of damageBoss (estimate / authoritative HP / server says it's dead). */
+  estimateBossHit: (damage: number) => void
+  setBossHp: (hp: number) => void
+  defeatBoss: () => void
   updateBossPhase: () => void
-  addPickup: (p: Omit<Pickup, 'id'>) => void
+  /** Pass an id for pickups every client must agree on (scripted spawns, server drops). */
+  addPickup: (p: Omit<Pickup, 'id'> & { id?: string }) => void
   collectPickup: (id: string) => Pickup | null
   removePickup: (id: string) => void
   addExplosion: (x: number, y: number, z: number, scale?: number) => void
@@ -247,7 +267,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   gameState: 'menu',
   score: 0, combo: 0, comboTimer: 0, stars: 0,
   playerX: 0, playerY: -4, playerHp: 3, playerMaxHp: 3,
-  shieldMs: 0, victoryMs: 0, flyout: false, weaponPower: 0, carryWeapon: 0, hangarReturn: 'menu', lastGoldStars: 0, hangarPlane: 'hawk', invincibleUntil: 0,
+  runSeed: 0, mode: 'single', shieldMs: 0, victoryMs: 0, flyout: false, weaponPower: 0, carryWeapon: 0, hangarReturn: 'menu', lastGoldStars: 0, hangarPlane: 'hawk', invincibleUntil: 0,
   bullets: [], enemies: [], boss: null, pickups: [], explosions: [],
   waveIndex: 0, waveTimer: 0, bossSpawned: false, pendingSpawns: 0,
   scrollOffset: 0, biome: 'jungle', isMuted: false, easyMode: false,
@@ -300,6 +320,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
   getStageConfig: () => getStage(get().currentStageId),
 
   startGame: (opts = {}) => {
+    // Deterministic run: one seed for all gameplay randomness, simulation clock back to step 0
+    const runSeed = opts.seed ?? randomSeed()
+    seedRun(runSeed)
+    resetClock()
     const easy = !!opts.easy || new URLSearchParams(location.search).has('easy')
     const skip = !!opts.skipToBoss || new URLSearchParams(location.search).has('boss')
     const q = new URLSearchParams(location.search)
@@ -335,13 +359,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
       runStats: emptyRunStats(),
       earnedObjectives: [],
       lastResultWon: false,
+      runSeed,
+      mode: opts.mode ?? 'single',
     })
 
     // First survivors are already standing on the ground ahead of the player
     if (!skip) {
       const s = get()
-      s.addPickup({ x: 2.5, y: 0, z: 13, type: 'rescue', progress: 0 })
-      s.addPickup({ x: -3, y: 0, z: 26, type: 'rescue', progress: 0 })
+      s.addPickup({ id: 'rescue:start0', x: 2.5, y: 0, z: 13, type: 'rescue', progress: 0 })
+      s.addPickup({ id: 'rescue:start1', x: -3, y: 0, z: 26, type: 'rescue', progress: 0 })
     }
 
     if (skip && hasBoss) setTimeout(() => get().spawnBoss(), 2200)
@@ -375,6 +401,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       screenShake: Math.max(get().screenShake, 0.35),
       runStats: { ...runStats, tookDamage: true },
     })
+    // Co-op: our own hits are ours to decide; the teammate learns of them from the server
+    net()?.gotHit(hits, hp)
     if (hp <= 0) get().finalizeResults(false)
   },
 
@@ -385,8 +413,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   addBullet: (b) => set((s) => ({ bullets: [...s.bullets, { ...b, id: `b${bid++}` }] })),
   removeBullet: (id) => set((s) => ({ bullets: s.bullets.filter((b) => b.id !== id) })),
 
-  addEnemy: (e) => set((s) => ({
-    enemies: [...s.enemies, { ...e, id: `e${eid++}` }],
+  addEnemy: (e) => e.id && net()?.spawnAllowed(e.id) === false ? undefined : set((s) => ({
+    enemies: [...s.enemies, { ...e, id: e.id ?? `e${eid++}` }],
     runStats: {
       ...s.runStats,
       enemiesSpawned: s.runStats.enemiesSpawned + 1,
@@ -404,6 +432,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set((s) => ({ enemies: s.enemies.map((e) => (e.id === id ? { ...e, hp } : e)) }))
     return false
   },
+  estimateEnemyHit: (id, damage) => set((s) => ({
+    enemies: s.enemies.map((e) => (e.id === id ? { ...e, hp: Math.max(1, e.hp - damage) } : e)),
+  })),
+  setEnemyHp: (id, hp) => set((s) => ({
+    enemies: s.enemies.map((e) => (e.id === id ? { ...e, hp: Math.max(1, Math.min(e.hp, hp)) } : e)),
+  })),
   recordEnemyKill: () => set((s) => ({
     runStats: { ...s.runStats, enemiesKilled: s.runStats.enemiesKilled + 1 },
   })),
@@ -428,22 +462,33 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!boss) return false
     const hp = boss.hp - damage
     if (hp <= 0) {
-      // Victory window: enemy fire vanishes and the player has a few seconds to scoop up the
-      // boss's stars (anything left uncollected is lost); tick() then flies the plane out
-      set((s) => ({
-        boss: null,
-        screenShake: 0.8,
-        bullets: s.bullets.filter((b) => !b.isEnemy),
-        enemies: [],
-        runStats: { ...s.runStats, bossDefeated: true },
-        victoryMs: VICTORY_COLLECT_MS,
-      }))
+      get().defeatBoss()
       return true
     }
     set({ boss: { ...boss, hp } })
     get().updateBossPhase()
     return false
   },
+  estimateBossHit: (damage) => {
+    const { boss } = get()
+    if (boss) get().setBossHp(boss.hp - damage)
+  },
+  setBossHp: (hp) => {
+    const { boss } = get()
+    if (!boss) return
+    set({ boss: { ...boss, hp: Math.max(1, Math.min(boss.hp, hp)) } })
+    get().updateBossPhase()
+  },
+  // Victory window: enemy fire vanishes and the player has a few seconds to scoop up the
+  // boss's stars (anything left uncollected is lost); tick() then flies the plane out
+  defeatBoss: () => set((s) => ({
+    boss: null,
+    screenShake: 0.8,
+    bullets: s.bullets.filter((b) => !b.isEnemy),
+    enemies: [],
+    runStats: { ...s.runStats, bossDefeated: true },
+    victoryMs: VICTORY_COLLECT_MS,
+  })),
 
   updateBossPhase: () => {
     const { boss } = get()
@@ -453,8 +498,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (phase !== boss.phase) set({ boss: { ...boss, phase }, screenShake: 0.4 })
   },
 
-  addPickup: (p) => set((s) => ({
-    pickups: [...s.pickups, { ...p, id: `p${pid++}` }],
+  addPickup: (p) => p.id && net()?.spawnAllowed(p.id) === false ? undefined : set((s) => ({
+    pickups: [...s.pickups, { ...p, id: p.id ?? `p${pid++}` }],
     runStats: {
       ...s.runStats,
       pickupsSpawned: s.runStats.pickupsSpawned + 1,
@@ -494,12 +539,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const stage = getStage(s.currentStageId)
     const t = s.waveTimer + dt
     if (t >= stage.waveInterval && s.waveIndex < stage.maxWaves) {
-      set({ waveTimer: 0, waveIndex: s.waveIndex + 1 })
+      // Keep the remainder so wave k starts at exactly k × waveInterval (same on every client)
+      set({ waveTimer: t - stage.waveInterval, waveIndex: s.waveIndex + 1 })
     } else {
       set({ waveTimer: t })
     }
 
     const st = get()
+    // Co-op: who's still alive is the server's call, so it announces the boss / the win (PHASE)
+    if (st.mode === 'coop') return
     if (st.waveIndex >= stage.maxWaves && !st.bossSpawned && st.enemies.length === 0 && st.pendingSpawns === 0 && st.gameState === 'playing') {
       if (stage.hasBoss) {
         set({ gameState: 'bossWarning' })
@@ -510,7 +558,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
   },
 
-  updateScroll: (dt) => set((s) => ({ scrollOffset: s.scrollOffset + dt * 0.00042 })),
+  updateScroll: (dt) => set((s) => ({ scrollOffset: s.scrollOffset + dt * SCROLL_PER_GAME_MS })),
 
   finishStageWin: () => {
     const s = get()
@@ -595,4 +643,4 @@ export const useGameStore = create<GameStore>((set, get) => ({
 }))
 
 // Dev-only handle for automated playtests (scripts_shot.mjs eval actions)
-if (import.meta.env.DEV) (window as unknown as { __store: typeof useGameStore }).__store = useGameStore
+if (import.meta.env.DEV && typeof window !== 'undefined') (window as unknown as { __store: typeof useGameStore }).__store = useGameStore

@@ -113,6 +113,8 @@ export class LoopbackServer {
     else this.members.set(id, this.blank(id, id, true))
     this.roster()
     if (m && this.phase !== 'lobby') this.sendTo(id, Op.SNAPSHOT, this.snapshot())
+    // Back while down: the teammate's beacon left with us, put it back so they can revive us
+    if (m && !m.alive && FIGHTING.has(this.phase)) this.broadcast(Op.PLAYER, { id, hp: 0, alive: false, x: m.downX, y: m.downY })
     return true
   }
 

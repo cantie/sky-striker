@@ -234,6 +234,12 @@ export function conformance(name: string, make: (data: CoopData) => ServerDriver
       expect(snap).toMatchObject({ stageIndex: 0, phase: 'playing' })
       expect(list(snap.dead)).toContain('w0.g0.u0')
       expect(list(snap.players).find((p) => p.id === A)?.alive).toBe(false)
+      // The teammate gets A's beacon back (its leave message carried no position) and can revive A
+      const beacon = of(d.drain(B), Op.PLAYER).find((p) => p.id === A && !p.alive && p.x !== undefined && p.y !== undefined)
+      expect(beacon).toBeDefined()
+      d.send(B, Op.REVIVE, { id: A })
+      d.advance(50)
+      expect(of(d.drain(A), Op.PLAYER).find((p) => p.revived)).toMatchObject({ id: A, alive: true, hp: RULES.reviveHp })
     })
 
     it('leaving mid-run counts as down; nobody left → failed', () => {

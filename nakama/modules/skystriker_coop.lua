@@ -476,6 +476,7 @@ local function match_join_attempt(context, dispatcher, tick, state, presence, me
 end
 
 local function match_join(context, dispatcher, tick, state, presences)
+  local beacons = {}
   for _, p in ipairs(presences) do
     local identity = state.pending[p.user_id]
     state.pending[p.user_id] = nil
@@ -484,6 +485,8 @@ local function match_join(context, dispatcher, tick, state, presences)
       m.connected = true
       m.presence = p
       if state.phase ~= "lobby" then send_to(dispatcher, state, m.id, Op.SNAPSHOT, snapshot(state)) end
+      -- Back while down: the teammate's beacon left with us, put it back so they can revive us
+      if not m.alive and FIGHTING[state.phase] then beacons[#beacons + 1] = m end
     elseif identity then
       state.members[p.user_id] = {
         id = p.user_id, gid = identity.id, name = identity.name, plane = "hawk", hp = 3, max_hp = 3,
@@ -494,6 +497,9 @@ local function match_join(context, dispatcher, tick, state, presences)
     end
   end
   roster(dispatcher, state)
+  for _, m in ipairs(beacons) do
+    send(dispatcher, Op.PLAYER, { id = m.id, hp = 0, alive = false, x = m.down_x, y = m.down_y })
+  end
   dispatcher.match_label_update(label(state))
   return state
 end

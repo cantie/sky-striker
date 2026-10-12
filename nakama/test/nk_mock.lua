@@ -102,6 +102,14 @@ function nk.storage_write(list)
   for _, o in ipairs(list) do nk.storage[skey(o)] = o end
 end
 
+-- Nakama user id → custom id ("skystriker-<game id>"), set by the tests
+nk.accounts = {}
+function nk.account_get_id(user_id)
+  local custom = nk.accounts[user_id]
+  if not custom then error("account not found: " .. tostring(user_id)) end
+  return { user_id = user_id, username = user_id, custom_id = custom }
+end
+
 function nk.http_request(url, method, headers, content, timeout)
   local token = headers and headers.Authorization and headers.Authorization:match("^Bearer (.+)$")
   local user = token and nk.users[token]

@@ -24,6 +24,8 @@ export function luaDriver(data: CoopData, m = new LuaMatch({ data }), firstGid =
     join: (id, meta = {}) => {
       users[`tok-${id}`] ??= { id: Object.keys(users).length + firstGid, name: id.toUpperCase() }
       m.setUsers(users)
+      // The Nakama account behind presence `id` is that pilot's own game account
+      m.setAccounts({ [id]: `skystriker-${users[`tok-${id}`].id}` })
       inbox.set(id, inbox.get(id) ?? [])
       const res = m.join(presence(id), { token: `tok-${id}`, dataVersion: data.version, plane: 'hawk', ...meta })
       if (res.ok) joined.add(id)

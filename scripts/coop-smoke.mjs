@@ -22,7 +22,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const enc = (o) => JSON.stringify(o)
 async function pilot(tok, gid) {
   const client = new Client('defaultkey', host, port, false)
-  const session = await client.authenticateCustom(`skystriker-smoke-${gid}`, true)
+  // Same custom id as the game client: the match checks it belongs to the token's game account
+  const session = await client.authenticateCustom(`skystriker-${gid}`, true)
   const socket = client.createSocket(false, false)
   const inbox = []
   socket.onmatchdata = (d) => inbox.push({ op: d.op_code, data: JSON.parse(new TextDecoder().decode(d.data)) })

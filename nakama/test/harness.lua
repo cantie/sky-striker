@@ -33,6 +33,7 @@ function H.preload_data(src) package.preload["skystriker_data"] = assert(load(sr
 function H.load() mod = require("skystriker_coop") return "" end
 function H.set_time(ms) nk.now = tonumber(ms) return "" end
 function H.set_users(j) nk.users = nk.json_decode(j) return "" end
+function H.set_accounts(j) for id, custom in pairs(nk.json_decode(j)) do nk.accounts[id] = custom end return "" end
 function H.set_env(j) env = nk.json_decode(j) return "" end
 function H.rpc(id, user_id, payload) return nk.rpcs[id](ctx(user_id ~= "" and user_id or nil), payload) end
 

@@ -465,6 +465,12 @@ end
 local function match_join_attempt(context, dispatcher, tick, state, presence, metadata)
   local identity, err = verify(context, metadata)
   if not identity then return state, false, err end
+  -- The Nakama account must be the game account the token belongs to (the client signs in with
+  -- custom id "skystriker-<game id>"); otherwise anyone could fly under a stolen or shared token
+  local found, account = pcall(nk.account_get_id, presence.user_id)
+  if not found or type(account) ~= "table" or account.custom_id ~= "skystriker-" .. identity.id then
+    return state, false, "Your login does not match this account, log in again"
+  end
   if (metadata and metadata.dataVersion) ~= data.version then
     return state, false, "Game version mismatch, reload the page"
   end
@@ -473,6 +479,13 @@ local function match_join_attempt(context, dispatcher, tick, state, presence, me
     if m.connected then return state, false, "You are already in this room" end
     state.pending[presence.user_id] = identity
     return state, true
+  end
+  -- One seat per game account
+  for _, other in pairs(state.members) do
+    if other.gid == identity.id then return state, false, "You are already in this room" end
+  end
+  for _, other in pairs(state.pending) do
+    if other.id == identity.id then return state, false, "You are already in this room" end
   end
   if state.phase ~= "lobby" then return state, false, "This run has already started" end
   if count(state.members) + count(state.pending) >= MAX_PLAYERS then return state, false, "Room is full" end

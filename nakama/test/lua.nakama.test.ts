@@ -17,6 +17,32 @@ describe('Lua match: joining', () => {
     expect(d.join('carol')).toMatchObject({ ok: false, reason: expect.stringMatching(/full/i) })
   })
 
+  it("refuses someone else's login token on a Nakama account (custom id must be skystriker-<game id>)", () => {
+    const d = luaDriver(testData())
+    expect(d.join('alice').ok).toBe(true)
+    d.match.setAccounts({ mallory: 'skystriker-99' })
+    expect(d.match.join(presence('mallory'), { token: 'tok-alice', dataVersion: 'test' })).toMatchObject({ ok: false, reason: expect.stringMatching(/log in/i) })
+  })
+
+  it('one game account cannot take both seats', () => {
+    const d = luaDriver(testData())
+    expect(d.join('alice').ok).toBe(true)
+    // A second Nakama account claiming the same game id (alice is game id 1)
+    d.match.setAccounts({ alice2: 'skystriker-1' })
+    expect(d.match.join(presence('alice2'), { token: 'tok-alice', dataVersion: 'test' })).toMatchObject({ ok: false, reason: expect.stringMatching(/already/i) })
+  })
+
+  it("a dropped seat can't be taken over with another pilot's login", () => {
+    const d = luaDriver(testData())
+    d.join('alice'); d.join('bob')
+    d.send('alice', Op.READY, READY); d.send('bob', Op.READY, READY)
+    d.advance(50)
+    d.leave('bob')
+    expect(d.join('carol').ok).toBe(false)               // (registers carol's login: game id 3)
+    expect(d.match.join(presence('bob'), { token: 'tok-carol', dataVersion: 'test' })).toMatchObject({ ok: false })
+    expect(d.join('bob').ok).toBe(true)                  // bob himself may come back
+  })
+
   it('refuses to join without SKYSTRIKER_API_URL', () => {
     const m = new LuaMatch({ data: testData() })
     m.init({ code: 'ABCDE' })

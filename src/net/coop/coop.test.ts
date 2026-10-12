@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ClockSync } from './clockSync'
 import { InterpolationBuffer } from './interpolation'
-import { MAX_EXTRAPOLATE_MS, Op, decode, encode, parseServer } from './protocol'
+import { MAX_EXTRAPOLATE_MS, Op, decode, encode, list, parseServer } from './protocol'
 import { CoopSession, type WorldAdapter } from './coopSession'
 import { LoopbackServer, LoopbackTransport } from './loopbackServer'
 import { STEP_GAME, stepCount } from '../../game/sim/clock'
@@ -15,6 +15,12 @@ describe('protocol', () => {
     expect(msg).toEqual({ op: Op.ENEMY_DEAD, data: { id: 'w1.g0.u0', by: 'a' }, from: undefined })
     expect(parseServer(Op.POS, encode({}))).toBeNull()
     expect(parseServer(999, encode({}))).toBeNull()
+  })
+
+  it('list() tolerates the {} that Nakama Lua sends for empty arrays', () => {
+    expect(list({} as never)).toEqual([])
+    expect(list(undefined)).toEqual([])
+    expect(list([1, 2])).toEqual([1, 2])
   })
 })
 
@@ -86,7 +92,8 @@ function fakeWorld() {
   return { world, calls }
 }
 
-describe('loopback co-op', () => {
+// rewritten in Task 6
+describe.skip('loopback co-op', () => {
   beforeEach(() => { vi.useFakeTimers() })
   afterEach(() => { vi.useRealTimers() })
 

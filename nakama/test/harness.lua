@@ -106,7 +106,7 @@ function H.dump()
   for _, o in pairs(nk.storage) do storage[#storage + 1] = o end
   local matches = {}
   for id, m in pairs(nk.matches) do matches[id] = { label = m.label, size = m.size } end
-  return nk.json_encode({ matches = matches, boards = boards, storage = storage })
+  return nk.json_encode({ matches = matches, boards = boards, storage = storage, requests = nk.requests })
 end
 
 return H

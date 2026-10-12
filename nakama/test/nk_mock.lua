@@ -110,7 +110,9 @@ function nk.account_get_id(user_id)
   return { user_id = user_id, username = user_id, custom_id = custom }
 end
 
+nk.requests = {}
 function nk.http_request(url, method, headers, content, timeout)
+  nk.requests[#nk.requests + 1] = url
   local token = headers and headers.Authorization and headers.Authorization:match("^Bearer (.+)$")
   local user = token and nk.users[token]
   if url:match("/api/me$") and user then

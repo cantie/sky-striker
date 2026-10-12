@@ -80,7 +80,7 @@ export class LuaMatch {
   drain(): Sent[] { return unwire(this.call('drain')) }
   ended(): boolean { return this.call('ended') === 'true' }
   dataSummary(): { version: string; stages: number; enemies: number; maxDps: number } { return JSON.parse(this.call('data_summary')) }
-  dump(): { matches: Record<string, { label: string; size: number }>; boards: Record<string, LbRecord[]>; storage: StorageObj[] } {
+  dump(): { matches: Record<string, { label: string; size: number }>; boards: Record<string, LbRecord[]>; storage: StorageObj[]; requests: string[] } {
     return JSON.parse(this.call('dump'))
   }
 }

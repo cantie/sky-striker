@@ -43,10 +43,19 @@ describe('Lua match: joining', () => {
     expect(d.join('bob').ok).toBe(true)                  // bob himself may come back
   })
 
-  it('refuses to join without SKYSTRIKER_API_URL', () => {
+  it('without SKYSTRIKER_API_URL, logins are checked at https://sf.zingplay.dev', () => {
     const m = new LuaMatch({ data: testData() })
+    m.setUsers({ 'tok-a': { id: 7, name: 'A' } })
+    m.setAccounts({ a: 'skystriker-7' })
     m.init({ code: 'ABCDE' })
-    expect(m.join(presence('a'), { token: 't', dataVersion: 'test' })).toMatchObject({ ok: false, reason: expect.stringMatching(/configured/i) })
+    expect(m.join(presence('a'), { token: 'tok-a', dataVersion: 'test' }).ok).toBe(true)
+    expect(m.dump().requests).toEqual(['https://sf.zingplay.dev/api/me'])
+  })
+
+  it('SKYSTRIKER_API_URL overrides the default', () => {
+    const d = luaDriver(testData())
+    expect(d.join('alice').ok).toBe(true)
+    expect(d.match.dump().requests).toEqual(['http://game.test/api/me'])
   })
 
   it('uses the verified account name, not the READY name', () => {

@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt'
 import { IsString, Matches, MaxLength, MinLength } from 'class-validator'
 import { pilotName, type Player } from '../players/player.entity'
 import { PlayersService } from '../players/players.service'
+import { guestCoopEnabled, localLoginEnabled, nakamaEndpoint } from './flags'
 import { assertRedirectUri, KeycloakOidc } from './oidc'
 
 class OidcLoginDto {
@@ -15,7 +16,12 @@ class LocalLoginDto {
   @IsString() @Matches(/^[A-Za-z0-9_.-]{3,24}$/) username: string
 }
 
-export const localLoginEnabled = () => process.env.LOCAL_LOGIN?.trim().toLowerCase() === 'true'
+export { guestCoopEnabled, localLoginEnabled } from './flags'
+
+/** Nakama socket for co-op. Unset NAKAMA_HOST uses https://nakama.zingplay.dev. */
+export function nakamaPublic() {
+  return nakamaEndpoint()
+}
 
 @Controller()
 export class AuthController {
@@ -33,6 +39,8 @@ export class AuthController {
     return {
       keycloak: this.oidc.isConfigured() && issuer && clientId ? { issuer, clientId } : null,
       localLogin: localLoginEnabled(),
+      guestCoop: guestCoopEnabled(),
+      nakama: nakamaPublic(),
     }
   }
 

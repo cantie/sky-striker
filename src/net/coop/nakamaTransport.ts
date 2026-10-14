@@ -17,13 +17,19 @@ export interface NakamaConfig {
   useSSL: boolean
 }
 
-const CREATE_RPC = 'create_coop_match'
+/** Must match `modules/skystriker_data.lua` in nakama-cluster (`version=`). */
+export const COOP_DATA_VERSION = '2ecb61cf'
+
+const CREATE_RPC = 'skystriker_create_match'
+const JOIN_RPC = 'skystriker_join_code'
+const FIND_RPC = 'skystriker_find_match'
 
 export class NakamaTransport implements Transport {
   private client: Client | null = null
   private session: Session | null = null
   private socket: Socket | null = null
   private matchId: string | null = null
+  private joinMeta: Record<string, string> = {}
   private messages = new Listeners<[ServerMessage]>()
   private disconnects = new Listeners<[string]>()
 
@@ -33,8 +39,9 @@ export class NakamaTransport implements Transport {
     const { Client } = await import('@heroiclabs/nakama-js')
     const { serverKey, host, port, useSSL } = this.config
     this.client = new Client(serverKey, host, port, useSSL)
-    // Custom auth keyed by our own user id (Keycloak subject or guest id); the token, when
-    // present, lets a server-side before-auth hook verify it
+    this.joinMeta = { name: opts.name, plane: opts.plane || 'hawk', dataVersion: COOP_DATA_VERSION }
+    // Custom auth keyed by our own user id (`skystriker-<id>` or `guest:…`). A guest id is
+    // refused by Nakama when GUEST_COOP=false. The token lets a before-auth hook verify a login.
     this.session = await this.client.authenticateCustom(opts.userId, true, undefined, opts.token ? { token: opts.token } : undefined)
     this.socket = this.client.createSocket(useSSL, false)
     this.socket.onmatchdata = (d) => {
@@ -46,30 +53,38 @@ export class NakamaTransport implements Transport {
   }
 
   private async join(matchId?: string, token?: string): Promise<RoomInfo> {
-    const match = await this.need(this.socket).joinMatch(matchId, token)
+    const match = await this.need(this.socket).joinMatch(matchId, token, this.joinMeta)
     this.matchId = match.match_id
     return { roomId: match.match_id, selfId: match.self.user_id }
   }
 
-  async createRoom(opts: { stageId: number }): Promise<RoomInfo> {
-    const res = await this.need(this.client).rpc(this.need(this.session), CREATE_RPC, { stageId: opts.stageId })
-    const matchId = (res.payload as { matchId?: string } | undefined)?.matchId
-    if (!matchId) throw new Error('create_coop_match returned no matchId')
-    return this.join(matchId)
+  async createRoom(_opts: { stageId: number }): Promise<RoomInfo> {
+    const res = await this.rpc(CREATE_RPC, {})
+    if (!res.matchId) throw new Error('skystriker_create_match returned no matchId')
+    return { ...(await this.join(res.matchId)), code: res.code }
   }
 
-  joinRoom(roomId: string): Promise<RoomInfo> {
+  async joinRoom(roomId: string): Promise<RoomInfo> {
+    // A 5-character code is a room code; anything else is a Nakama match id.
+    if (/^[A-Za-z0-9]{5}$/.test(roomId)) {
+      const res = await this.rpc(JOIN_RPC, { code: roomId })
+      if (res.error || !res.matchId) throw new Error(res.error || 'Room not found')
+      return { ...(await this.join(res.matchId)), code: res.code || roomId.toUpperCase() }
+    }
     return this.join(roomId)
   }
 
-  async matchmake(opts: MatchmakeOptions): Promise<RoomInfo> {
-    const socket = this.need(this.socket)
-    const size = opts.size ?? 2
-    const matched = new Promise<string>((resolve) => {
-      socket.onmatchmakermatched = (m) => resolve(m.token)
-    })
-    await socket.addMatchmaker(`+properties.stage:${opts.stageId}`, size, size, { stage: String(opts.stageId) })
-    return this.join(undefined, await matched)
+  async matchmake(_opts: MatchmakeOptions): Promise<RoomInfo> {
+    const found = await this.rpc(FIND_RPC, {})
+    if (found.error || !found.matchId) throw new Error(found.error || 'No open room')
+    return { ...(await this.join(found.matchId)), code: found.code }
+  }
+
+  private async rpc(id: string, body: object): Promise<{ matchId?: string; code?: string; error?: string }> {
+    const res = await this.need(this.client).rpc(this.need(this.session), id, body)
+    const payload = res.payload
+    const data = typeof payload === 'string' ? JSON.parse(payload) : payload
+    return (data ?? {}) as { matchId?: string; code?: string; error?: string }
   }
 
   send<K extends ClientOp>(op: K, data: ClientMessages[K]): void {

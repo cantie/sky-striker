@@ -1,4 +1,4 @@
-import type { PickupType } from '../../store/gameStore'
+import { useGameStore, type PickupType } from '../../store/gameStore'
 import { GAME_SPEED } from '../../game/speed'
 import { STEP_GAME, runSteps, setFrameDriver, stepCount } from '../../game/sim/clock'
 import { setNetHooks, type NetHooks } from '../../game/sim/net'
@@ -230,6 +230,7 @@ export class CoopSession {
         break
       case Op.DROP: {
         const d = m.data
+        if (typeof d.x !== 'number' || typeof d.z !== 'number') break
         // It has been riding the map since it dropped
         const z = d.z - Math.max(0, this.stageTime() - d.t) * GROUND_SPEED
         this.world.drop(d.id, d.type, d.x, z)
@@ -239,13 +240,31 @@ export class CoopSession {
         this.settled.add(m.data.id)
         this.world.picked(m.data.id, m.data.by === me, m.data.type)
         break
-      case Op.AIMED:
-        if (this.running) this.world.aimed(m.data.id, m.data.ang)
+      case Op.AIMED: {
+        if (!this.running) break
+        const ang = typeof m.data.ang === 'number' ? m.data.ang : this.angleTo(m.data.id, m.data.target)
+        if (ang != null) this.world.aimed(m.data.id, ang)
         break
+      }
     }
   }
 
+  /** Nakama aims at a player id; the loopback server sends the angle itself. */
+  private angleTo(enemyId: string, targetId?: string): number | null {
+    if (!targetId) return null
+    const e = useGameStore.getState().enemies.find((x) => x.id === enemyId)
+    if (!e) return null
+    const pos = targetId === this.selfId
+      ? this.world.self()
+      : this.teammates().find((t) => t.id === targetId)
+    if (!pos) return null
+    return Math.atan2(pos.x - e.x, pos.y - e.y)
+  }
+
   private applyPhase(d: ServerMessages[typeof Op.PHASE], fromSnapshot = false): void {
+    const raw = d.phase as string
+    if (raw === 'complete') d = { ...d, phase: 'victory' }
+    else if (raw === 'stageClear') d = { ...d, phase: 'playing' }
     const prev = this.phase
     this.phase = d.phase
     this.stageT0 = d.stageT0

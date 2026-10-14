@@ -8,12 +8,16 @@ export interface RoomInfo {
   roomId: string
   /** Our player id inside the room. */
   selfId: string
+  /** Short room code, when the backend assigned one. */
+  code?: string
 }
 
 export interface ConnectOptions {
-  /** Stable id (e.g. Keycloak subject, or a guest id) and display name. */
+  /** Stable id (e.g. `skystriker-<id>`, or a `guest:` id) and display name. */
   userId: string
   name: string
+  /** Plane id sent with the join, when the backend wants it up front. */
+  plane?: string
   /** Bearer token for backends that authenticate (Nakama custom auth, …). */
   token?: string
 }

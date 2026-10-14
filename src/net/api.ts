@@ -31,9 +31,27 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return data as T
 }
 
+export interface NakamaPublic {
+  host: string
+  port: string
+  serverKey: string
+  useSSL: boolean
+}
 export interface PublicConfig {
   keycloak: { issuer: string; clientId: string } | null
   localLogin: boolean
+  /** False only when the server set GUEST_COOP=false. Missing means allowed. */
+  guestCoop?: boolean
+  /** Absent on an old server; the client then uses https://nakama.zingplay.dev. */
+  nakama?: NakamaPublic | null
+}
+
+/** Used when the server does not send a Nakama endpoint. */
+export const DEFAULT_NAKAMA: NakamaPublic = {
+  host: 'nakama.zingplay.dev',
+  port: '443',
+  serverKey: 'defaultkey',
+  useSSL: true,
 }
 export interface AccountUser { id: number; name: string }
 export interface Session { access_token: string; user: AccountUser }

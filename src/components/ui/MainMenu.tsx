@@ -1,9 +1,10 @@
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { useGameStore } from '../../store/gameStore'
 import { sounds, syncMute } from '../../hooks/useAudio'
 import { countStars, totalStarsPossible } from '../../game/progress'
 import { STAGES } from '../../game/stages'
 import { AccountPanel } from './Account'
+import { CoopLobby } from './CoopLobby'
 
 export function MainMenu() {
   const goToStageSelect = useGameStore((s) => s.goToStageSelect)
@@ -12,6 +13,7 @@ export function MainMenu() {
   const progress = useGameStore((s) => s.progress)
   const openHangar = useGameStore((s) => s.openHangar)
   const openLeaderboard = useGameStore((s) => s.openLeaderboard)
+  const [coop, setCoop] = useState(false)
 
   const totalEarned = STAGES.reduce((n, s) => n + countStars(progress, s.id), 0)
   const totalPossible = STAGES.reduce((n, s) => n + totalStarsPossible(s.id), 0)
@@ -38,6 +40,14 @@ export function MainMenu() {
         >
           PLAY
         </button>
+        <button
+          type="button"
+          onClick={() => { sounds.uiSelect(); setCoop(true) }}
+          style={{ ...btnPrimary, background: 'linear-gradient(180deg, #7dffa8, #1fa85a)', color: '#06210f', boxShadow: '0 6px 0 #0d7a3a' }}
+        >
+          CO-OP
+        </button>
+        {coop && <CoopLobby onClose={() => setCoop(false)} />}
         <button
           type="button"
           onClick={() => { sounds.uiSelect(); openHangar() }}

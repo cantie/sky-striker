@@ -79,8 +79,8 @@ export interface ServerMessages {
   [Op.PLAYER]: { id: string; name?: string; hp: number; alive: boolean; left?: boolean }
   /** `stageT0` = server time at which stage time 0 happens (start of the run). */
   [Op.PHASE]: { phase: Phase; stageId: number; seed: number; stageT0: number; bossHp?: number }
-  /** Enemy `id` fires its volley toward `ang` (radians, 0 = +Z). */
-  [Op.AIMED]: { id: string; ang: number }
+  /** Enemy `id` fires toward `ang` (radians, 0 = +Z), or at player `target` when the server names them. */
+  [Op.AIMED]: { id: string; ang?: number; target?: string }
   [Op.SNAPSHOT]: {
     phase: Phase; stageId: number; seed: number; stageT0: number
     dead: string[]; hp: [string, number][]; bossHp: number | null

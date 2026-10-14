@@ -30,6 +30,7 @@ export function Player() {
   const prevX = useRef(0)
   const skillClock = useRef({ missile: 0, nova: 0, shield: 0 })
   const planeId = useGameStore((s) => s.progress.plane)
+  const downed = useGameStore((s) => s.mode === 'coop' && s.playerHp <= 0)
   const plane = getPlane(planeId)
   const dims = useModelDims(plane.model)
   const wingTip = (dims.x * plane.size) / 2 * 0.92
@@ -39,7 +40,7 @@ export function Player() {
     const s = useGameStore.getState()
     if (step === 0) { sinceShot.current = 0; sinceWing.current = 0; skillClock.current = { missile: 0, nova: 0, shield: 0 } }
     // Victory fly-out: hands off the trigger, the plane just climbs off screen
-    if (s.gameState !== 'playing' || s.flyout) return
+    if (s.gameState !== 'playing' || s.flyout || (s.mode === 'coop' && s.playerHp <= 0)) return
     const { playerX, playerY, weaponPower } = s
     sinceShot.current += realDt * 1000
     sinceWing.current += realDt * 1000
@@ -103,7 +104,7 @@ export function Player() {
     group.current.rotation.z = bank.current
     group.current.rotation.x = THREE.MathUtils.lerp(group.current.rotation.x, Math.min(0.25, Math.abs(vx) * 0.4), 0.1)
 
-    const blink = Date.now() < invincibleUntil && Math.floor(Date.now() / 80) % 2 === 0
+    const blink = !downed && Date.now() < invincibleUntil && Math.floor(Date.now() / 80) % 2 === 0
     group.current.visible = !blink
 
     if (navLights.current) navLights.current.visible = Date.now() % 900 < 160
@@ -139,6 +140,12 @@ export function Player() {
         </mesh>
       </group>
       <pointLight position={[0, 0.1, -0.9]} color={plane.flame} intensity={5} distance={3.5} />
+      {downed && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]}>
+          <ringGeometry args={[1.15, 1.35, 32]} />
+          <meshBasicMaterial color="#ff5252" transparent opacity={0.9} toneMapped={false} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      )}
       <group ref={shieldRing} visible={false}>
         <mesh scale={[1, 0.45, 1]}>
           <sphereGeometry args={[1.25, 32, 16]} />

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ClockSync } from './clockSync'
 import { InterpolationBuffer } from './interpolation'
 import { MAX_EXTRAPOLATE_MS, Op, decode, encode, parseServer } from './protocol'
+import { coopStageSeconds } from './coopLeaderboard'
 import { CoopSession, type WorldAdapter } from './coopSession'
 import { LoopbackServer, LoopbackTransport } from './loopbackServer'
 import { STEP_GAME, stepCount } from '../../game/sim/clock'
@@ -81,7 +82,7 @@ function fakeWorld() {
     startRun: rec('startRun'),
     self: () => ({ x: 0, y: -4, fire: true, power: 0, plane: 'hawk', hp: 3 }),
     enemyHp: rec('enemyHp'), bossHp: rec('bossHp'), enemyDead: rec('enemyDead'), drop: rec('drop'),
-    picked: rec('picked'), aimed: rec('aimed'), phase: rec('phase'),
+    picked: rec('picked'), aimed: rec('aimed'), phase: rec('phase'), revived: rec('revived'),
   }
   return { world, calls }
 }
@@ -162,6 +163,36 @@ describe('loopback co-op', () => {
     expect(server.script.some((e) => e.id === id && e.shot !== 'down' && e.shot !== 'none')).toBe(true)
     expect(Number.isFinite(ang)).toBe(true)
     server.stopTimer()
+  })
+
+  it('one pilot down keeps the run going; the wingmate can revive them', async () => {
+    const { server, clients: [a, b] } = await setup(2, false)
+    await vi.advanceTimersByTimeAsync(1500)
+    a.session.hooks.gotHit(3, 0)
+    await vi.advanceTimersByTimeAsync(300)
+    expect(server.phase).toBe('playing')
+    expect(a.calls.phase!.map((p) => p[0])).not.toContain('failed')
+    const wreck = b.session.teammates().find((t) => t.id === 'p0')
+    expect(wreck?.alive).toBe(false)
+    b.session.revive('p0')
+    await vi.advanceTimersByTimeAsync(300)
+    expect(a.calls.revived).toEqual([[2, 0, -4]])
+    expect(b.session.teammates().find((t) => t.id === 'p0')?.alive).toBe(true)
+    server.stopTimer()
+  })
+
+  it('a bot wingmate keeps the run alive after the human is down', async () => {
+    const { server, clients: [c] } = await setup(1, true)
+    await vi.advanceTimersByTimeAsync(1500)
+    c.session.hooks.gotHit(3, 0)
+    await vi.advanceTimersByTimeAsync(300)
+    expect(server.phase).toBe('playing')
+    expect(c.session.teammates().some((t) => t.alive)).toBe(true)
+    server.stopTimer()
+  })
+
+  it('unpacks the stage-board time', () => {
+    expect(coopStageSeconds(10_000_000 - 1 - 125)).toBe(125)
   })
 
   it('all players down → failed', async () => {

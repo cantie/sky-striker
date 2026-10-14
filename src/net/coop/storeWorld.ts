@@ -62,9 +62,18 @@ export function storeWorld(): WorldAdapter {
         // Stages without a boss end when the server says the last wave is over
         if (!getStage(s.currentStageId).hasBoss && s.gameState === 'playing') s.finishStageWin()
       } else if (phase === 'failed') {
-        if (s.gameState === 'playing' || s.gameState === 'bossWarning') s.finalizeResults(false)
+        // Only the server ends a co-op run, and only once nobody is left to revive
+        if (s.gameState === 'playing' || s.gameState === 'bossWarning' || s.gameState === 'paused') s.finalizeResults(false)
       }
     },
+
+    revived: (hp, x, y) => useGameStore.setState({
+      playerHp: hp,
+      playerX: x,
+      playerY: y,
+      invincibleUntil: Date.now() + 1500,
+      hitFlash: 0,
+    }),
   }
 }
 

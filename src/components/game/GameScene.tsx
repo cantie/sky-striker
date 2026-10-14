@@ -140,11 +140,14 @@ export function GameScene() {
   useSimStep(ORDER.scene, ({ realDt: dt }) => {
     const s = useGameStore.getState()
     if (s.gameState === 'playing') {
+      // Downed in co-op: stay on the beacon and watch the wingmate. Moving would walk the wreck off it.
+      const downed = s.mode === 'coop' && s.playerHp <= 0
+      if (downed) target.current = null
       // Top-down ortho: screen-right = world −X, screen-up = +Z (keyboard: per step, as it was per 60 Hz frame)
       const sp = 0.14 * GAME_SPEED
       const k = keys.current
-      const up = k.has('w') || k.has('arrowup'), down = k.has('s') || k.has('arrowdown')
-      const left = k.has('a') || k.has('arrowleft'), right = k.has('d') || k.has('arrowright')
+      const up = !downed && (k.has('w') || k.has('arrowup')), down = !downed && (k.has('s') || k.has('arrowdown'))
+      const left = !downed && (k.has('a') || k.has('arrowleft')), right = !downed && (k.has('d') || k.has('arrowright'))
       if (up || down || left || right) target.current = null // keyboard takes over
       if (up) s.movePlayer(0, sp)
       if (down) s.movePlayer(0, -sp)
@@ -152,7 +155,7 @@ export function GameScene() {
       if (right) s.movePlayer(-sp, 0)
 
       // Fly toward the touch point at the plane's speed (no teleport); ease in over the last stretch
-      const t = target.current
+      const t = downed ? null : target.current
       if (t) {
         const dx = t.x - s.playerX, dz = t.z - s.playerY
         const dist = Math.hypot(dx, dz)

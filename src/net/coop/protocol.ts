@@ -19,6 +19,8 @@ export const Op = {
   RESYNC: 7,
   /** Clock sync request (extension of the source protocol). */
   PING: 8,
+  /** Living pilot asks to revive a downed wingmate (server checks distance). */
+  REVIVE: 9,
   // server → client
   STATES: 100,
   ENEMY_HP: 101,
@@ -38,6 +40,11 @@ export const HITS_BATCH_MS = 100
 /** Teammates are drawn this far in the past, and extrapolated at most this far past their last sample. */
 export const INTERP_DELAY_MS = 100
 export const MAX_EXTRAPOLATE_MS = 150
+/**
+ * Fly this close to a downed wingmate to ask for a revive. The server accepts up to
+ * `reviveRadius * 2` (1.8 × 2) so a slightly stale position still counts.
+ */
+export const REVIVE_NEAR = 2.4
 
 export type Phase = 'lobby' | 'countdown' | 'playing' | 'bossWarning' | 'boss' | 'victory' | 'failed'
 
@@ -67,6 +74,7 @@ export interface ClientMessages {
   [Op.READY]: { name: string; plane: string; hp: number }
   [Op.RESYNC]: Record<string, never>
   [Op.PING]: { c: number }
+  [Op.REVIVE]: { id: string }
 }
 
 export interface ServerMessages {
@@ -76,7 +84,7 @@ export interface ServerMessages {
   /** `t` = stage game-seconds when it dropped at (x, z); it has scrolled with the map since. */
   [Op.DROP]: { id: string; type: PickupType; x: number; z: number; t: number }
   [Op.PICKED]: { id: string; by: string; type: PickupType }
-  [Op.PLAYER]: { id: string; name?: string; hp: number; alive: boolean; left?: boolean }
+  [Op.PLAYER]: { id: string; name?: string; hp: number; alive: boolean; left?: boolean; revived?: boolean; x?: number; y?: number }
   /** `stageT0` = server time at which stage time 0 happens (start of the run). */
   [Op.PHASE]: { phase: Phase; stageId: number; seed: number; stageT0: number; bossHp?: number }
   /** Enemy `id` fires toward `ang` (radians, 0 = +Z), or at player `target` when the server names them. */

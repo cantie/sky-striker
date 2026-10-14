@@ -1,8 +1,10 @@
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { useGameStore } from '../../store/gameStore'
 import { getStage, TOTAL_STAGES } from '../../game/stages'
 import { isStageUnlocked, totalStarsPossible } from '../../game/progress'
 import { onPlayGesture, sounds } from '../../hooks/useAudio'
+import { leaveCoopToSaga } from '../../net/coop/active'
+import { CoopLobby } from './CoopLobby'
 
 export function ResultsScreen() {
   const won = useGameStore((s) => s.lastResultWon)
@@ -15,6 +17,12 @@ export function ResultsScreen() {
   const goToStageSelect = useGameStore((s) => s.goToStageSelect)
   const openBriefing = useGameStore((s) => s.openBriefing)
   const goldStars = useGameStore((s) => s.lastGoldStars)
+  const coop = useGameStore((s) => s.mode === 'coop')
+  const [rematch, setRematch] = useState(false)
+
+  if (coop && rematch) {
+    return <CoopLobby backLabel="← SAGA MAP" onClose={() => { void leaveCoopToSaga() }} />
+  }
 
   const stage = getStage(stageId)
   const total = totalStarsPossible(stageId)
@@ -41,7 +49,7 @@ export function ResultsScreen() {
     <div style={overlay}>
       <div style={panel}>
         <div style={{ ...banner, color: won ? '#9fe870' : '#ff6b6b' }}>
-          {won ? 'MISSION COMPLETE' : 'MISSION FAILED'}
+          {coop ? (won ? 'CAMPAIGN CLEAR' : 'CAMPAIGN FAILED') : (won ? 'MISSION COMPLETE' : 'MISSION FAILED')}
         </div>
         <div style={stageName}>{stage.name}</div>
         <div style={scoreLine}>SCORE {score.toLocaleString()}</div>
@@ -51,12 +59,16 @@ export function ResultsScreen() {
           {runStats.tookDamage ? '' : ' · UNTOUCHED'}
         </div>
 
+        {coop ? (
+          <div style={statLine}>{won ? 'The campaign is clear. Retry opens co-op matchmaking.' : 'Both pilots were down. Retry opens co-op matchmaking.'}</div>
+        ) : (
         <div style={{ textAlign: 'center', color: '#ffd54a', fontWeight: 800, fontSize: 13 }}>
           +{goldStars} ★ banked · wallet ★ {progress.wallet.toLocaleString()}
         </div>
+        )}
 
-        <div style={sectionTitle}>STARS EARNED THIS RUN</div>
-        <div style={starBox}>
+        {!coop && <div style={sectionTitle}>STARS EARNED THIS RUN</div>}
+        {!coop && <div style={starBox}>
           {stage.objectives.map((o) => {
             const got = earned.includes(o.id)
             return (
@@ -71,13 +83,15 @@ export function ResultsScreen() {
               </div>
             )
           })}
-        </div>
+        </div>}
+        {!coop && (
         <div style={{ textAlign: 'center', color: '#ffd54a', fontWeight: 800, marginTop: 4 }}>
           ★ {earned.length}/{total}
         </div>
+        )}
 
-        <button type="button" style={primary} onClick={() => void retry()}>RETRY</button>
-        {won && nextId <= TOTAL_STAGES && (
+        <button type="button" style={primary} onClick={() => { if (coop) setRematch(true); else void retry() }}>RETRY</button>
+        {!coop && won && nextId <= TOTAL_STAGES && (
           <button
             type="button"
             style={{ ...primary, background: nextUnlocked ? 'linear-gradient(180deg,#5ec8ff,#1a8fd0)' : '#445', boxShadow: nextUnlocked ? '0 6px 0 #0d5f90' : 'none' }}
@@ -87,7 +101,7 @@ export function ResultsScreen() {
             {nextUnlocked ? `NEXT — STAGE ${nextId}` : 'NEXT LOCKED'}
           </button>
         )}
-        <button type="button" style={ghost} onClick={() => { sounds.uiClick(); goToStageSelect() }}>
+        <button type="button" style={ghost} onClick={() => { sounds.uiClick(); if (coop) void leaveCoopToSaga(); else goToStageSelect() }}>
           SAGA MAP
         </button>
       </div>

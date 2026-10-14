@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react'
 import { useGameStore } from '../../store/gameStore'
 import { getStage } from '../../game/stages'
 import { sounds, syncMute } from '../../hooks/useAudio'
+import { leaveCoopToSaga } from '../../net/coop/active'
 
 export function PauseMenu() {
   const resumeGame = useGameStore((s) => s.resumeGame)
@@ -9,6 +10,7 @@ export function PauseMenu() {
   const toggleMute = useGameStore((s) => s.toggleMute)
   const isMuted = useGameStore((s) => s.isMuted)
   const stageId = useGameStore((s) => s.currentStageId)
+  const coop = useGameStore((s) => s.mode === 'coop')
   const runStats = useGameStore((s) => s.runStats)
   const stage = getStage(stageId)
 
@@ -43,7 +45,7 @@ export function PauseMenu() {
 
       <Btn onClick={() => { sounds.uiClick(); resumeGame() }}>Resume</Btn>
       <Btn onClick={() => { sounds.uiClick(); toggleMute(); syncMute() }}>{isMuted ? 'Unmute' : 'Mute'}</Btn>
-      <Btn onClick={() => { sounds.uiClick(); goToStageSelect() }}>Saga Map</Btn>
+      <Btn onClick={() => { sounds.uiClick(); if (coop) void leaveCoopToSaga(); else goToStageSelect() }}>Saga Map</Btn>
     </div>
   )
 }

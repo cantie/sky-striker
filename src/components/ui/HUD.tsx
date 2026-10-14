@@ -21,6 +21,8 @@ export function HUD() {
   const toggleMute = useGameStore((s) => s.toggleMute)
   const pauseGame = useGameStore((s) => s.pauseGame)
   const gameState = useGameStore((s) => s.gameState)
+  const downed = useGameStore((s) => s.mode === 'coop' && s.playerHp <= 0)
+  const wingmateDown = useGameStore((s) => s.wingmateDown)
   const currentStageId = useGameStore((s) => s.currentStageId)
   const hpColor = playerHp > 2 ? '#4caf50' : playerHp === 2 ? '#ff9800' : '#f44336'
 
@@ -93,6 +95,13 @@ export function HUD() {
         </div>
       )}
 
+      {gameState === 'playing' && downed && (
+        <div style={banner}>DOWNED — your wingmate can revive you</div>
+      )}
+      {gameState === 'playing' && !downed && wingmateDown && (
+        <div style={banner}>WINGMATE DOWN — fly onto the red beacon</div>
+      )}
+
       {gameState === 'bossWarning' && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ fontSize: 'clamp(1.8rem, 7vw, 3rem)', fontWeight: 900, color: '#ff1744', textShadow: '0 0 20px #ff1744', animation: 'pulse 0.6s infinite' }}>⚠ WARNING ⚠<br />BOSS INCOMING</div>
@@ -104,6 +113,11 @@ export function HUD() {
 }
 
 const shadow = '0 1px 3px rgba(0,0,0,0.85)'
+const banner: CSSProperties = {
+  position: 'absolute', top: '38%', left: 16, right: 16, textAlign: 'center',
+  color: '#fff', fontWeight: 900, fontSize: 'clamp(0.95rem, 4vw, 1.25rem)',
+  textShadow: '0 0 16px #ff5252, 0 2px 0 #4a0000',
+}
 /** Shield bar is full at a fresh pickup (8 s); longer stacks just stay full. */
 const SHIELD_BAR_MS = 8000
 const statusPanel: CSSProperties = {

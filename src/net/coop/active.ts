@@ -65,3 +65,10 @@ export async function stopCoop(): Promise<void> {
   active = null
   label = ''
 }
+
+/** Leave the match and open the saga map. Co-op never drops the player on the main menu. */
+export async function leaveCoopToSaga(): Promise<void> {
+  await stopCoop()
+  useGameStore.setState({ mode: 'single', wingmateDown: false })
+  useGameStore.getState().goToStageSelect()
+}

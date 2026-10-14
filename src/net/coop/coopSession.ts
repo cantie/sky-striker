@@ -25,6 +25,8 @@ export interface WorldAdapter {
   /** Enemy `id` fires its volley toward `ang`. */
   aimed(id: string, ang: number): void
   phase(phase: Phase, info: ServerMessages[typeof Op.PHASE]): void
+  /** Server put us back in the fight at the beacon. */
+  revived(hp: number, x: number, y: number): void
 }
 
 export interface Teammate {
@@ -67,7 +69,8 @@ export class CoopSession {
   private running = false
   private hits: Hit[] = []
   private settled = new Set<string>()
-  private mates = new Map<string, { buf: InterpolationBuffer; state: PlayerState; name: string }>()
+  private mates = new Map<string, { buf: InterpolationBuffer; state: PlayerState; name: string; beacon: { x: number; y: number } | null }>()
+  private reviveAt = new Map<string, number>()
   private names = new Map<string, string>()
   private bossTargetId: string | null = null
   private timers: Timer[] = []
@@ -139,6 +142,14 @@ export class CoopSession {
     spawnAllowed: (id) => !this.settled.has(id),
   }
 
+  /** Ask the server to revive a downed wingmate. Throttled; the server still checks range. */
+  revive(id: string): void {
+    const t = this.now()
+    if (t - (this.reviveAt.get(id) ?? 0) < 400) return
+    this.reviveAt.set(id, t)
+    this.transport.send(Op.REVIVE, { id })
+  }
+
   /** Stage time (game seconds) at a server time. Negative during the countdown. */
   stageTime(serverNow = this.clock.serverNow()): number {
     return ((serverNow - this.stageT0) / 1000) * GAME_SPEED
@@ -158,10 +169,12 @@ export class CoopSession {
   teammates(serverNow = this.clock.serverNow()): Teammate[] {
     const out: Teammate[] = []
     for (const [id, m] of this.mates) {
-      const p = m.buf.sample(serverNow)
-      if (!p) continue
       const s = m.state
-      out.push({ id, name: m.name, x: p.x, y: p.y, alive: s.alive, fire: s.fire, power: s.power, plane: s.plane, hp: s.hp })
+      const p = m.buf.sample(serverNow)
+      // A wreck stays on its beacon so a wingmate can fly to it
+      const xy = !s.alive && m.beacon ? m.beacon : p
+      if (!xy) continue
+      out.push({ id, name: m.name, x: xy.x, y: xy.y, alive: s.alive, fire: s.alive && s.fire, power: s.power, plane: s.plane, hp: s.hp })
     }
     return out
   }
@@ -187,24 +200,49 @@ export class CoopSession {
           if (p.id === me) continue
           let mate = this.mates.get(p.id)
           if (!mate) {
-            mate = { buf: new InterpolationBuffer(), state: p, name: this.names.get(p.id) ?? 'Wingmate' }
+            mate = { buf: new InterpolationBuffer(), state: p, name: this.names.get(p.id) ?? 'Wingmate', beacon: null }
             this.mates.set(p.id, mate)
           }
           mate.state = p
-          mate.buf.push({ t: p.t, x: p.x, y: p.y })
+          if (p.alive) {
+            mate.beacon = null
+            mate.buf.push({ t: p.t, x: p.x, y: p.y })
+          } else if (!mate.beacon) mate.beacon = { x: p.x, y: p.y }
         }
         break
-      case Op.PLAYER:
-        if (m.data.name) this.names.set(m.data.id, m.data.name)
-        if (m.data.left) this.mates.delete(m.data.id)
-        else {
-          const mate = this.mates.get(m.data.id)
-          if (mate) {
-            mate.state = { ...mate.state, hp: m.data.hp, alive: m.data.alive }
-            if (m.data.name) mate.name = m.data.name
+      case Op.PLAYER: {
+        const d = m.data
+        if (d.name) this.names.set(d.id, d.name)
+        if (d.id === me) {
+          if (d.revived && d.alive) this.world.revived(d.hp, d.x ?? 0, d.y ?? 0)
+          break
+        }
+        if (d.left) { this.mates.delete(d.id); break }
+        let mate = this.mates.get(d.id)
+        if (!mate) {
+          const x = d.x ?? 0
+          const y = d.y ?? -4
+          mate = {
+            buf: new InterpolationBuffer(),
+            state: { id: d.id, x, y, t: 0, fire: false, power: 0, plane: 'hawk', hp: d.hp, alive: d.alive },
+            name: this.names.get(d.id) ?? 'Wingmate',
+            beacon: null,
+          }
+          mate.buf.push({ t: this.clock.serverNow(), x, y })
+          this.mates.set(d.id, mate)
+        }
+        mate.state = { ...mate.state, hp: d.hp, alive: d.alive }
+        if (d.name) mate.name = d.name
+        if (!d.alive && typeof d.x === 'number' && typeof d.y === 'number') mate.beacon = { x: d.x, y: d.y }
+        if (d.alive) {
+          mate.beacon = null
+          if (d.revived && typeof d.x === 'number' && typeof d.y === 'number') {
+            mate.state = { ...mate.state, x: d.x, y: d.y }
+            mate.buf.push({ t: this.clock.serverNow(), x: d.x, y: d.y })
           }
         }
         break
+      }
       case Op.PHASE:
         this.applyPhase(m.data)
         break

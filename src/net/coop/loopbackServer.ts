@@ -62,6 +62,8 @@ export class LoopbackServer {
   private lastWaveEnd: number
   private timer: ReturnType<typeof setInterval> | null = null
   private lastTick = 0
+  /** Where a pilot went down. Revive checks this, not their latest POS. */
+  private beacons = new Map<string, { x: number; y: number }>()
 
   constructor(private opts: LoopbackOptions) {
     this.now = opts.now ?? (() => performance.now())
@@ -137,11 +139,29 @@ export class LoopbackServer {
         break
       case Op.GOT_HIT: {
         const p = this.players.get(from)
-        if (!p) break
+        if (!p || !p.alive) break
         p.hp = (data as ClientMessages[typeof Op.GOT_HIT]).hp
         p.alive = p.hp > 0
-        this.broadcast(Op.PLAYER, { id: p.id, hp: p.hp, alive: p.alive })
-        if (![...this.players.values()].some((q) => q.human && q.alive)) this.setPhase('failed')
+        if (!p.alive) this.beacons.set(p.id, { x: p.x, y: p.y })
+        const beacon = this.beacons.get(p.id)
+        this.broadcast(Op.PLAYER, { id: p.id, hp: p.hp, alive: p.alive, x: beacon?.x ?? p.x, y: beacon?.y ?? p.y })
+        // Same rule as Nakama: the run continues while anyone (including the bot) is still flying
+        if (![...this.players.values()].some((q) => q.alive)) this.setPhase('failed')
+        break
+      }
+      case Op.REVIVE: {
+        const me = this.players.get(from)
+        const id = (data as ClientMessages[typeof Op.REVIVE]).id
+        const t = this.players.get(id)
+        const beacon = this.beacons.get(id)
+        if (!me?.alive || !t || t.alive || t.id === me.id || !beacon) break
+        if (Math.hypot(me.x - beacon.x, me.y - beacon.y) > 3.6) break
+        t.alive = true
+        t.hp = 2
+        t.x = beacon.x
+        t.y = beacon.y
+        this.beacons.delete(id)
+        this.broadcast(Op.PLAYER, { id: t.id, hp: t.hp, alive: true, revived: true, x: t.x, y: t.y })
         break
       }
       case Op.PICKUP: {

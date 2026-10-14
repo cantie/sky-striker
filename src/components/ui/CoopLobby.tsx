@@ -6,7 +6,7 @@ import { startNakamaCoop, stopCoop } from '../../net/coop/active'
 import { LoginButtons } from './Account'
 
 /** Co-op lobby. Guests get in only while the server's GUEST_COOP flag is on. */
-export function CoopLobby({ onClose }: { onClose: () => void }) {
+export function CoopLobby({ onClose, backLabel = '← MENU' }: { onClose: () => void; backLabel?: string }) {
   const status = useAccount((s) => s.status)
   const config = useAccount((s) => s.config)
   const [code, setCode] = useState('')
@@ -37,7 +37,7 @@ export function CoopLobby({ onClose }: { onClose: () => void }) {
   return (
     <div style={overlay}>
       <div style={panel}>
-        <button type="button" style={back} onClick={() => { sounds.uiClick(); void stopCoop(); onClose() }}>← MENU</button>
+        <button type="button" style={back} onClick={() => { sounds.uiClick(); void stopCoop(); onClose() }}>{backLabel}</button>
         <div style={title}>CO-OP</div>
         <div style={sub}>Two pilots, one campaign</div>
 

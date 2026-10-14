@@ -8,6 +8,7 @@ import { gameInterval } from '../../game/speed'
 import { ORDER } from '../../game/sim/clock'
 import { useSimStep } from '../../game/sim/useSimStep'
 import { activeSession } from '../../net/coop/active'
+import { REVIVE_NEAR } from '../../net/coop/protocol'
 import { ShipModel } from './Model'
 
 /**
@@ -25,6 +26,13 @@ export function Teammates() {
     const mates = session.teammates()
     const key = mates.map((m) => m.id).join()
     if (key !== ids.join()) setIds(mates.map((m) => m.id))
+    const anyDown = mates.some((m) => !m.alive)
+    if (s.wingmateDown !== anyDown) useGameStore.setState({ wingmateDown: anyDown })
+    if (s.playerHp > 0) {
+      for (const m of mates) {
+        if (!m.alive && Math.hypot(m.x - s.playerX, m.y - s.playerY) <= REVIVE_NEAR) session.revive(m.id)
+      }
+    }
     for (const m of mates) {
       if (!m.alive || !m.fire) continue
       const since = (sinceShot.current.get(m.id) ?? 0) + realDt * 1000
@@ -46,14 +54,16 @@ function Mate({ id }: { id: string }) {
   const group = useRef<THREE.Group>(null)
   const prevX = useRef(0)
   const [planeId, setPlaneId] = useState('hawk')
+  const [alive, setAlive] = useState(true)
   const plane = getPlane(planeId)
 
   useFrame(() => {
     const m = activeSession()?.teammates().find((t) => t.id === id)
     if (!group.current) return
-    group.current.visible = !!m && m.alive
+    group.current.visible = !!m
     if (!m) return
     if (m.plane !== planeId) setPlaneId(m.plane)
+    if (m.alive !== alive) setAlive(m.alive)
     group.current.position.set(m.x, 0.2, m.y)
     const vx = m.x - prevX.current
     prevX.current = m.x
@@ -66,7 +76,7 @@ function Mate({ id }: { id: string }) {
       {/* marker ring so the wingmate is never mistaken for an enemy */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]}>
         <ringGeometry args={[0.95, 1.05, 32]} />
-        <meshBasicMaterial color="#3dff8a" transparent opacity={0.55} toneMapped={false} depthWrite={false} side={THREE.DoubleSide} />
+        <meshBasicMaterial color={alive ? '#3dff8a' : '#ff5252'} transparent opacity={alive ? 0.55 : 0.9} toneMapped={false} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
     </group>
   )

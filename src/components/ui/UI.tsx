@@ -8,6 +8,7 @@ import { ResultsScreen } from './ResultsScreen'
 import { Hangar } from './Hangar'
 import { Leaderboard } from './Leaderboard'
 import { CoopBadge } from './CoopBadge'
+import { CoopDebug } from './CoopDebug'
 import { CoopLobby } from './CoopLobby'
 import { CoopStageClear } from './CoopStageClear'
 import { CoopResults } from './CoopResults'
@@ -29,6 +30,7 @@ export function UI() {
       {gameState === 'coopStageClear' && <CoopStageClear />}
       {gameState === 'coopResults' && <CoopResults />}
       {coop && <CoopBadge />}
+      {coop && <CoopDebug />}
     </>
   )
 }

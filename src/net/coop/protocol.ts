@@ -135,7 +135,7 @@ export interface ServerMessages {
 export type ClientOp = keyof ClientMessages
 export type ServerOp = keyof ServerMessages
 
-export type ServerMessage = { [K in ServerOp]: { op: K; data: ServerMessages[K]; from?: string } }[ServerOp]
+export type ServerMessage = { [K in ServerOp]: { op: K; data: ServerMessages[K]; from?: string; match?: string } }[ServerOp]
 export type ClientMessage = { [K in ClientOp]: { op: K; data: ClientMessages[K] } }[ClientOp]
 
 const text = new TextEncoder()
@@ -153,7 +153,7 @@ export const list = <T>(v: T[] | Record<string, never> | null | undefined): T[] 
 const SERVER_OPS = new Set<number>([Op.STATES, Op.ENEMY_HP, Op.ENEMY_DEAD, Op.DROP, Op.PICKED, Op.PLAYER, Op.PHASE, Op.AIMED, Op.SNAPSHOT, Op.PONG])
 
 /** Type a raw (op, payload) pair from the wire; null for opcodes we don't know. */
-export function parseServer(op: number, raw: Uint8Array | string, from?: string): ServerMessage | null {
+export function parseServer(op: number, raw: Uint8Array | string, from?: string, match?: string): ServerMessage | null {
   if (!SERVER_OPS.has(op)) return null
-  return { op, data: decode(raw), from } as ServerMessage
+  return { op, data: decode(raw), from, match } as ServerMessage
 }

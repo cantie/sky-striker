@@ -106,6 +106,9 @@ export class CoopSession {
   private stopListeners = new Listeners<[]>()
   private lastBehind = 0
   private lastHeard = 0
+  /** Diagnostics (`?coopdebug=1`): the last STATES rows, and how many STATES came from each match. */
+  private lastStates: PlayerState[] = []
+  private statesFrom = new Map<string, number>()
 
   constructor(
     private transport: Transport,
@@ -222,6 +225,23 @@ export class CoopSession {
     return out
   }
 
+  /** Short lines for the `?coopdebug=1` overlay: who we are, what the server sends, what we draw. */
+  debugLines(): string[] {
+    const id = (s: string | null | undefined) => (s ?? '-').slice(0, 8)
+    const xy = (p: { x: number; y: number }) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`
+    const now = this.clock.serverNow()
+    return [
+      `me   ${id(this.selfId)} ${this.room?.code ?? ''}`,
+      `room ${id(this.room?.roomId)} rtt ${Math.round(this.clock.rtt)}${this.clock.synced ? '' : ' nosync'}`,
+      ...[...this.statesFrom].map(([match, n]) => `rx   ${id(match)} x${n}`),
+      ...this.lastStates.map((p) => `srv  ${id(p.id)} ${xy(p)} ${p.t ? `${Math.round(now - p.t)}ms` : 'nopos'}${p.alive ? '' : ' down'}`),
+      ...[...this.mates].map(([mid, m]) => {
+        const at = m.buf.sample(now)
+        return `mate ${id(mid)} ${at ? xy(at) : '-'} b${m.buf.size} ${m.name.slice(0, 8)}`
+      }),
+    ]
+  }
+
   downedPlayers(): Downed[] {
     return [...this.downed].map(([id, p]) => ({ id, x: p.x, y: p.y, self: id === this.selfId }))
   }
@@ -250,6 +270,8 @@ export class CoopSession {
       case Op.STATES:
         this.bossTargetId = m.data.bossTarget ?? null
         if (m.data.team) this.team = m.data.team
+        this.lastStates = list(m.data.players)
+        this.statesFrom.set(m.match ?? 'local', (this.statesFrom.get(m.match ?? 'local') ?? 0) + 1)
         for (const p of list(m.data.players)) {
           if (p.id === me) continue
           let mate = this.mates.get(p.id)

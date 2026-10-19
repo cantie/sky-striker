@@ -21,7 +21,7 @@ export class NakamaTransport implements Transport {
     const { client, session } = await nakamaSession(opts.userId)
     const socket = client.createSocket(nakamaConfig().useSSL, false)
     socket.onmatchdata = (d) => {
-      const msg = parseServer(d.op_code, d.data, d.presence?.user_id)
+      const msg = parseServer(d.op_code, d.data, d.presence?.user_id, d.match_id)
       if (msg) this.messages.emit(msg)
     }
     socket.ondisconnect = () => this.disconnects.emit('socket closed')

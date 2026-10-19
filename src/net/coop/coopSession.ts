@@ -195,6 +195,7 @@ export class CoopSession {
       const m = this.teammates().find((t) => t.id === id && t.alive)
       return m ? { x: m.x, y: m.y } : null
     },
+    wingmates: () => this.teammates().filter((t) => t.alive),
     spawnAllowed: (id) => !this.settled.has(id),
   }
 

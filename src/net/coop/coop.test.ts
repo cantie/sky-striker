@@ -166,6 +166,16 @@ describe('loopback co-op session', () => {
     server.stopTimer()
   })
 
+  it('the game sees the wingmates still flying, where we draw them (they scoop up stars too)', async () => {
+    const { server, clients: [c, d] } = await setup()
+    await vi.advanceTimersByTimeAsync(3500)
+    expect(c.session.hooks.wingmates()).toEqual([expect.objectContaining({ id: 'p1', x: 0, y: -4, plane: 'hawk' })])
+    d.session.hooks.gotHit(3, 0)
+    await vi.advanceTimersByTimeAsync(300)
+    expect(c.session.hooks.wingmates()).toEqual([])
+    server.stopTimer()
+  })
+
   it('stage clear → next stage → complete with a summary, then detaches', async () => {
     const data = testData()
     const { server, clients: [c, d] } = await setup({ data })

@@ -4,7 +4,7 @@ import * as THREE from 'three'
 import { useGameStore } from '../../store/gameStore'
 import { getPlane } from '../../game/planes'
 import { PLAYER_BULLET_SPEED, weaponStats } from '../../game/weapon'
-import { gameInterval } from '../../game/speed'
+import { gameDt, gameInterval } from '../../game/speed'
 import { ORDER } from '../../game/sim/clock'
 import { useSimStep } from '../../game/sim/useSimStep'
 import { activeSession } from '../../net/coop/active'
@@ -44,20 +44,21 @@ export function Teammates() {
 
 function Mate({ id }: { id: string }) {
   const group = useRef<THREE.Group>(null)
-  const prevX = useRef(0)
+  const bank = useRef(0)
   const [planeId, setPlaneId] = useState('hawk')
   const plane = getPlane(planeId)
 
-  useFrame(() => {
+  useFrame((_, rawDt) => {
     const m = activeSession()?.teammates().find((t) => t.id === id)
     if (!group.current) return
     group.current.visible = !!m && m.alive
     if (!m) return
     if (m.plane !== planeId) setPlaneId(m.plane)
     group.current.position.set(m.x, 0.2, m.y)
-    const vx = m.x - prevX.current
-    prevX.current = m.x
-    group.current.rotation.z = THREE.MathUtils.lerp(group.current.rotation.z, -vx * 8, 0.15)
+    // Lean from their speed along the drawn path (not this frame's step, which jumps with the
+    // network), eased like our own plane's: Player leans -step × 8 per 60 fps frame
+    bank.current = THREE.MathUtils.lerp(bank.current, -m.vx * (8 / 60), 1 - Math.pow(0.001, gameDt(rawDt)))
+    group.current.rotation.z = bank.current
   })
 
   return (

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ClockSync } from './clockSync'
-import { InterpolationBuffer } from './interpolation'
-import { MAX_EXTRAPOLATE_MS, Op, decode, encode, list, parseServer } from './protocol'
+import { InterpolationBuffer, MAX_DELAY_MS } from './interpolation'
+import { INTERP_DELAY_MS, MAX_EXTRAPOLATE_MS, Op, decode, encode, list, parseServer } from './protocol'
 import { CoopSession, type WorldAdapter } from './coopSession'
 import { LoopbackServer, LoopbackTransport } from './loopbackServer'
 import { testData } from './serverConformance'
@@ -64,14 +64,15 @@ describe('interpolation', () => {
     expect(b.sample(175)).toEqual({ x: 7.5, y: 1.5 })
   })
 
-  it('extrapolates at most 150 ms', () => {
+  it('extrapolates at most 50 ms (a short guess, so the snap back is small)', () => {
+    expect(MAX_EXTRAPOLATE_MS).toBe(50)
     const b = new InterpolationBuffer()
     b.push({ t: 0, x: 0, y: 0 })
     b.push({ t: 100, x: 10, y: 0 })
-    // 100 ms past the newest sample: keeps going
-    expect(b.sample(300)!.x).toBeCloseTo(20)
+    // 30 ms past the newest sample: keeps going
+    expect(b.sample(230)!.x).toBeCloseTo(13)
     // far past: capped
-    expect(b.sample(5000)!.x).toBeCloseTo(10 + MAX_EXTRAPOLATE_MS / 10)
+    expect(b.sample(5000)!.x).toBeCloseTo(15)
   })
 
   it('ignores late packets and holds before the first sample', () => {
@@ -81,16 +82,61 @@ describe('interpolation', () => {
     expect(b.size).toBe(1)
     expect(b.sample(0)).toEqual({ x: 1, y: 1 })
   })
+
+  it('draws far enough back to cover how late samples really arrive, changing it gradually', () => {
+    const b = new InterpolationBuffer()
+    // One every 50 ms, each 130 ms on the way: the newest is up to 180 ms old when the next lands
+    for (let t = 0; t <= 2000; t += 50) b.push({ t, x: 0, y: 0 }, t + 130)
+    expect(b.target()).toBe(190)
+    b.delay(2000)
+    expect(b.delay(2100)).toBeCloseTo(120)   // grows at most 0.2 ms per ms
+    expect(b.delay(5000)).toBe(190)
+  })
+
+  it('the delay: a pause is not jitter, capped at 300 ms, shrinks slowly, never under 100 ms', () => {
+    const b = new InterpolationBuffer()
+    b.push({ t: 0, x: 0, y: 0 }, 0)
+    b.push({ t: 5000, x: 0, y: 0 }, 5010)
+    expect(b.target()).toBe(INTERP_DELAY_MS)
+    for (let t = 5050; t <= 7000; t += 50) b.push({ t, x: 0, y: 0 }, t + 600)
+    expect(b.target()).toBe(MAX_DELAY_MS)
+    b.delay(7000)
+    expect(b.delay(9000)).toBe(MAX_DELAY_MS)
+    for (let t = 7050; t <= 9000; t += 50) b.push({ t, x: 0, y: 0 }, t + 20)
+    expect(b.target()).toBe(INTERP_DELAY_MS)
+    expect(b.delay(10000)).toBeCloseTo(250)  // 0.05 ms per ms
+  })
+
+  it('at(): where to draw them and how fast they are going', () => {
+    const b = new InterpolationBuffer()
+    for (let t = 0; t <= 1000; t += 50) b.push({ t, x: t / 100, y: -t / 200 }, t + 60)
+    const at = b.at(1000)!
+    expect(at.x).toBeCloseTo(9)
+    expect(at.y).toBeCloseTo(-4.5)
+    expect(at.vx).toBeCloseTo(10)
+    expect(at.vy).toBeCloseTo(-5)
+  })
+
+  it('stats(): how much of the time it had to guess past the newest sample', () => {
+    const b = new InterpolationBuffer()
+    b.push({ t: 0, x: 0, y: 0 }, 0)
+    b.push({ t: 50, x: 1, y: 0 }, 50)
+    b.at(100); b.at(150)
+    expect(b.stats().guess).toBe(0)
+    b.at(400)
+    expect(b.stats().guess).toBeGreaterThan(0.5)
+    expect(b.stats()).toMatchObject({ need: 50, gap: 50 })
+  })
 })
 
 // ── loopback flow ──
 
-function fakeWorld() {
+function fakeWorld(at: () => { x: number; y: number } = () => ({ x: 0, y: -4 })) {
   const calls: Record<string, unknown[][]> = {}
   const rec = (k: string) => (...a: unknown[]) => { (calls[k] ??= []).push(a) }
   const world: WorldAdapter = {
     startStage: rec('startStage'),
-    self: () => ({ x: 0, y: -4, fire: true, power: 0, plane: 'hawk', hp: 3 }),
+    self: () => ({ ...at(), fire: true, power: 0, plane: 'hawk', hp: 3 }),
     enemyHp: rec('enemyHp'), bossHp: rec('bossHp'), enemyDead: rec('enemyDead'), drop: rec('drop'),
     picked: rec('picked'), aimed: rec('aimed'), down: rec('down'), revived: rec('revived'), phase: rec('phase'), lost: rec('lost'),
   }
@@ -101,14 +147,14 @@ describe('loopback co-op session', () => {
   beforeEach(() => { vi.useFakeTimers() })
   afterEach(() => { vi.useRealTimers() })
 
-  async function setup(opts: { data?: CoopData; bot?: boolean } = {}) {
+  async function setup(opts: { data?: CoopData; bot?: boolean; at?: (i: number) => () => { x: number; y: number } } = {}) {
     const now = () => Date.now()
     const server = new LoopbackServer({ data: opts.data, bot: opts.bot, now, random: mulberry32(3) })
     server.startTimer()
     const humans = opts.bot ? 1 : 2
     const clients = []
     for (let i = 0; i < humans; i++) {
-      const fw = fakeWorld()
+      const fw = fakeWorld(opts.at?.(i))
       const session = new CoopSession(new LoopbackTransport(server, { latencyMs: 80, jitterMs: 0 }, now), fw.world, now)
       const started = session.start({ userId: `p${i}`, name: `P${i}`, plane: 'hawk', hp: 3, dataVersion: server.data.version, room: 'create' })
       await vi.advanceTimersByTimeAsync(100)
@@ -173,6 +219,16 @@ describe('loopback co-op session', () => {
     d.session.hooks.gotHit(3, 0)
     await vi.advanceTimersByTimeAsync(300)
     expect(c.session.hooks.wingmates()).toEqual([])
+    server.stopTimer()
+  })
+
+  it('a wingmate flying sideways comes with their speed (for the lean)', async () => {
+    const t0 = Date.now()
+    // p0 slides right at 2 units/s
+    const { server, clients: [, d] } = await setup({ at: (i) => () => ({ x: i === 0 ? ((Date.now() - t0) / 1000) * 2 : 0, y: -4 }) })
+    await vi.advanceTimersByTimeAsync(4500)
+    const [mate] = d.session.teammates()
+    expect(mate.vx).toBeCloseTo(2, 3)
     server.stopTimer()
   })
 

@@ -40,6 +40,8 @@ export interface WorldAdapter {
 export interface Teammate {
   id: string; name: string
   x: number; y: number
+  /** Sideways speed along the drawn path (units / s), for the lean. */
+  vx: number
   alive: boolean; fire: boolean; power: number; plane: string; hp: number
 }
 
@@ -218,10 +220,10 @@ export class CoopSession {
   teammates(serverNow = this.clock.serverNow()): Teammate[] {
     const out: Teammate[] = []
     for (const [id, m] of this.mates) {
-      const p = m.buf.sample(serverNow)
+      const p = m.buf.at(serverNow)
       if (!p) continue
       const s = m.state
-      out.push({ id, name: m.name, x: p.x, y: p.y, alive: s.alive, fire: s.fire, power: s.power, plane: s.plane, hp: s.hp })
+      out.push({ id, name: m.name, x: p.x, y: p.y, vx: p.vx, alive: s.alive, fire: s.fire, power: s.power, plane: s.plane, hp: s.hp })
     }
     return out
   }
@@ -236,9 +238,14 @@ export class CoopSession {
       `room ${id(this.room?.roomId)} rtt ${Math.round(this.clock.rtt)}${this.clock.synced ? '' : ' nosync'}`,
       ...[...this.statesFrom].map(([match, n]) => `rx   ${id(match)} x${n}`),
       ...this.lastStates.map((p) => `srv  ${id(p.id)} ${xy(p)} ${p.t ? `${Math.round(now - p.t)}ms` : 'nopos'}${p.alive ? '' : ' down'}`),
-      ...[...this.mates].map(([mid, m]) => {
-        const at = m.buf.sample(now)
-        return `mate ${id(mid)} ${at ? xy(at) : '-'} b${m.buf.size} ${m.name.slice(0, 8)}`
+      ...[...this.mates].flatMap(([mid, m]) => {
+        const at = m.buf.sample(now, m.buf.stats().delay)
+        const st = m.buf.stats()
+        return [
+          `mate ${id(mid)} ${at ? xy(at) : '-'} b${m.buf.size} ${m.name.slice(0, 8)}`,
+          // drawing delay now→target · ~95% of samples needed · biggest gap · time spent guessing
+          `  d${Math.round(st.delay)}→${Math.round(st.goal)} n${Math.round(st.need)} g${Math.round(st.gap)} ex${Math.round(st.guess * 100)}%`,
+        ]
       }),
     ]
   }
@@ -281,7 +288,7 @@ export class CoopSession {
             this.mates.set(p.id, mate)
           }
           mate.state = p
-          mate.buf.push({ t: p.t, x: p.x, y: p.y })
+          mate.buf.push({ t: p.t, x: p.x, y: p.y }, this.clock.serverNow())
         }
         break
       case Op.PLAYER: {

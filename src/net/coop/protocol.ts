@@ -42,9 +42,12 @@ export const TICK_RATE = 20
 /** Our POS rate and the HITS batching window. */
 export const POS_HZ = 20
 export const HITS_BATCH_MS = 100
-/** Teammates are drawn this far in the past, and extrapolated at most this far past their last sample. */
+/**
+ * Teammates are drawn at least this far in the past (the buffer adapts it upward to the path), and
+ * extrapolated at most this far past their last sample: a short guess means a small snap back.
+ */
 export const INTERP_DELAY_MS = 100
-export const MAX_EXTRAPOLATE_MS = 150
+export const MAX_EXTRAPOLATE_MS = 50
 
 export type Phase = 'lobby' | 'countdown' | 'playing' | 'bossWarning' | 'boss' | 'stageClear' | 'complete' | 'failed'
 /** Phases of a run in progress (a stage is loaded). */

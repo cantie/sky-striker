@@ -13,12 +13,12 @@ export function nakamaConfig(): NakamaConfig {
   }
 }
 
-/** Nakama custom id for a game account (6–128 chars). The match verifies the game login itself. */
+/** Nakama custom id for a game account or a guest (`guest-<hex>`, see identity.ts); 6–128 chars. */
 export const customId = (playerId: string) => `skystriker-${playerId}`
 
 let conn: { playerId: string; promise: Promise<{ client: Client; session: Session }> } | null = null
 
-/** One Nakama session per game account, refreshed when it is about to expire. nakama-js loads on demand. */
+/** One Nakama session per player, refreshed when it is about to expire. nakama-js loads on demand. */
 export async function nakamaSession(playerId: string): Promise<{ client: Client; session: Session }> {
   if (conn && conn.playerId === playerId) {
     const c = await conn.promise.catch(() => null)

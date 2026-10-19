@@ -96,8 +96,9 @@ Same responsibilities as today's `LoopbackServer`, with two changes so the serve
   fans out across cluster nodes.
 - `skystriker_find_match {}` → `{matchId}`: an open public room, or a new public one.
 
-**Identity**: the client still needs a game login, which gives it a stable account and a name. It calls
-`authenticateCustom("skystriker-<playerId>")`, then `joinMatch(matchId, undefined, {name, plane, dataVersion})`.
+**Identity**: a logged-in player flies as their game account and name; a guest flies as a random id kept in
+the browser's localStorage, named "Guest XXXX" (`src/net/coop/identity.ts`). The client calls
+`authenticateCustom("skystriker-<playerId>")` (`<playerId>` = account id, or `guest-<24 hex>`), then `joinMatch(matchId, undefined, {name, plane, dataVersion})`.
 The match does not call the game server. A player is their Nakama account (`presence.user_id`, one seat
 each), and the display name is the `name` the client sends (trimmed, at most 24 characters, blank →
 "Pilot"). It rejects a full room, a wrong data version, and a non-member once the run has started, and
@@ -107,7 +108,7 @@ logs every refusal with its reason.
 `VITE_NAKAMA_SSL` (`true`), `VITE_NAKAMA_KEY` (`defaultkey`).
 
 **UI**
-- The main menu gets a CO-OP button. Logged out, it prompts to log in.
+- The main menu gets a CO-OP button, open to guests too (the lobby says which guest name they fly as).
 - The `coopLobby` screen has Quick match / Create room / Enter code.
 - In a room: the code (tap to copy), two slots (name + plane), READY and Leave.
 - The plane is the one chosen in the hangar.
@@ -201,3 +202,5 @@ Decided while planning and kept in the build:
 - **No login check on the server (changed after the build):** the match no longer calls `/api/me` with the
   game token. It trusts the client's name, and leaderboard pairs are keyed by Nakama user ids. The cost: anyone
   who can open a Nakama session can fly co-op under any name.
+- **Guests fly co-op (changed after the build):** no login needed; a guest is one Nakama account per browser.
+  Their runs go on the co-op boards under the guest name; the leaderboard screen itself still needs a login.

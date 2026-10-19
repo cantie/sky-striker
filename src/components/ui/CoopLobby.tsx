@@ -1,14 +1,14 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useGameStore } from '../../store/gameStore'
 import { useAccount } from '../../store/account'
 import { activeSession, lastRoomCode, startNakamaCoop, stopCoop } from '../../net/coop/active'
 import { takeCoopError } from '../../net/coop/coopError'
+import { coopIdentity } from '../../net/coop/identity'
 import { getPlane } from '../../game/planes'
 import { sounds } from '../../hooks/useAudio'
-import { LoginButtons } from './Account'
 import { useCoopStatus } from './useCoop'
 
-/** Co-op lobby: quick match / create a room / join by code, then the room with both pilots and READY. */
+/** Co-op lobby: quick match / create a room / join by code, then the room with both pilots and READY. Guests fly too. */
 export function CoopLobby() {
   const setGameState = useGameStore((s) => s.setGameState)
   const status = useAccount((s) => s.status)
@@ -17,6 +17,9 @@ export function CoopLobby() {
   const [error, setError] = useState<string | null>(() => takeCoopError())
   const [code, setCode] = useState('')
   const rejoin = lastRoomCode()
+  // Not while a login is still settling: we would enter the room as the guest
+  const blocked = busy || status === 'init' || status === 'busy'
+  const guest = useMemo(() => (status === 'guest' ? coopIdentity(null).name : null), [status])
 
   useEffect(() => {
     // Back in the lobby with a finished or dead session: clean it up
@@ -49,12 +52,7 @@ export function CoopLobby() {
           Two pilots, all 10 stages back to back. Revive your wingmate by hovering over their beacon.
         </div>
 
-        {status !== 'user' ? (
-          <div style={card}>
-            <div style={{ color: '#e8f4ff', textAlign: 'center', fontWeight: 800 }}>Log in to fly co-op</div>
-            <LoginButtons />
-          </div>
-        ) : inRoom ? (
+        {inRoom ? (
           <div style={card}>
             <div style={{ color: '#8eb8d4', fontSize: 12, textAlign: 'center' }}>ROOM CODE — share it with your wingmate</div>
             <button type="button" style={codeBox} onClick={() => { if (room.code) void navigator.clipboard?.writeText(room.code) }}>
@@ -80,14 +78,19 @@ export function CoopLobby() {
           </div>
         ) : (
           <div style={card}>
-            <button type="button" style={btnPrimary} disabled={busy} onClick={() => go('match')}>⚡ QUICK MATCH</button>
+            <button type="button" style={btnPrimary} disabled={blocked} onClick={() => go('match')}>⚡ QUICK MATCH</button>
             <button type="button" style={{ ...btnPrimary, background: 'linear-gradient(180deg, #5ec8ff, #1a8fd0)', color: '#fff', boxShadow: '0 6px 0 #0d5f90' }}
-              disabled={busy} onClick={() => go('create')}>＋ CREATE ROOM</button>
+              disabled={blocked} onClick={() => go('create')}>＋ CREATE ROOM</button>
             <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
               <input value={code} maxLength={5} placeholder="CODE" onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} style={input} />
-              <button type="button" style={{ ...btnSmall }} disabled={busy || code.length !== 5} onClick={() => go({ code })}>JOIN</button>
+              <button type="button" style={{ ...btnSmall }} disabled={blocked || code.length !== 5} onClick={() => go({ code })}>JOIN</button>
             </div>
-            {rejoin && <button type="button" style={btnGhost} disabled={busy} onClick={() => go({ code: rejoin })}>↻ REJOIN {rejoin}</button>}
+            {rejoin && <button type="button" style={btnGhost} disabled={blocked} onClick={() => go({ code: rejoin })}>↻ REJOIN {rejoin}</button>}
+            {guest && (
+              <div style={{ color: '#8eb8d4', fontSize: 12, textAlign: 'center' }}>
+                Flying as <b style={{ color: '#e8f4ff' }}>{guest}</b> · log in from the menu to use your account name
+              </div>
+            )}
           </div>
         )}
         {busy && <div style={{ color: '#9fd6ff', textAlign: 'center' }}>Connecting…</div>}

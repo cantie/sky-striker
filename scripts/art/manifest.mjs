@@ -52,6 +52,10 @@ export function validateManifest(assets, budgets) {
       else if (b.base !== undefined) bad(`base ${a.base} is itself a repaint`)
       if (typeof a.livery !== 'string' || a.livery.trim() === '') bad('a repaint needs a livery')
     }
+    if (a.colors !== undefined) {
+      if (a.base === undefined) bad('colors are for a repaint (base)')
+      if (!['hull', 'panel', 'dark'].every((k) => hexToHsv(a.colors?.[k]))) bad('colors needs hull, panel and dark as #rrggbb')
+    }
   }
   return errors
 }

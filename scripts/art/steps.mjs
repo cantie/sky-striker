@@ -36,6 +36,7 @@ export function planConcept(assets, exists, force, paths = artPaths()) {
 export function planModel(assets, exists, force, paths = artPaths()) {
   const todo = [], blocked = []
   for (const a of assets) {
+    if (a.colors) continue // recolored from its base's model at build time
     if (!exists(paths.concept(a.id))) blocked.push({ id: a.id, reason: 'not approved' })
     else if (force || !exists(paths.raw(a.id))) todo.push(a)
   }
@@ -145,13 +146,17 @@ export async function runModel(assets, { env, force = false, paths = artPaths(),
   return { ...res, blocked }
 }
 
+/** The raw model an asset builds from: a recolored repaint uses its base's. */
+export const rawFor = (a, paths = artPaths()) => paths.raw(a.colors ? a.base : a.id)
+
 /** Raw GLBs → public/models/ai; an asset over budget or failing a check fails. */
 export async function runBuild(assets, { paths = artPaths(), log = console.log } = {}) {
-  const blocked = assets.filter((a) => !existsSync(paths.raw(a.id))).map((a) => ({ id: a.id, reason: 'no raw model (run model first)' }))
-  const todo = assets.filter((a) => existsSync(paths.raw(a.id)))
+  const blocked = assets.filter((a) => !existsSync(rawFor(a, paths)))
+    .map((a) => ({ id: a.id, reason: a.colors ? `no raw model of ${a.base}` : 'no raw model (run model first)' }))
+  const todo = assets.filter((a) => existsSync(rawFor(a, paths)))
   const res = await runBatch(todo, async (a) => {
     const budget = BUDGETS[a.budget]
-    const { tris, bytes } = await buildAsset(paths.raw(a.id), paths.out(a.id), a, budget)
+    const { tris, bytes } = await buildAsset(rawFor(a, paths), paths.out(a.id), a, budget)
     log(`${a.id}: ${tris} tris, ${Math.round(bytes / 1024)} KB (budget ${budget.tris}, ${budget.kb} KB)`)
     const problems = await checkGlb(paths.out(a.id), a, budget)
     if (problems.length) throw new Error(problems.join('; '))

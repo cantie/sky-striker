@@ -24,6 +24,15 @@ describe('art manifest', () => {
     expect(errorsFor({ ...design, id: 'x2', budget: 'huge' })).not.toEqual([])
   })
 
+  it('a recolored repaint needs hull, panel and dark as #rrggbb', () => {
+    const colors = { hull: '#e2c48a', panel: '#9a5a22', dark: '#2a1a0a' }
+    expect(errorsFor({ ...repaint, colors })).toEqual([])
+    expect(errorsFor({ ...repaint, colors: { ...colors, dark: 'brown' } })).not.toEqual([])
+    const { panel, ...noPanel } = colors
+    expect(errorsFor({ ...repaint, colors: noPanel })).not.toEqual([])
+    expect(errorsFor({ ...design, id: 'x5', colors })).not.toEqual([])
+  })
+
   it('needs exactly one of prompt and base', () => {
     expect(errorsFor({ ...repaint, id: 'x3', prompt: 'both' })).not.toEqual([])
     const { prompt, ...neither } = design

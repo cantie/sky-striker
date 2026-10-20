@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { STYLE } from '../../art/manifest.mjs'
-import { conceptPrompt, cutBackground, planConcept, planModel, reviewPage } from './steps.mjs'
+import { conceptPrompt, cutBackground, planConcept, planModel, rawFor, reviewPage } from './steps.mjs'
 
 const design = { id: 'enemy-basic-s1', kind: 'enemy', batch: 1, budget: 'small', glow: '#ff3b2f', prompt: 'A heavy gunship.' }
 const repaint = { id: 'enemy-basic-s2', kind: 'enemy', batch: 3, budget: 'small', glow: '#ff7a2a', base: 'enemy-basic-s1', livery: 'desert sand with rust panels' }
@@ -45,6 +45,22 @@ describe('what each step still has to do', () => {
     const built = files('art/concepts/enemy-basic-s1.webp', 'art/.cache/raw/enemy-basic-s1.glb')
     expect(planModel([design], built, false)).toEqual({ todo: [], blocked: [] })
     expect(ids(planModel([design], built, true).todo)).toEqual(['enemy-basic-s1'])
+  })
+})
+
+describe('recolored repaints', () => {
+  const recolored = { ...repaint, colors: { hull: '#e2c48a', panel: '#9a5a22', dark: '#2a1a0a' } }
+  const end = (p) => p.replace(/\\/g, '/').split('/').slice(-3).join('/')
+
+  it('need no model step of their own', () => {
+    const approved = files('art/concepts/enemy-basic-s2.webp')
+    expect(planModel([recolored], approved, true)).toEqual({ todo: [], blocked: [] })
+  })
+
+  it('build from the raw model of their base; everything else from its own', () => {
+    expect(end(rawFor(recolored))).toBe('.cache/raw/enemy-basic-s1.glb')
+    expect(end(rawFor(repaint))).toBe('.cache/raw/enemy-basic-s2.glb')
+    expect(end(rawFor(design))).toBe('.cache/raw/enemy-basic-s1.glb')
   })
 })
 

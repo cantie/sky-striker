@@ -31,13 +31,71 @@ export function extractEmissive(rgba, glow) {
   let lit = 0
   for (let i = 0; i < rgba.length; i += 4) {
     const { h, s, v } = rgbToHsv(rgba[i], rgba[i + 1], rgba[i + 2])
-    if (v >= 0.75 && s >= 0.45 && hueGap(h, want) <= 20) {
+    if (isLight(s, v) && hueGap(h, want) <= 20) {
       out[i] = rgba[i]; out[i + 1] = rgba[i + 1]; out[i + 2] = rgba[i + 2]
       lit++
     }
     out[i + 3] = 255
   }
   return { rgba: out, lit }
+}
+
+const hexRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16))
+const isLight = (s, v) => v >= 0.75 && s >= 0.45
+
+/**
+ * A repaint without a new model: the s1 design's gray paint mapped onto the livery by brightness
+ * (dark → panel → hull), its painted lights turned to the new glow. RGBA in; out the new RGBA and
+ * `lights`, the emissive map: those lights alone (paint near the glow hue must not glow).
+ */
+export function recolorLivery(rgba, colors, glow) {
+  const [hull, panel, dark] = [colors.hull, colors.panel, colors.dark].map(hexRgb)
+  const glowRgb = hexRgb(glow), glowV = hexToHsv(glow).v
+  const n = rgba.length / 4
+  const lum = new Float32Array(n), light = new Uint8Array(n)
+  const paint = []
+  for (let p = 0; p < n; p++) {
+    const i = p * 4
+    lum[p] = (0.299 * rgba[i] + 0.587 * rgba[i + 1] + 0.114 * rgba[i + 2]) / 255
+    const { s, v } = rgbToHsv(rgba[i], rgba[i + 1], rgba[i + 2])
+    light[p] = isLight(s, v) ? 1 : 0
+    // The black of the unused atlas is not paint
+    if (!light[p] && lum[p] > 0.03) paint.push(lum[p])
+  }
+  paint.sort((a, b) => a - b)
+  const q = (f) => paint.length ? paint[Math.floor(f * (paint.length - 1))] : 0.5
+  const lo = q(0.05), mid = Math.max(q(0.4), lo + 1e-3), hi = Math.max(q(0.95), mid + 1e-3)
+  const mix = (a, b, t) => a.map((x, k) => x + (b[k] - x) * t)
+  const out = new Uint8Array(rgba.length), lights = new Uint8Array(rgba.length)
+  let lit = 0
+  for (let p = 0; p < n; p++) {
+    const L = lum[p], i = p * 4
+    const v = rgbToHsv(rgba[i], rgba[i + 1], rgba[i + 2]).v
+    const c = light[p] ? glowRgb.map((x) => x * Math.min(1, v / glowV))
+      : L <= lo ? dark.map((x) => x * (L / lo))
+      : L < mid ? mix(dark, panel, (L - lo) / (mid - lo))
+      : L < hi ? mix(panel, hull, (L - mid) / (hi - mid))
+      : hull
+    for (let k = 0; k < 3; k++) out[i + k] = Math.max(0, Math.min(255, Math.round(c[k])))
+    out[i + 3] = rgba[i + 3]
+    if (light[p]) { lights.set(out.subarray(i, i + 3), i); lit++ }
+    lights[i + 3] = 255
+  }
+  return { rgba: out, lights, lit }
+}
+
+async function recolor(doc, colors, glow) {
+  for (const mat of doc.getRoot().listMaterials()) {
+    const base = mat.getBaseColorTexture()
+    if (!base) continue
+    const { data, info } = await sharp(Buffer.from(base.getImage())).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+    const { rgba, lights, lit } = recolorLivery(data, colors, glow)
+    const png = (px) => sharp(Buffer.from(px), { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer()
+    base.setImage(new Uint8Array(await png(rgba))).setMimeType('image/png')
+    if (!lit) continue
+    const tex = doc.createTexture(`${base.getName() || 'base'}-glow`).setImage(new Uint8Array(await png(lights))).setMimeType('image/png')
+    mat.setEmissiveTexture(tex).setEmissiveFactor([1, 1, 1])
+  }
 }
 
 /** Hunyuan3D gives no normals: bake creased ones (and apply `turn`) through three.js, then re-index. */
@@ -116,7 +174,8 @@ export async function buildAsset(rawPath, outPath, asset, budget) {
   }
   bakeNormals(doc, asset.turn ?? 0)
   await doc.transform(weld())
-  if (asset.glow) await addEmissive(doc, asset.glow)
+  if (asset.colors) await recolor(doc, asset.colors, asset.glow)
+  else if (asset.glow) await addEmissive(doc, asset.glow)
   await doc.transform(dedup(), prune())
   let out, bytes
   for (const quality of QUALITIES) {

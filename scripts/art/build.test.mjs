@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { BUDGETS } from '../../art/manifest.mjs'
-import { buildAsset, extractEmissive, realMime } from './build.mjs'
+import { buildAsset, extractEmissive, realMime, recolorLivery } from './build.mjs'
 import { checkGlb, readGlb } from './checks.mjs'
 import { fixtureGlb } from './fixture.mjs'
 
@@ -33,6 +33,34 @@ describe('extractEmissive', () => {
     const { rgba, lit } = extractEmissive(pixels([63, 212, 255], [128, 128, 128], [20, 60, 80], [255, 140, 0]), '#3fd4ff')
     expect([...rgba]).toEqual([63, 212, 255, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255])
     expect(lit).toBe(1)
+  })
+})
+
+describe('recolorLivery', () => {
+  const colors = { hull: '#ffd21a', panel: '#2a2a2a', dark: '#0a0a0a' }
+  const gray = (v) => [v, v, v]
+  const px = (...rgb) => Uint8Array.from(rgb.flatMap(([r, g, b]) => [r, g, b, 255]))
+  const at = (rgba, i) => [...rgba.slice(i * 4, i * 4 + 3)]
+
+  it('maps the gray paint from light to dark onto hull, panel and dark', () => {
+    // A ramp of grays as the s1 paint has, plus the black of the unused atlas
+    const ramp = [0, 30, 60, 90, 120, 150, 180, 210, 230].map(gray)
+    const { rgba: out } = recolorLivery(px(...ramp), colors, '#ff3a5a')
+    expect(at(out, 0)).toEqual([0, 0, 0])
+    expect(at(out, 1)).toEqual([10, 10, 10])
+    expect(at(out, 8)).toEqual([255, 210, 26])
+    expect(at(out, 4)[0]).toBeGreaterThan(at(out, 2)[0])
+    expect(out[3]).toBe(255)
+  })
+
+  it('painted lights keep their brightness and take the new glow hue', () => {
+    const { rgba: out, lights } = recolorLivery(px([63, 212, 255], ...[40, 120, 220].map(gray)), colors, '#ff3a5a')
+    const [r, g, b] = at(out, 0)
+    expect(r).toBeGreaterThan(200)
+    expect(g).toBeLessThan(80)
+    expect(b).toBeLessThan(100)
+    expect(at(lights, 0)).toEqual([r, g, b])
+    expect(at(lights, 3)).toEqual([0, 0, 0])
   })
 })
 
@@ -79,6 +107,36 @@ describe('buildAsset', () => {
     expect(res.bytes).toBe(statSync(out).size)
     const mat = (await readGlb(out)).getRoot().listMaterials()[0]
     expect(mat.getBaseColorTexture().getSize()).toEqual([256, 256])
+  }, 60_000)
+
+  it('colors: the base color is recolored and the lights glow in the new color', async () => {
+    const raw = file('raw-recolor.glb', await fixtureGlb({ busy: true, tris: 500 }))
+    const red = { ...asset, glow: '#ff3a5a', colors: { hull: '#ffd21a', panel: '#2a2a2a', dark: '#0a0a0a' } }
+    const out = join(dir, 'recolor.glb')
+    await buildAsset(raw, out, red, BUDGETS.small)
+    expect(await checkGlb(out, red, BUDGETS.small)).toEqual([])
+    const mat = (await readGlb(out)).getRoot().listMaterials()[0]
+    const sharp = (await import('sharp')).default
+    const { data } = await sharp(Buffer.from(mat.getBaseColorTexture().getImage())).raw().toBuffer({ resolveWithObject: true })
+    // The gray noise averages out gray; mapped onto yellow and dark gray it averages out a dull yellow
+    const mean = [0, 1, 2].map((k) => { let t = 0; for (let i = k; i < data.length; i += 3) t += data[i]; return t / (data.length / 3) })
+    expect(mean[2]).toBeLessThan(mean[1] * 0.6)
+    expect(mean[0]).toBeGreaterThan(mean[2] * 1.5)
+  }, 60_000)
+
+  it('colors: paint in the glow color does not glow, only the lights do', async () => {
+    const raw = file('raw-same-hue.glb', await fixtureGlb({ busy: true, tris: 500 }))
+    const yellow = { ...asset, glow: '#ffe04a', colors: { hull: '#ffd21a', panel: '#2a2a2a', dark: '#0a0a0a' } }
+    const out = join(dir, 'same-hue.glb')
+    await buildAsset(raw, out, yellow, BUDGETS.small)
+    const mat = (await readGlb(out)).getRoot().listMaterials()[0]
+    const sharp = (await import('sharp')).default
+    const { data, info } = await sharp(Buffer.from(mat.getEmissiveTexture().getImage())).raw().toBuffer({ resolveWithObject: true })
+    let lit = 0
+    for (let i = 0; i < data.length; i += info.channels) if (data[i] + data[i + 1] + data[i + 2] > 150) lit++
+    // The fixture's glow stripe is 1/8 of the texture; the yellow hull is far more
+    expect(lit / (info.width * info.height)).toBeLessThan(0.2)
+    expect(lit).toBeGreaterThan(0)
   }, 60_000)
 
   it('turn: 180 rotates the model about Y', async () => {

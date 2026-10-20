@@ -61,6 +61,12 @@ export class LuaMatch {
 
   setTime(ms: number): void { this.call('set_time', String(ms)) }
   setEnv(env: Record<string, string>): void { this.call('set_env', JSON.stringify(env)) }
+  /** The Nakama custom id behind a user (guests: `guest:<hex>`); unset users have none. */
+  setCustomId(userId: string, customId: string): void { this.call('set_custom_id', userId, customId) }
+  /** Runs the module's before-AuthenticateCustom hook for this custom id. */
+  authenticateCustom(customId: string): { ok: boolean; reason?: string } {
+    return JSON.parse(this.call('authenticate_custom', customId))
+  }
   rpc<T = any>(id: string, userId: string, payload: unknown): T {
     return JSON.parse(this.call('rpc', id, userId, typeof payload === 'string' ? payload : JSON.stringify(payload)) || '{}')
   }

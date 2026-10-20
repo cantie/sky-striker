@@ -10,6 +10,14 @@ for _, lvl in ipairs({ "debug", "info", "warn", "error" }) do
   nk["logger_" .. lvl] = function(msg) nk.logs[#nk.logs + 1] = lvl .. ": " .. tostring(msg) end
 end
 function nk.register_rpc(fn, id) nk.rpcs[id] = fn end
+nk.befores = {}
+function nk.register_req_before(fn, id) nk.befores[id] = fn end
+
+-- Accounts: custom ids set by the test (H.set_custom_id); others have none, like a device login
+nk.custom_ids = {}
+function nk.account_get_id(user_id)
+  return { user = { id = user_id, username = user_id }, custom_id = nk.custom_ids[user_id] }
+end
 
 function nk.match_create(module, params)
   nk.next_match = nk.next_match + 1

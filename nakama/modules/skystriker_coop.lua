@@ -11,7 +11,8 @@
 
   Written for gopher-lua (Lua 5.1) and fengari (5.3, tests): no bit ops, no // , no goto.
   Players are Nakama accounts (presence.user_id); the display name is whatever the client sends
-  with the join (metadata.name).
+  with the join (metadata.name). A custom id starting with "guest:" is a guest pilot: allowed
+  only when runtime env GUEST_COOP is not false (unset means guests may play).
 ]]
 
 local nk = require("nakama")
@@ -285,12 +286,22 @@ local function apply_hit(dispatcher, state, m, target, dmg, now)
   end
 end
 
--- Survivors / star pods the clients spawn on their own (sky-striker coopData.ts scriptedPickupKind)
+-- gopher-lua's string.match returns nothing on a miss, not nil. tonumber() with no
+-- argument raises "value expected" and kills the match. Bind the capture first.
+local function captured_int(id, pattern)
+  local s = id:match(pattern)
+  if type(s) ~= "string" then return nil end
+  return tonumber(s)
+end
+
+-- Survivors / star pods the clients spawn on their own.
+-- rescue:wN on waves N % 3 == 1, pod:wN on waves N % 4 == 0, both before the last wave.
+-- Anything else (a drop id, a repeat) is not a scripted pickup.
 local function scripted_pickup(id, waves)
   if id == "rescue:start0" or id == "rescue:start1" then return "rescue" end
-  local k = tonumber(id:match("^rescue:w(%d+)$"))
+  local k = captured_int(id, "^rescue:w(%d+)$")
   if k then return (k < waves and k % 3 == 1) and "rescue" or nil end
-  k = tonumber(id:match("^pod:w(%d+)$"))
+  k = captured_int(id, "^pod:w(%d+)$")
   if k then return (k < waves and k > 0 and k % 4 == 0) and "star" or nil end
   return nil
 end
@@ -355,6 +366,29 @@ local function clean_name(v)
   local s = type(v) == "string" and v:gsub("^%s+", ""):gsub("%s+$", "") or ""
   if s == "" then return "Pilot" end
   return s:sub(1, 24)
+end
+
+-- Unset allows guests. GUEST_COOP=false|0|no turns them off; true|1|yes turns them on.
+local function guest_coop_on(context)
+  local v = context.env and context.env["GUEST_COOP"]
+  if type(v) ~= "string" then return true end
+  v = v:match("^%s*(.-)%s*$")
+  if not v or v == "" then return true end
+  v = v:lower()
+  if v == "false" or v == "0" or v == "no" then return false end
+  return true
+end
+
+local function is_guest_id(id)
+  return type(id) == "string" and id:sub(1, 6) == "guest:"
+end
+
+-- nil: account lookup failed. "" : signed-in (or any non-guest) custom id.
+local function custom_id_of(user_id)
+  local ok, account = pcall(nk.account_get_id, user_id)
+  if not ok or type(account) ~= "table" then return nil end
+  if type(account.custom_id) ~= "string" then return "" end
+  return account.custom_id
 end
 
 local function handle(dispatcher, state, msg, now)
@@ -460,6 +494,9 @@ local function match_join_attempt(context, dispatcher, tick, state, presence, me
   if (metadata and metadata.dataVersion) ~= data.version then
     return refuse("Game version mismatch, reload the page")
   end
+  local cid = custom_id_of(presence.user_id)
+  if cid == nil then return refuse("Could not check your account, try again") end
+  if is_guest_id(cid) and not guest_coop_on(context) then return refuse("Log in to play co-op") end
   local joining = { name = clean_name(metadata and metadata.name) }
   local m = state.members[presence.user_id]
   if m then
@@ -693,6 +730,16 @@ for _, id in pairs(BOARDS) do
   try("leaderboard_create " .. id, nk.leaderboard_create, id, true, "desc", "best", nil, { game = "skystriker" }, true)
 end
 
+-- Block new guest sessions when the flag is off. Existing sessions are refused again at join.
+local function before_authenticate_custom(context, payload)
+  if guest_coop_on(context) then return payload end
+  local req = type(payload) == "table" and payload or decode(payload)
+  local id = req and req.account and req.account.id
+  if is_guest_id(id) then error("Log in to play co-op") end
+  return payload
+end
+
+nk.register_req_before(before_authenticate_custom, "AuthenticateCustom")
 nk.register_rpc(rpc_create_match, "skystriker_create_match")
 nk.register_rpc(rpc_join_code, "skystriker_join_code")
 nk.register_rpc(rpc_find_match, "skystriker_find_match")

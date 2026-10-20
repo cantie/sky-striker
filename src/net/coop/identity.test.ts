@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { coopIdentity } from './identity'
+import { coopIdentity, guestsMayCoop } from './identity'
+import { customId, nakamaErrorMessage } from './nakamaClient'
 
 const memory = () => {
   const m = new Map<string, string>()
@@ -23,5 +24,30 @@ describe('co-op identity', () => {
 
   it('guests in two browsers are two players', () => {
     expect(coopIdentity(null, memory()).userId).not.toBe(coopIdentity(null, memory()).userId)
+  })
+})
+
+describe('guest co-op (GUEST_COOP)', () => {
+  it('a guest reaches Nakama as guest:<hex>, the prefix the match refuses when GUEST_COOP=false', () => {
+    const { userId } = coopIdentity(null, memory())
+    expect(customId(userId)).toBe(`guest:${userId.slice(6)}`)
+  })
+
+  it('a game account reaches Nakama as skystriker-<id>', () => {
+    expect(customId('42')).toBe('skystriker-42')
+  })
+
+  it('guests may fly unless the server says GUEST_COOP=false (no server or an old one: allowed)', () => {
+    expect(guestsMayCoop(null)).toBe(true)
+    expect(guestsMayCoop({})).toBe(true)
+    expect(guestsMayCoop({ guestCoop: true })).toBe(true)
+    expect(guestsMayCoop({ guestCoop: false })).toBe(false)
+  })
+
+  it('a refused Nakama login reads as the server message', async () => {
+    const refused = new Response(JSON.stringify({ error: 'Log in to play co-op', message: 'Log in to play co-op', code: 2 }), { status: 500 })
+    expect(await nakamaErrorMessage(refused, 'Could not connect')).toBe('Log in to play co-op')
+    expect(await nakamaErrorMessage(new Error('socket closed'), 'Could not connect')).toBe('socket closed')
+    expect(await nakamaErrorMessage(new Response('not json', { status: 502 }), 'Could not connect')).toBe('Could not connect')
   })
 })

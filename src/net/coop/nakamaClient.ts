@@ -13,8 +13,22 @@ export function nakamaConfig(): NakamaConfig {
   }
 }
 
-/** Nakama custom id for a game account or a guest (`guest-<hex>`, see identity.ts); 6–128 chars. */
-export const customId = (playerId: string) => `skystriker-${playerId}`
+/**
+ * Nakama custom id (6–128 chars): `skystriker-<account id>`, or `guest:<hex>` for a guest (`guest-<hex>`,
+ * see identity.ts). The co-op match refuses the `guest:` prefix when Nakama runs with GUEST_COOP=false.
+ */
+export const customId = (playerId: string) =>
+  playerId.startsWith('guest-') ? `guest:${playerId.slice(6)}` : `skystriker-${playerId}`
+
+/** nakama-js rejects with the HTTP Response; its JSON `message` is the server's reason (e.g. a before-hook error). */
+export async function nakamaErrorMessage(e: unknown, fallback: string): Promise<string> {
+  if (e instanceof Error) return e.message || fallback
+  if (e && typeof (e as Response).json === 'function') {
+    const body = await (e as Response).json().catch(() => null) as { message?: unknown } | null
+    if (typeof body?.message === 'string' && body.message) return body.message
+  }
+  return fallback
+}
 
 let conn: { playerId: string; promise: Promise<{ client: Client; session: Session }> } | null = null
 
@@ -28,8 +42,12 @@ export async function nakamaSession(playerId: string): Promise<{ client: Client;
     const { Client } = await import('@heroiclabs/nakama-js')
     const { serverKey, host, port, useSSL } = nakamaConfig()
     const client = new Client(serverKey, host, port, useSSL)
-    const session = await client.authenticateCustom(customId(playerId), true)
-    return { client, session }
+    try {
+      const session = await client.authenticateCustom(customId(playerId), true)
+      return { client, session }
+    } catch (e) {
+      throw new Error(await nakamaErrorMessage(e, 'Could not reach the co-op server'))
+    }
   })()
   conn = { playerId, promise }
   return promise

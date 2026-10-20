@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt'
 import { IsString, Matches, MaxLength, MinLength } from 'class-validator'
 import { pilotName, type Player } from '../players/player.entity'
 import { PlayersService } from '../players/players.service'
+import { guestCoopEnabled } from './flags'
 import { assertRedirectUri, KeycloakOidc } from './oidc'
 
 class OidcLoginDto {
@@ -33,6 +34,7 @@ export class AuthController {
     return {
       keycloak: this.oidc.isConfigured() && issuer && clientId ? { issuer, clientId } : null,
       localLogin: localLoginEnabled(),
+      guestCoop: guestCoopEnabled(),
     }
   }
 

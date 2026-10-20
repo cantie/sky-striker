@@ -1,5 +1,8 @@
 const GUEST_KEY = 'sky-striker-coop-guest'
 
+/** Guests may fly co-op unless the game server says GUEST_COOP=false (no server or an old one: allowed). */
+export const guestsMayCoop = (config: { guestCoop?: boolean } | null) => config?.guestCoop !== false
+
 type Store = Pick<Storage, 'getItem' | 'setItem'>
 
 /**

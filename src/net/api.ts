@@ -34,6 +34,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 export interface PublicConfig {
   keycloak: { issuer: string; clientId: string } | null
   localLogin: boolean
+  /** False when the server runs with GUEST_COOP=false: only signed-in pilots fly co-op. Missing (old server) = allowed. */
+  guestCoop?: boolean
 }
 export interface AccountUser { id: number; name: string }
 export interface Session { access_token: string; user: AccountUser }

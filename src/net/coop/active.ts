@@ -2,7 +2,7 @@ import { useGameStore } from '../../store/gameStore'
 import { useAccount } from '../../store/account'
 import { CoopSession } from './coopSession'
 import { coopData } from './coopData'
-import { coopIdentity } from './identity'
+import { coopIdentity, guestsMayCoop } from './identity'
 import { LoopbackServer, LoopbackTransport } from './loopbackServer'
 import { NakamaTransport } from './nakamaTransport'
 import { selfHp, storeWorld } from './storeWorld'
@@ -30,7 +30,8 @@ function track(session: CoopSession, name: string): void {
 /** Enter a co-op room on the Nakama cluster, as the logged-in account or as this browser's guest. */
 export async function startNakamaCoop(room: 'create' | 'match' | { code: string }): Promise<CoopSession> {
   await stopCoop()
-  const { status, user } = useAccount.getState()
+  const { status, user, config } = useAccount.getState()
+  if (status !== 'user' && !guestsMayCoop(config)) throw new Error('Log in to play co-op')
   const me = coopIdentity(status === 'user' ? user : null)
   const session = new CoopSession(new NakamaTransport(), storeWorld())
   track(session, 'ONLINE')

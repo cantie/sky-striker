@@ -32,6 +32,7 @@ Create a database `sky_striker` and note the **internal** connection string, e.g
 | `KEYCLOAK_CLIENT_SECRET` | for login | client secret |
 | `KEYCLOAK_REDIRECT_URIS` | for login | the public URL, e.g. `https://sky-striker.zingplay.dev` |
 | `LOCAL_LOGIN` | | `false` in production |
+| `GUEST_COOP` | | `false` = guests must log in to play co-op (default on). Set the same value on Nakama |
 | `PORT` | | `3100` (default) |
 
 Without the `KEYCLOAK_*` values the game still works fully in **Guest** mode (login is hidden).

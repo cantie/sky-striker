@@ -3,23 +3,26 @@ import { useGameStore } from '../../store/gameStore'
 import { useAccount } from '../../store/account'
 import { activeSession, lastRoomCode, startNakamaCoop, stopCoop } from '../../net/coop/active'
 import { takeCoopError } from '../../net/coop/coopError'
-import { coopIdentity } from '../../net/coop/identity'
+import { coopIdentity, guestsMayCoop } from '../../net/coop/identity'
 import { getPlane } from '../../game/planes'
 import { sounds } from '../../hooks/useAudio'
 import { useCoopStatus } from './useCoop'
 
-/** Co-op lobby: quick match / create a room / join by code, then the room with both pilots and READY. Guests fly too. */
+/** Co-op lobby: quick match / create a room / join by code, then the room with both pilots and READY. Guests fly too, unless GUEST_COOP=false. */
 export function CoopLobby() {
   const setGameState = useGameStore((s) => s.setGameState)
   const status = useAccount((s) => s.status)
+  const config = useAccount((s) => s.config)
   const { status: room, roster } = useCoopStatus(200)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(() => takeCoopError())
   const [code, setCode] = useState('')
   const rejoin = lastRoomCode()
+  // GUEST_COOP=false on the server: guests must log in first
+  const loginNeeded = status === 'guest' && !guestsMayCoop(config)
   // Not while a login is still settling: we would enter the room as the guest
-  const blocked = busy || status === 'init' || status === 'busy'
-  const guest = useMemo(() => (status === 'guest' ? coopIdentity(null).name : null), [status])
+  const blocked = busy || status === 'init' || status === 'busy' || loginNeeded
+  const guest = useMemo(() => (status === 'guest' && !loginNeeded ? coopIdentity(null).name : null), [status, loginNeeded])
 
   useEffect(() => {
     // Back in the lobby with a finished or dead session: clean it up
@@ -86,6 +89,11 @@ export function CoopLobby() {
               <button type="button" style={{ ...btnSmall }} disabled={blocked || code.length !== 5} onClick={() => go({ code })}>JOIN</button>
             </div>
             {rejoin && <button type="button" style={btnGhost} disabled={blocked} onClick={() => go({ code: rejoin })}>↻ REJOIN {rejoin}</button>}
+            {loginNeeded && (
+              <div style={{ color: '#ffb74d', fontSize: 13, textAlign: 'center', fontWeight: 700 }}>
+                Log in from the menu to play co-op
+              </div>
+            )}
             {guest && (
               <div style={{ color: '#8eb8d4', fontSize: 12, textAlign: 'center' }}>
                 Flying as <b style={{ color: '#e8f4ff' }}>{guest}</b> · log in from the menu to use your account name

@@ -25,6 +25,29 @@ describe('Lua match: joining', () => {
     expect(list(d.match.dump().logs)).toContainEqual(expect.stringMatching(/^warn: .*alice.*version/i))
   })
 
+  it('GUEST_COOP=false refuses guests at join; unset lets them in; accounts always join', () => {
+    const open = new LuaMatch({ data: testData() })
+    open.init({ code: 'ABCDE' })
+    open.setCustomId('g', 'guest:abc')
+    expect(open.join(presence('g'), { name: 'Guest', dataVersion: 'test' }).ok).toBe(true)
+
+    const closed = new LuaMatch({ data: testData() })
+    closed.setEnv({ GUEST_COOP: ' False ' })
+    closed.init({ code: 'ABCDE' })
+    closed.setCustomId('g', 'guest:abc')
+    closed.setCustomId('a', 'skystriker-42')
+    expect(closed.join(presence('g'), { name: 'Guest', dataVersion: 'test' })).toMatchObject({ ok: false, reason: 'Log in to play co-op' })
+    expect(closed.join(presence('a'), { name: 'Ace', dataVersion: 'test' }).ok).toBe(true)
+  })
+
+  it('GUEST_COOP=false blocks a new guest session before it is made', () => {
+    const m = new LuaMatch({ data: testData() })
+    expect(m.authenticateCustom('guest:abc').ok).toBe(true)
+    m.setEnv({ GUEST_COOP: 'no' })
+    expect(m.authenticateCustom('guest:abc')).toMatchObject({ ok: false, reason: expect.stringMatching(/Log in to play co-op/) })
+    expect(m.authenticateCustom('skystriker-42').ok).toBe(true)
+  })
+
   it('no login needed: a fresh Nakama account joins with the name it sends', () => {
     const m = new LuaMatch({ data: testData() })
     m.init({ code: 'ABCDE' })

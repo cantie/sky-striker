@@ -33,6 +33,14 @@ function H.preload_data(src) package.preload["skystriker_data"] = assert(load(sr
 function H.load() mod = require("skystriker_coop") return "" end
 function H.set_time(ms) nk.now = tonumber(ms) return "" end
 function H.set_env(j) env = nk.json_decode(j) return "" end
+function H.set_custom_id(user_id, custom_id) nk.custom_ids[user_id] = custom_id return "" end
+
+-- Like Nakama: the before hook gets the request as a table; raising refuses the login
+function H.authenticate_custom(custom_id)
+  local ok, err = pcall(nk.befores["AuthenticateCustom"], ctx(nil), { account = { id = custom_id }, create = true })
+  if ok then return nk.json_encode({ ok = true }) end
+  return nk.json_encode({ ok = false, reason = tostring(err) })
+end
 function H.rpc(id, user_id, payload) return nk.rpcs[id](ctx(user_id ~= "" and user_id or nil), payload) end
 
 function H.init(params_json, id)

@@ -1,28 +1,27 @@
 import { describe, expect, it } from 'vitest'
-import { guestCoopAllowed, resolveCoopIdentity } from './identity'
+import { coopIdentity } from './identity'
 
-const guest = { guest: true, user: null, token: null, guestId: 'guest:abc' }
+const memory = () => {
+  const m = new Map<string, string>()
+  return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => { m.set(k, v) } }
+}
 
-describe('guest co-op identity', () => {
-  it('lets a guest play unless the flag is explicitly false', () => {
-    expect(guestCoopAllowed(undefined)).toBe(true)
-    expect(guestCoopAllowed(true)).toBe(true)
-    expect(guestCoopAllowed(false)).toBe(false)
-    expect(resolveCoopIdentity({ ...guest, guestCoop: true })).toEqual({
-      ok: true, userId: 'guest:abc', name: 'Guest', guest: true,
-    })
-    expect(resolveCoopIdentity({ ...guest, guestCoop: undefined })).toMatchObject({ ok: true, userId: 'guest:abc' })
-    expect(resolveCoopIdentity({ ...guest, guestCoop: false })).toEqual({ ok: false, reason: 'Log in to play co-op' })
+describe('co-op identity', () => {
+  it('a logged-in player flies as their game account', () => {
+    expect(coopIdentity({ id: 42, name: 'Maverick' }, memory())).toEqual({ userId: '42', name: 'Maverick' })
   })
 
-  it('always lets a signed-in pilot through, even when guests are off', () => {
-    const id = resolveCoopIdentity({
-      guest: false, user: { id: 7, name: ' Ace ' }, guestCoop: false, token: 'jwt', guestId: 'guest:abc',
-    })
-    expect(id).toEqual({ ok: true, userId: 'skystriker-7', name: 'Ace', token: 'jwt', guest: false })
+  it('a guest gets an id and a short name kept in this browser', () => {
+    const store = memory()
+    const first = coopIdentity(null, store)
+    expect(first.userId).toMatch(/^guest-[0-9a-f]{24}$/)
+    expect(first.name).toMatch(/^Guest [0-9A-F]{4}$/)
+    expect(first.name.slice(6)).toBe(first.userId.slice(6, 10).toUpperCase())
+    // Same browser, same guest (a reload can still REJOIN its room)
+    expect(coopIdentity(null, store)).toEqual(first)
   })
 
-  it('prefixes a bare guest id', () => {
-    expect(resolveCoopIdentity({ ...guest, guestId: 'abc', guestCoop: true })).toMatchObject({ userId: 'guest:abc' })
+  it('guests in two browsers are two players', () => {
+    expect(coopIdentity(null, memory()).userId).not.toBe(coopIdentity(null, memory()).userId)
   })
 })

@@ -32,11 +32,6 @@ Create a database `sky_striker` and note the **internal** connection string, e.g
 | `KEYCLOAK_CLIENT_SECRET` | for login | client secret |
 | `KEYCLOAK_REDIRECT_URIS` | for login | the public URL, e.g. `https://sky-striker.zingplay.dev` |
 | `LOCAL_LOGIN` | | `false` in production |
-| `GUEST_COOP` | | `true` (set `false` so only signed-in pilots can play co-op). Set the same value on Nakama |
-| `NAKAMA_HOST` | | `https://nakama.zingplay.dev` when unset. A full URL sets SSL and the port |
-| `NAKAMA_PORT` | | `443` with that default (or the URL's port) |
-| `NAKAMA_SERVER_KEY` | | Nakama server key (`defaultkey` if unset) |
-| `NAKAMA_SSL` | | taken from the URL when unset (`true` for the default host) |
 | `PORT` | | `3100` (default) |
 
 Without the `KEYCLOAK_*` values the game still works fully in **Guest** mode (login is hidden).

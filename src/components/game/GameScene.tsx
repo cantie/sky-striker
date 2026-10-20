@@ -18,6 +18,7 @@ import { BOUNDS, PLAYFIELD_MID_Z, setView } from '../../game/world'
 import { ORDER, frame } from '../../game/sim/clock'
 import { useSimStep } from '../../game/sim/useSimStep'
 import { Teammates } from './Teammates'
+import { ReviveBeacon } from './ReviveBeacon'
 /** Half-extents with padding so the ship stays inside the visible area on mobile + desktop. */
 const HALF_W = (BOUNDS.maxX - BOUNDS.minX) / 2 + 1.1
 const HALF_H = (BOUNDS.maxY - BOUNDS.minY) / 2 + 1.4
@@ -71,7 +72,7 @@ export function GameScene() {
       keys.current.add(e.key.toLowerCase())
       if (e.key === 'Escape') {
         const st = useGameStore.getState()
-        if (st.gameState === 'playing') st.pauseGame()
+        if (st.gameState === 'playing' && st.mode !== 'coop') st.pauseGame()
         else if (st.gameState === 'paused') st.resumeGame()
       }
       if (e.key.toLowerCase() === 'b' && useGameStore.getState().gameState === 'menu') {
@@ -140,14 +141,11 @@ export function GameScene() {
   useSimStep(ORDER.scene, ({ realDt: dt }) => {
     const s = useGameStore.getState()
     if (s.gameState === 'playing') {
-      // Downed in co-op: stay on the beacon and watch the wingmate. Moving would walk the wreck off it.
-      const downed = s.mode === 'coop' && s.playerHp <= 0
-      if (downed) target.current = null
       // Top-down ortho: screen-right = world −X, screen-up = +Z (keyboard: per step, as it was per 60 Hz frame)
       const sp = 0.14 * GAME_SPEED
       const k = keys.current
-      const up = !downed && (k.has('w') || k.has('arrowup')), down = !downed && (k.has('s') || k.has('arrowdown'))
-      const left = !downed && (k.has('a') || k.has('arrowleft')), right = !downed && (k.has('d') || k.has('arrowright'))
+      const up = k.has('w') || k.has('arrowup'), down = k.has('s') || k.has('arrowdown')
+      const left = k.has('a') || k.has('arrowleft'), right = k.has('d') || k.has('arrowright')
       if (up || down || left || right) target.current = null // keyboard takes over
       if (up) s.movePlayer(0, sp)
       if (down) s.movePlayer(0, -sp)
@@ -155,7 +153,7 @@ export function GameScene() {
       if (right) s.movePlayer(-sp, 0)
 
       // Fly toward the touch point at the plane's speed (no teleport); ease in over the last stretch
-      const t = downed ? null : target.current
+      const t = target.current
       if (t) {
         const dx = t.x - s.playerX, dz = t.z - s.playerY
         const dist = Math.hypot(dx, dz)
@@ -220,6 +218,7 @@ export function GameScene() {
             <Explosions />
             <Coins />
             {coop && <Teammates />}
+            {coop && <ReviveBeacon />}
           </>
         )}
       </Suspense>

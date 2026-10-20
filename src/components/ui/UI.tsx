@@ -8,6 +8,10 @@ import { ResultsScreen } from './ResultsScreen'
 import { Hangar } from './Hangar'
 import { Leaderboard } from './Leaderboard'
 import { CoopBadge } from './CoopBadge'
+import { CoopDebug } from './CoopDebug'
+import { CoopLobby } from './CoopLobby'
+import { CoopStageClear } from './CoopStageClear'
+import { CoopResults } from './CoopResults'
 
 export function UI() {
   const gameState = useGameStore((s) => s.gameState)
@@ -22,7 +26,11 @@ export function UI() {
       {gameState === 'results' && <ResultsScreen />}
       {gameState === 'hangar' && <Hangar />}
       {gameState === 'leaderboard' && <Leaderboard />}
+      {gameState === 'coopLobby' && <CoopLobby />}
+      {gameState === 'coopStageClear' && <CoopStageClear />}
+      {gameState === 'coopResults' && <CoopResults />}
       {coop && <CoopBadge />}
+      {coop && <CoopDebug />}
     </>
   )
 }

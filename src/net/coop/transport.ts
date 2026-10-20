@@ -8,31 +8,27 @@ export interface RoomInfo {
   roomId: string
   /** Our player id inside the room. */
   selfId: string
-  /** Short room code, when the backend assigned one. */
+  /** Short code friends type to join (uppercase). */
   code?: string
 }
 
 export interface ConnectOptions {
-  /** Stable id (e.g. `skystriker-<id>`, or a `guest:` id) and display name. */
+  /** Stable id (game account id) and display name. */
   userId: string
   name: string
-  /** Plane id sent with the join, when the backend wants it up front. */
+  /** Sent with the join so the server can refuse a mismatched build. */
   plane?: string
-  /** Bearer token for backends that authenticate (Nakama custom auth, …). */
-  token?: string
-}
-
-export interface MatchmakeOptions {
-  stageId: number
-  /** Players per room (2 for co-op). */
-  size?: number
+  dataVersion?: string
 }
 
 export interface Transport {
   connect(opts: ConnectOptions): Promise<void>
-  createRoom(opts: { stageId: number }): Promise<RoomInfo>
-  joinRoom(roomId: string): Promise<RoomInfo>
-  matchmake(opts: MatchmakeOptions): Promise<RoomInfo>
+  /** A private room with a code. */
+  createRoom(): Promise<RoomInfo>
+  /** Join (or rejoin) the room with this code. */
+  joinRoom(code: string): Promise<RoomInfo>
+  /** Any open public room, or a new public one. */
+  matchmake(): Promise<RoomInfo>
   send<K extends ClientOp>(op: K, data: ClientMessages[K]): void
   /** Returns an unsubscribe function. */
   onMessage(cb: (msg: ServerMessage) => void): () => void

@@ -1,113 +1,126 @@
-import { useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useGameStore } from '../../store/gameStore'
 import { useAccount } from '../../store/account'
+import { activeSession, lastRoomCode, startNakamaCoop, stopCoop } from '../../net/coop/active'
+import { takeCoopError } from '../../net/coop/coopError'
+import { coopIdentity } from '../../net/coop/identity'
+import { getPlane } from '../../game/planes'
 import { sounds } from '../../hooks/useAudio'
-import { guestCoopAllowed } from '../../net/coop/identity'
-import { startNakamaCoop, stopCoop } from '../../net/coop/active'
-import { LoginButtons } from './Account'
+import { useCoopStatus } from './useCoop'
 
-/** Co-op lobby. Guests get in only while the server's GUEST_COOP flag is on. */
-export function CoopLobby({ onClose, backLabel = '← MENU' }: { onClose: () => void; backLabel?: string }) {
+/** Co-op lobby: quick match / create a room / join by code, then the room with both pilots and READY. Guests fly too. */
+export function CoopLobby() {
+  const setGameState = useGameStore((s) => s.setGameState)
   const status = useAccount((s) => s.status)
-  const config = useAccount((s) => s.config)
-  const [code, setCode] = useState('')
-  const [room, setRoom] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const { status: room, roster } = useCoopStatus(200)
   const [busy, setBusy] = useState(false)
-  const [needLogin, setNeedLogin] = useState(false)
+  const [error, setError] = useState<string | null>(() => takeCoopError())
+  const [code, setCode] = useState('')
+  const rejoin = lastRoomCode()
+  // Not while a login is still settling: we would enter the room as the guest
+  const blocked = busy || status === 'init' || status === 'busy'
+  const guest = useMemo(() => (status === 'guest' ? coopIdentity(null).name : null), [status])
 
-  const guest = status !== 'user'
-  const blocked = guest && !guestCoopAllowed(config?.guestCoop)
+  useEffect(() => {
+    // Back in the lobby with a finished or dead session: clean it up
+    const s = activeSession()
+    if (s && (s.phase === 'complete' || s.phase === 'failed')) void stopCoop()
+  }, [])
 
-  const go = async (room: 'create' | 'match' | { join: string }) => {
-    setError(null)
-    setBusy(true)
+  const go = async (target: 'create' | 'match' | { code: string }) => {
     sounds.uiSelect()
-    try {
-      const assigned = await startNakamaCoop(room)
-      setRoom(assigned ?? null)
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Could not join co-op'
-      if (/log in/i.test(msg)) setNeedLogin(true)
-      setError(msg)
-    } finally {
-      setBusy(false)
-    }
+    setBusy(true)
+    setError(null)
+    try { await startNakamaCoop(target) } catch (e) { setError((e as Error).message || 'Could not connect') }
+    setBusy(false)
   }
+  const leave = async () => { sounds.uiClick(); await stopCoop() }
+  const back = async () => { sounds.uiClick(); await stopCoop(); setGameState('menu') }
+
+  const inRoom = room && room.phase === 'lobby'
+  const me = roster.find((r) => r.id === room?.selfId)
 
   return (
     <div style={overlay}>
       <div style={panel}>
-        <button type="button" style={back} onClick={() => { sounds.uiClick(); void stopCoop(); onClose() }}>{backLabel}</button>
-        <div style={title}>CO-OP</div>
-        <div style={sub}>Two pilots, one campaign</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button type="button" style={iconBtn} onClick={back} aria-label="Back">←</button>
+          <div style={{ flex: 1, textAlign: 'center', ...title }}>CO-OP</div>
+          <div style={{ width: 40 }} />
+        </div>
+        <div style={{ color: '#9fd6ff', textAlign: 'center', fontSize: 13 }}>
+          Two pilots, all 10 stages back to back. Revive your wingmate by hovering over their beacon.
+        </div>
 
-        {status === 'init' || status === 'busy' ? (
-          <div style={hint}>Signing in…</div>
-        ) : blocked || needLogin ? (
+        {inRoom ? (
           <div style={card}>
-            <div style={{ color: '#e8f4ff', fontWeight: 800, textAlign: 'center' }}>Log in to play co-op</div>
-            <div style={hint}>Guest co-op is turned off on this server. A signed-in pilot can still fly.</div>
-            <LoginButtons />
-          </div>
-        ) : room ? (
-          <div style={card}>
-            <div style={hint}>Waiting for a wingmate</div>
-            <div style={codeText}>{room}</div>
-            <div style={hint}>Share this code. The run starts when you are both ready.</div>
+            <div style={{ color: '#8eb8d4', fontSize: 12, textAlign: 'center' }}>ROOM CODE — share it with your wingmate</div>
+            <button type="button" style={codeBox} onClick={() => { if (room.code) void navigator.clipboard?.writeText(room.code) }}>
+              {room.code ?? '—'}
+            </button>
+            {[0, 1].map((i) => {
+              const p = roster[i]
+              return (
+                <div key={i} style={slot}>
+                  <span style={{ flex: 1, color: p ? '#e8f4ff' : '#5f7d94', fontWeight: 800 }}>
+                    {p ? `${p.name}${p.id === room.selfId ? ' (you)' : ''}` : 'Waiting for a wingmate…'}
+                  </span>
+                  {p && <span style={{ color: '#9fd6ff', fontSize: 12 }}>{getPlane(p.plane).name}</span>}
+                  {p && <span style={{ color: p.ready ? '#3dff8a' : '#ffb74d', fontWeight: 900, fontSize: 12 }}>{p.ready ? 'READY' : '…'}</span>}
+                </div>
+              )
+            })}
+            <button type="button" style={btnPrimary} disabled={room.ready || me?.ready}
+              onClick={() => { sounds.uiSelect(); activeSession()?.ready() }}>
+              {room.ready || me?.ready ? 'WAITING FOR WINGMATE…' : 'READY'}
+            </button>
+            <button type="button" style={btnGhost} onClick={leave}>LEAVE ROOM</button>
           </div>
         ) : (
-          <>
-            <button type="button" style={primary} disabled={busy} onClick={() => void go('match')}>
-              {busy ? 'JOINING…' : 'QUICK MATCH'}
-            </button>
-            <button type="button" style={secondary} disabled={busy} onClick={() => void go('create')}>
-              CREATE ROOM
-            </button>
-            <form style={row} onSubmit={(e) => { e.preventDefault(); if (code.trim()) void go({ join: code.trim() }) }}>
-              <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="ROOM CODE" maxLength={5} style={input} />
-              <button type="submit" disabled={busy || code.trim().length !== 5} style={join}>JOIN</button>
-            </form>
-          </>
+          <div style={card}>
+            <button type="button" style={btnPrimary} disabled={blocked} onClick={() => go('match')}>⚡ QUICK MATCH</button>
+            <button type="button" style={{ ...btnPrimary, background: 'linear-gradient(180deg, #5ec8ff, #1a8fd0)', color: '#fff', boxShadow: '0 6px 0 #0d5f90' }}
+              disabled={blocked} onClick={() => go('create')}>＋ CREATE ROOM</button>
+            <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+              <input value={code} maxLength={5} placeholder="CODE" onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} style={input} />
+              <button type="button" style={{ ...btnSmall }} disabled={blocked || code.length !== 5} onClick={() => go({ code })}>JOIN</button>
+            </div>
+            {rejoin && <button type="button" style={btnGhost} disabled={blocked} onClick={() => go({ code: rejoin })}>↻ REJOIN {rejoin}</button>}
+            {guest && (
+              <div style={{ color: '#8eb8d4', fontSize: 12, textAlign: 'center' }}>
+                Flying as <b style={{ color: '#e8f4ff' }}>{guest}</b> · log in from the menu to use your account name
+              </div>
+            )}
+          </div>
         )}
-        {error && <div style={err}>{error}</div>}
-        {guest && !blocked && (
-          <div style={hint}>Playing as Guest. This device keeps the same guest id.</div>
-        )}
+        {busy && <div style={{ color: '#9fd6ff', textAlign: 'center' }}>Connecting…</div>}
+        {error && <div style={{ color: '#ff8a80', textAlign: 'center', fontWeight: 700 }}>{error}</div>}
       </div>
     </div>
   )
 }
 
 const overlay: CSSProperties = {
-  position: 'absolute', inset: 0, zIndex: 30, pointerEvents: 'auto',
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-  background: 'rgba(4,14,28,0.94)',
-  padding: 16,
+  position: 'absolute', inset: 0, zIndex: 10, pointerEvents: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'center',
+  background: 'linear-gradient(180deg, rgba(6,18,36,0.94) 0%, rgba(8,28,48,0.9) 100%)',
+  padding: 'max(0.75rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right)) max(0.75rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left))',
 }
-const panel: CSSProperties = { width: '100%', maxWidth: 380, display: 'flex', flexDirection: 'column', gap: 10 }
-const back: CSSProperties = {
-  alignSelf: 'flex-start', background: 'transparent', border: '1px solid rgba(78,196,255,0.4)',
-  color: '#9fd6ff', borderRadius: 10, padding: '6px 12px', cursor: 'pointer', fontWeight: 700,
+const panel: CSSProperties = { width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', gap: 10 }
+const title: CSSProperties = { color: '#fff', fontWeight: 900, fontSize: 'clamp(1.2rem, 5vw, 1.6rem)', letterSpacing: 2, textShadow: '0 0 18px rgba(61,255,138,0.5)' }
+const iconBtn: CSSProperties = { width: 40, height: 40, borderRadius: 12, border: '1px solid rgba(78,196,255,0.35)', background: 'rgba(20,40,70,0.8)', color: '#fff', fontSize: 18, cursor: 'pointer' }
+const card: CSSProperties = { background: 'rgba(10,24,44,0.92)', border: '1px solid rgba(78,196,255,0.28)', borderRadius: 16, padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }
+const btnPrimary: CSSProperties = {
+  display: 'block', width: '100%', padding: '0.85rem 1rem', border: 'none', borderRadius: 14,
+  background: 'linear-gradient(180deg, #5dffa0, #1fae5b)', color: '#062312', fontWeight: 900, fontSize: '1.05rem', cursor: 'pointer', boxShadow: '0 6px 0 #11733a',
 }
-const title: CSSProperties = { color: '#fff', fontWeight: 900, fontSize: '2rem', letterSpacing: 2, textAlign: 'center' }
-const sub: CSSProperties = { color: '#7ec8ef', textAlign: 'center', marginTop: -6 }
-const card: CSSProperties = {
-  background: 'rgba(8,22,40,0.9)', border: '1px solid rgba(78,196,255,0.28)', borderRadius: 14, padding: 14,
-  display: 'flex', flexDirection: 'column', gap: 8,
-}
-const hint: CSSProperties = { color: '#8eb8d4', fontSize: 12, textAlign: 'center', lineHeight: 1.45 }
-const primary: CSSProperties = {
-  width: '100%', padding: '1rem', border: 'none', borderRadius: 14, cursor: 'pointer',
-  background: 'linear-gradient(180deg, #ffd54a, #ff9800)', color: '#1a1200', fontWeight: 900, letterSpacing: 1,
-}
-const secondary: CSSProperties = {
-  ...primary, background: 'linear-gradient(180deg, #5ec8ff, #1a8fd0)', color: '#fff',
-}
-const row: CSSProperties = { display: 'flex', gap: 8 }
+const btnGhost: CSSProperties = { ...btnPrimary, background: 'rgba(255,255,255,0.12)', color: '#fff', boxShadow: 'none', fontSize: '0.9rem' }
+const btnSmall: CSSProperties = { ...btnPrimary, width: 'auto', padding: '0.6rem 1.1rem', fontSize: '0.95rem' }
 const input: CSSProperties = {
-  flex: 1, minWidth: 0, padding: '0.75rem', borderRadius: 12, border: '1px solid rgba(78,196,255,0.4)',
-  background: 'rgba(4,14,28,0.9)', color: '#fff', fontWeight: 800, letterSpacing: 2, textAlign: 'center',
+  flex: 1, padding: '0.6rem 0.8rem', borderRadius: 12, border: '1px solid rgba(78,196,255,0.4)', background: 'rgba(5,14,28,0.9)',
+  color: '#fff', fontWeight: 900, fontSize: '1.1rem', letterSpacing: 4, textAlign: 'center',
 }
-const join: CSSProperties = { ...secondary, width: 'auto', padding: '0 16px' }
-const codeText: CSSProperties = { color: '#ffd54a', fontWeight: 900, fontSize: '2rem', letterSpacing: 6, textAlign: 'center' }
-const err: CSSProperties = { color: '#ff8a80', fontSize: 12, textAlign: 'center' }
+const codeBox: CSSProperties = {
+  padding: '0.6rem', borderRadius: 12, border: '1px dashed rgba(61,255,138,0.6)', background: 'rgba(61,255,138,0.08)',
+  color: '#3dff8a', fontWeight: 900, fontSize: '2rem', letterSpacing: 8, textAlign: 'center', cursor: 'copy',
+}
+const slot: CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.05)' }

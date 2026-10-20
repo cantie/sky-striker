@@ -7,6 +7,8 @@
     "dev": "vite --port 5847 --host 0.0.0.0",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
+    "gen:coop": "node scripts/gen-coop-data.mjs",
+    "nakama:install": "node scripts/nakama-install.mjs",
     "preview": "vite preview --port 4173 --host 0.0.0.0",
     "export:zip": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/export-deploy.ps1"
   },
@@ -27,6 +29,7 @@
     "@types/react-dom": "^19.1.0",
     "@types/three": "^0.180.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "fengari": "^0.1.5",
     "playwright": "^1.63.0",
     "typescript": "~5.9.2",
     "vite": "^7.1.0",

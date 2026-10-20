@@ -31,6 +31,9 @@ export type GameState =
   | 'bossWarning'
   | 'hangar'
   | 'leaderboard'
+  | 'coopLobby'
+  | 'coopStageClear'
+  | 'coopResults'
 
 export type { Biome } from '../game/biomes'
 export type GameMode = 'single' | 'coop'
@@ -116,8 +119,12 @@ interface GameStore {
   runSeed: number
   /** Single-player (fully local) or co-op (server decides kills, drops, aimed shots). */
   mode: GameMode
-  /** A co-op wingmate is down and can be revived. */
-  wingmateDown: boolean
+  /** Co-op: shot down, waiting for a wingmate's revive (plane hidden, controls off). */
+  down: boolean
+  /** Co-op: position of the current stage in the campaign run (0-based). */
+  coopStageIndex: number
+  /** Which board the leaderboard screen opens on. */
+  leaderboardMode: 'solo' | 'coop'
   /** Scripted units queued but not yet spawned (the boss waits for these too). */
   pendingSpawns: number
   scrollOffset: number; biome: Biome; isMuted: boolean; easyMode: boolean
@@ -136,7 +143,10 @@ interface GameStore {
   openHangar: () => void
   closeHangar: () => void
   /** Leaderboard screen (logged-in feature); returns to wherever it was opened from. */
-  openLeaderboard: () => void
+  openLeaderboard: (mode?: 'solo' | 'coop') => void
+  openCoopLobby: () => void
+  /** Co-op: a wingmate brought us back at (x, y) with `hp`. */
+  revivePlayer: (x: number, y: number, hp: number) => void
   buyPlane: (id: string) => boolean
   choosePlane: (id: string) => void
   viewHangarPlane: (id: string) => void
@@ -192,6 +202,7 @@ interface GameStore {
 }
 
 const IFRAMES = 1200
+const REVIVE_IFRAMES = 2000
 /** Real ms the player gets to collect the boss's stars before flying out. */
 const VICTORY_COLLECT_MS = 5000
 /** Fly-off speed after the victory window (world units per real second). */
@@ -269,7 +280,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   gameState: 'menu',
   score: 0, combo: 0, comboTimer: 0, stars: 0,
   playerX: 0, playerY: -4, playerHp: 3, playerMaxHp: 3,
-  runSeed: 0, mode: 'single', wingmateDown: false, shieldMs: 0, victoryMs: 0, flyout: false, weaponPower: 0, carryWeapon: 0, hangarReturn: 'menu', lastGoldStars: 0, hangarPlane: 'hawk', invincibleUntil: 0,
+  runSeed: 0, mode: 'single', down: false, coopStageIndex: 0, leaderboardMode: 'solo', shieldMs: 0, victoryMs: 0, flyout: false, weaponPower: 0, carryWeapon: 0, hangarReturn: 'menu', lastGoldStars: 0, hangarPlane: 'hawk', invincibleUntil: 0,
   bullets: [], enemies: [], boss: null, pickups: [], explosions: [],
   waveIndex: 0, waveTimer: 0, bossSpawned: false, pendingSpawns: 0,
   scrollOffset: 0, biome: 'jungle', isMuted: false, easyMode: false,
@@ -299,7 +310,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
   viewHangarPlane: (id) => set({ hangarPlane: id }),
   closeHangar: () => set((s) => ({ gameState: s.hangarReturn })),
-  openLeaderboard: () => set((s) => ({ gameState: 'leaderboard', hangarReturn: s.gameState })),
+  openLeaderboard: (mode = 'solo') => set((s) => ({ gameState: 'leaderboard', hangarReturn: s.gameState, leaderboardMode: mode })),
+  openCoopLobby: () => set({ gameState: 'coopLobby' }),
   buyPlane: (id) => {
     const next = buyPlane(get().progress, id)
     if (!next) return false
@@ -326,11 +338,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const runSeed = opts.seed ?? randomSeed()
     seedRun(runSeed)
     resetClock()
-    const easy = !!opts.easy || new URLSearchParams(location.search).has('easy')
-    const skip = !!opts.skipToBoss || new URLSearchParams(location.search).has('boss')
+    const coop = opts.mode === 'coop'
+    // Test switches are single-player only: co-op runs the server's stage at normal difficulty
+    const easy = !coop && (!!opts.easy || new URLSearchParams(location.search).has('easy'))
+    const skip = !coop && (!!opts.skipToBoss || new URLSearchParams(location.search).has('boss'))
     const q = new URLSearchParams(location.search)
     // ?stage=N (dev/testing) overrides the chosen stage
-    const stageId = Number(q.get('stage')) || opts.stageId || get().selectedStageId || 1
+    const stageId = (coop && opts.stageId) || Number(q.get('stage')) || opts.stageId || get().selectedStageId || 1
     const stage = getStage(stageId)
     const plane = getPlane(get().progress.plane)
 
@@ -363,7 +377,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       lastResultWon: false,
       runSeed,
       mode: opts.mode ?? 'single',
-      wingmateDown: false,
+      down: false,
     })
 
     // First survivors are already standing on the ground ahead of the player
@@ -379,7 +393,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   pauseGame: () => { if (get().gameState === 'playing') set({ gameState: 'paused' }) },
   resumeGame: () => { if (get().gameState === 'paused') set({ gameState: 'playing' }) },
 
-  setPlayerPosition: (x, y) => get().flyout ? undefined : set({
+  setPlayerPosition: (x, y) => get().flyout || get().down ? undefined : set({
     playerX: Math.max(BOUNDS.minX, Math.min(BOUNDS.maxX, x)),
     playerY: Math.max(BOUNDS.minY, Math.min(BOUNDS.maxY, y)),
   }),
@@ -389,8 +403,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   damagePlayer: (hits = 1) => {
-    const { invincibleUntil, shieldMs, playerHp, runStats, victoryMs, flyout, mode } = get()
-    if (playerHp <= 0 || Date.now() < invincibleUntil || victoryMs > 0 || flyout) return
+    const { invincibleUntil, shieldMs, playerHp, runStats, victoryMs, flyout, down } = get()
+    if (down || Date.now() < invincibleUntil || victoryMs > 0 || flyout) return
     // An active shield simply eats the hit
     if (shieldMs > 0) {
       set({ screenShake: Math.max(get().screenShake, 0.15) })
@@ -404,11 +418,22 @@ export const useGameStore = create<GameStore>((set, get) => ({
       screenShake: Math.max(get().screenShake, 0.35),
       runStats: { ...runStats, tookDamage: true },
     })
-    // Co-op: our own hits are ours to decide; the teammate learns of them from the server.
-    // Going down does not end the run — a living wingmate can revive us, and we keep watching.
+    // Co-op: our own hits are ours to decide; the teammate learns of them from the server
     net()?.gotHit(hits, hp)
-    if (hp <= 0 && mode !== 'coop') get().finalizeResults(false)
+    if (hp <= 0) {
+      // Co-op: shot down, not out — a wingmate can revive us (the server ends the run when nobody's left)
+      if (get().mode === 'coop') set({ down: true })
+      else get().finalizeResults(false)
+    }
   },
+
+  revivePlayer: (x, y, hp) => set((s) => ({
+    down: false,
+    playerHp: Math.max(1, Math.min(s.playerMaxHp, hp)),
+    playerX: Math.max(BOUNDS.minX, Math.min(BOUNDS.maxX, x)),
+    playerY: Math.max(BOUNDS.minY, Math.min(BOUNDS.maxY, y)),
+    invincibleUntil: Date.now() + REVIVE_IFRAMES,
+  })),
 
   healPlayer: (n) => set((s) => ({ playerHp: Math.min(s.playerMaxHp, s.playerHp + n) })),
   addShield: (ms) => set((s) => ({ shieldMs: s.shieldMs + ms })),
@@ -576,17 +601,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   finalizeResults: (won) => {
     const s = get()
     if (s.gameState === 'results') return
-    // A co-op campaign is not a solo saga stage: don't bank its stars or write a solo run
+    // Co-op: the server keeps the score and moves the run on; no saga progress or gold stars
     if (s.mode === 'coop') {
-      set({
-        gameState: 'results',
-        lastResultWon: won,
-        carryWeapon: 0,
-        wingmateDown: false,
-        enemies: [],
-        bullets: [],
-        boss: null,
-      })
+      set({ gameState: won ? 'coopStageClear' : 'coopResults', enemies: [], bullets: [], boss: null })
       return
     }
     const stage = getStage(s.currentStageId)

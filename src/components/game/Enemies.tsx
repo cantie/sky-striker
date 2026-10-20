@@ -36,6 +36,7 @@ export function enemyVolley(x: number, y: number, shot: ShotKind, aim: number, s
 
 export function Enemies() {
   const lastWave = useRef(-1)
+  const runKey = useRef('')
   const queue = useRef<Queued[]>([])
   const clock = useRef(0)
   const enemies = useGameStore((s) => s.enemies)
@@ -44,6 +45,14 @@ export function Enemies() {
 
   useEffect(() => {
     const unsub = useGameStore.subscribe((s) => {
+      // A new run (co-op's next stage can start without leaving 'playing'): forget the old queue
+      const run = `${s.currentStageId}:${s.runSeed}`
+      if (run !== runKey.current) {
+        runKey.current = run
+        lastWave.current = -1
+        queue.current = []
+        clock.current = 0
+      }
       if (
         s.gameState === 'playing' &&
         s.waveIndex !== lastWave.current &&
@@ -141,7 +150,7 @@ export function Enemies() {
 
     // Only aircraft can ram the player; ground units pass underneath
     for (const e of useGameStore.getState().enemies) {
-      if (isGround(e.type)) continue
+      if (isGround(e.type) || s.down) continue
       if (Math.hypot(e.x - s.playerX, e.y - s.playerY) < 0.9) {
         s.damagePlayer(1)
         sounds.enemyHit()

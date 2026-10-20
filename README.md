@@ -7,7 +7,6 @@ Mobile-friendly 3D vertical-scrolling shoot-'em-up inspired by Sky Force Reloade
 - **Objective stars** per stage, gold stars to unlock **9 hangar planes** with different skills
 - Play as **Guest** (progress in `localStorage`), or **log in with Keycloak** to save online,
   record every run and join the **leaderboards** (total score, saga stars, gold stars)
-- **Co-op** with a signed-in pilot, or as a guest when `GUEST_COOP` is on (Nakama enforces the same flag)
 - Top-down orthographic camera, finger-follow controls, unlimited auto-fire
 
 ## Stack

@@ -201,6 +201,8 @@ export function Pickups() {
     // Everything here sits on the map and scrolls with it
     const groundMove = dt * GROUND_SPEED
     const n = net()
+    // Co-op: a downed pilot's (hidden) plane can't touch anything
+    const canTouch = !s.down
     // Single-player: ours right away. Co-op: claim it; the server's PICKED says who got it
     const take = (p: Pickup) => {
       if (!s.collectPickup(p.id)) return
@@ -213,7 +215,7 @@ export function Pickups() {
       if (p.type === 'rescue') {
         // Survivors stand still on the terrain; hovering over them fills the rescue ring
         const z = p.z - groundMove
-        const near = Math.hypot(p.x - s.playerX, z - s.playerY) < RESCUE_RADIUS
+        const near = canTouch && Math.hypot(p.x - s.playerX, z - s.playerY) < RESCUE_RADIUS
         const progress = near
           ? (p.progress ?? 0) + realDt / RESCUE_SECONDS
           : Math.max(0, (p.progress ?? 0) - realDt / (RESCUE_SECONDS * 2))
@@ -226,7 +228,7 @@ export function Pickups() {
       }
       // Floating drops ride the map too
       const z = p.z - groundMove
-      if (Math.hypot(p.x - s.playerX, z - s.playerY) < 0.85) {
+      if (canTouch && Math.hypot(p.x - s.playerX, z - s.playerY) < 0.85) {
         take(p)
         continue
       }

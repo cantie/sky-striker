@@ -114,7 +114,7 @@ export function Bullets() {
           hit = true
         }
       } else {
-        if (Math.hypot(b.x - s.playerX, b.z - s.playerY) < 0.55 + b.radius) {
+        if (!s.down && Math.hypot(b.x - s.playerX, b.z - s.playerY) < 0.55 + b.radius) {
           s.damagePlayer(b.damage)
           hit = true
         }

@@ -4,12 +4,12 @@ import App from './App'
 import './index.css'
 import { useAccount } from './store/account'
 
-// Restore a session / finish a Keycloak redirect; guests just carry on offline.
-// Loopback co-op waits for that so a GUEST_COOP=false server can refuse a guest first.
+// Restore a session / finish a Keycloak redirect; guests just carry on offline
+void useAccount.getState().init()
+
+// Co-op test drive against the in-browser server + bot wingmate
 const q = new URLSearchParams(location.search)
-void useAccount.getState().init().then(() => {
-  if (q.get('coop') === 'loopback') void import('./net/coop/active').then((m) => m.startLoopbackCoop(q))
-})
+if (q.get('coop') === 'loopback') void import('./net/coop/active').then((m) => m.startLoopbackCoop(q))
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

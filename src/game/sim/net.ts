@@ -12,6 +12,8 @@ export interface NetHooks {
   gotHit(hits: number, hp: number): void
   /** The player the boss is aiming at (server-picked); null → aim at us. */
   bossTarget(): { x: number; y: number } | null
+  /** Wingmates still flying, where we draw them (they scoop up the gold stars on our screen too). */
+  wingmates(): { id: string; x: number; y: number; plane: string }[]
   /**
    * False for enemies / pickups the server already settled (killed / taken) — a client that is
    * catching up on the stage clock must not spawn them again.

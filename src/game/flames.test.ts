@@ -26,7 +26,7 @@ describe('vehicleParts', () => {
   const skin: GroundSkin = { vehicle: 'tank', hull: '#000', turret: '#111', accent: '#f00' }
 
   it('a tank with hull and gun models', () => {
-    expect(vehicleParts({ ...skin, hullModel: 'hull', gunModel: 'gun' }, false)).toEqual({ body: 'hull', gun: 'gun', gunY: 0.35 })
+    expect(vehicleParts({ ...skin, hullModel: 'hull', gunModel: 'gun' }, false)).toEqual({ body: 'hull', gun: 'gun', gunY: 0.43 })
   })
 
   it('a turret with base and gun models', () => {

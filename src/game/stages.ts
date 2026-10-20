@@ -1,7 +1,7 @@
 import type { Biome } from './biomes'
 import type { BossId } from './bosses'
 import type { PathId } from './paths'
-import { MODEL_PATHS as M, kenneyLivery as kl, quatLivery as ql } from './models'
+import { MODEL_PATHS as M, aiModel as ai, kenneyLivery as kl, quatLivery as ql } from './models'
 import type { AirRole, AirSkin, EnemyType, GroundSkin } from './roster'
 import { buildWaves, type GenGroup } from './waveGen'
 
@@ -72,12 +72,15 @@ const DEFS: StageDef[] = [
     waveInterval: 3200, boss: 'vulture', bossHp: 1500,
     enemyHpMult: 0.85, bulletSpeedMult: 1, fireRateMult: 0.9, basicFire: 0,
     skins: {
-      basic: air(M.speederA, 1.25, kl('#c9cbd2', '#c0242f', '#2a1216', '#ff3b2f'), '#ff6a3d'),
-      fast: air(M.racer, 1.15, kl('#f3e7c6', '#e88a0c', '#2b1b08', '#ffd23f'), '#ffcf4a'),
-      heavy: air(M.cargoA, 1.85, kl('#8e88a8', '#4b2a7a', '#1b1428', '#c04dff'), '#c46bff', 2),
-      shooter: air(M.speederB, 1.35, kl('#dcd2d4', '#7c1032', '#230a13', '#ff2a6a'), '#ff3f7a', 2),
+      basic: air(ai('enemy-basic-s1'), 1.45, undefined, '#ff6a3d'),
+      fast: air(ai('enemy-fast-s1'), 1.5, undefined, '#ffcf4a'),
+      heavy: air(ai('enemy-heavy-s1'), 1.85, undefined, '#c46bff', 2),
+      shooter: air(ai('enemy-shooter-s1'), 1.35, undefined, '#ff3f7a', 2),
     },
-    ground: { vehicle: 'tank', hull: '#5d6b3a', turret: '#46522a', accent: '#ff5a2a' },
+    ground: {
+      vehicle: 'tank', hull: '#5d6b3a', turret: '#46522a', accent: '#ff5a2a',
+      hullModel: ai('hull-s1'), gunModel: ai('gun-tank'),
+    },
     waves: [
       [G('basic', 'dive', { x: [-3, 0, 3] })],
       [G('fast', 'sine', { x: -1.5, count: 4, gap: 0.5, amp: 2.2 })],

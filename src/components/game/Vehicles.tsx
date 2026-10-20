@@ -50,15 +50,15 @@ function Gun({ skin, y, twin = false, aimLocal }: { skin: GroundSkin; y: number;
 }
 
 /** Sizes of the AI-built parts (largest side), in the vehicle's own units. */
-export const HULL_SIZE = 1.3
-export const GUN_SIZE = 0.8
+export const HULL_SIZE = 1.6
+export const GUN_SIZE = 1
 
 /** The AI models for a ground unit, or null to draw today's boxes (both a body and a gun are needed). */
 export function vehicleParts(skin: GroundSkin, turret: boolean): { body: string; gun: string; gunY: number } | null {
   const body = turret ? skin.baseModel : skin.hullModel
   const gun = turret ? skin.turretGunModel : skin.gunModel
   if (!body || !gun) return null
-  return { body, gun, gunY: skin.gunY ?? (turret ? 0.45 : 0.35) }
+  return { body, gun, gunY: skin.gunY ?? (turret ? 0.45 : 0.43) }
 }
 
 function Wake() {

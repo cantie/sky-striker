@@ -1,5 +1,5 @@
 import type { Nozzle } from './flames'
-import { MODEL_PATHS as M, kenneyLivery as kl, quatLivery as ql, type MaterialPalette } from './models'
+import { MODEL_PATHS as M, aiModel, kenneyLivery as kl, quatLivery as ql, type MaterialPalette } from './models'
 
 /** Signature ability each hangar plane brings into a run. */
 export type PlaneSkill =
@@ -39,7 +39,7 @@ export interface PlaneDef {
 export const PLANES: PlaneDef[] = [
   {
     id: 'hawk', name: 'HAWK', tagline: 'Reliable all-rounder', price: 0,
-    model: M.player, size: 2,
+    model: aiModel('hawk'), size: 2,
     palette: kl('#eef4ff', '#2f63d6', '#141c33', '#19c6ff', 1.4), flame: '#3fd4ff', flames: 2,
     hp: 3, fireRate: 1, damage: 1,
     skill: 'none', skillName: 'STANDARD ISSUE', skillText: 'No gimmicks — solid hull and cannon.',

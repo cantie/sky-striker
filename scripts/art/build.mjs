@@ -2,7 +2,7 @@
 import { mkdirSync, statSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { Logger } from '@gltf-transform/core'
-import { meshopt, prune, dedup, simplify, textureCompress, weld } from '@gltf-transform/functions'
+import { cloneDocument, meshopt, prune, dedup, simplify, textureCompress, weld } from '@gltf-transform/functions'
 import { MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer'
 import sharp from 'sharp'
 import * as THREE from 'three'
@@ -11,6 +11,8 @@ import { artIO, countTris } from './checks.mjs'
 import { hexToHsv, rgbToHsv } from './manifest.mjs'
 
 const CREASE_DEG = 35
+/** webp qualities tried in turn until the GLB fits its size budget (busy paint compresses poorly). */
+const QUALITIES = [80, 70, 60, 50]
 
 export function realMime(bytes) {
   const b = bytes
@@ -115,14 +117,20 @@ export async function buildAsset(rawPath, outPath, asset, budget) {
   bakeNormals(doc, asset.turn ?? 0)
   await doc.transform(weld())
   if (asset.glow) await addEmissive(doc, asset.glow)
-  await doc.transform(
-    dedup(), prune(),
-    // Metal and roughness change slowly across the surface: half size is enough and keeps small assets in budget
-    textureCompress({ encoder: sharp, targetFormat: 'webp', slots: /^metallicRoughness/, resize: [budget.px / 2, budget.px / 2] }),
-    textureCompress({ encoder: sharp, targetFormat: 'webp', slots: /^(?!metallicRoughness)/, resize: [budget.px, budget.px] }),
-    meshopt({ encoder: MeshoptEncoder, level: 'high' }),
-  )
+  await doc.transform(dedup(), prune())
+  let out, bytes
+  for (const quality of QUALITIES) {
+    out = cloneDocument(doc)
+    await out.transform(
+      // Metal and roughness change slowly across the surface: half size is enough and keeps small assets in budget
+      textureCompress({ encoder: sharp, targetFormat: 'webp', quality, slots: /^metallicRoughness/, resize: [budget.px / 2, budget.px / 2] }),
+      textureCompress({ encoder: sharp, targetFormat: 'webp', quality, slots: /^(?!metallicRoughness)/, resize: [budget.px, budget.px] }),
+      meshopt({ encoder: MeshoptEncoder, level: 'high' }),
+    )
+    bytes = await io.writeBinary(out)
+    if (bytes.length <= budget.kb * 1024) break
+  }
   mkdirSync(dirname(outPath), { recursive: true })
-  writeFileSync(outPath, await io.writeBinary(doc))
-  return { tris: countTris(doc), bytes: statSync(outPath).size }
+  writeFileSync(outPath, bytes)
+  return { tris: countTris(out), bytes: statSync(outPath).size }
 }

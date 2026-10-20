@@ -68,6 +68,19 @@ describe('buildAsset', () => {
     expect(mat.getMetallicRoughnessTexture().getSize()).toEqual([32, 32])
   }, 60_000)
 
+  it('lowers the texture quality until a busy texture fits the size budget, keeping its size', async () => {
+    const raw = file('raw-busy.glb', await fixtureGlb({ tris: 500, busy: true }))
+    const roomy = { ...BUDGETS.small, px: 256, kb: 10_000 }
+    const full = await buildAsset(raw, join(dir, 'busy-full.glb'), asset, roomy)
+    const tight = { ...roomy, kb: Math.floor((full.bytes * 0.85) / 1024) }
+    const out = join(dir, 'busy-tight.glb')
+    const res = await buildAsset(raw, out, asset, tight)
+    expect(res.bytes).toBeLessThanOrEqual(tight.kb * 1024)
+    expect(res.bytes).toBe(statSync(out).size)
+    const mat = (await readGlb(out)).getRoot().listMaterials()[0]
+    expect(mat.getBaseColorTexture().getSize()).toEqual([256, 256])
+  }, 60_000)
+
   it('turn: 180 rotates the model about Y', async () => {
     const raw = file('raw-turn.glb', await fixtureGlb())
     const out = join(dir, 'turned.glb')

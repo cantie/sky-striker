@@ -9,8 +9,9 @@ const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16))
  * A flattened UV sphere (Y is the thin axis) with a longer nose on +Z, and one glow stripe in its texture.
  * `charts`: every triangle is its own UV island, like a Hunyuan texture atlas cut into many small pieces.
  * `mr`: a 64×64 metallic-roughness texture as well, as Hunyuan's PBR output has.
+ * `busy`: a 256×256 base color full of fine painted detail, which compresses poorly.
  */
-export async function fixtureGlb({ tris = 10_000, normals = false, mimeLie = true, stripe = '#3fd4ff', charts = false, mr = false } = {}) {
+export async function fixtureGlb({ tris = 10_000, normals = false, mimeLie = true, stripe = '#3fd4ff', charts = false, mr = false, busy = false } = {}) {
   const rings = Math.max(4, Math.round(Math.sqrt(tris / 2)))
   const segs = Math.max(8, Math.round(tris / (2 * rings)))
   const pos = [], uv = [], nor = [], idx = []
@@ -41,11 +42,13 @@ export async function fixtureGlb({ tris = 10_000, normals = false, mimeLie = tru
     }
   }
 
-  // 64×64 gray with an 8-pixel stripe of the glow color
-  const px = Buffer.alloc(64 * 64 * 3, 110)
+  // 64×64 gray (256×256 noise when busy) with a stripe of the glow color across the middle
+  const S = busy ? 256 : 64
+  const px = Buffer.alloc(S * S * 3, 110)
+  if (busy) { let seed = 1; for (let i = 0; i < px.length; i++) { seed = (seed * 1103515245 + 12345) & 0x7fffffff; px[i] = 60 + (seed >> 16) % 120 } }
   const [r, g, b] = hex(stripe)
-  for (let y = 28; y < 36; y++) for (let x = 0; x < 64; x++) px.set([r, g, b], (y * 64 + x) * 3)
-  const jpeg = await sharp(px, { raw: { width: 64, height: 64, channels: 3 } }).jpeg({ quality: 95 }).toBuffer()
+  for (let y = (S * 7) / 16; y < (S * 9) / 16; y++) for (let x = 0; x < S; x++) px.set([r, g, b], (y * S + x) * 3)
+  const jpeg = await sharp(px, { raw: { width: S, height: S, channels: 3 } }).jpeg({ quality: 95 }).toBuffer()
 
   const doc = new Document()
   const buffer = doc.createBuffer()

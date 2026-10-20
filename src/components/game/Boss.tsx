@@ -10,6 +10,7 @@ import { net } from '../../game/sim/net'
 import { rand } from '../../game/sim/rng'
 import { useSimStep } from '../../game/sim/useSimStep'
 import { ShipModel } from './Model'
+import { applyFlash, captureLooks, type Look } from './materialLook'
 import { Vehicle } from './Vehicles'
 import { gameDt } from '../../game/speed'
 import { sounds } from '../../hooks/useAudio'
@@ -127,7 +128,7 @@ export function Boss() {
   const stage = getStage(stageId)
   const def = BOSSES[stage.boss]
   const mats = useRef<THREE.MeshStandardMaterial[]>([])
-  const baseEmissive = useRef<{ c: THREE.Color; i: number }[] | null>(null)
+  const baseEmissive = useRef<Look[] | null>(null)
   const prevHp = useRef(boss?.hp ?? 0)
   const flashUntil = useRef(0)
   const clock = useRef(0)
@@ -251,12 +252,8 @@ export function Boss() {
 
     // Hit flash
     if (mats.current.length) {
-      if (!baseEmissive.current) baseEmissive.current = mats.current.map((m) => ({ c: m.emissive.clone(), i: m.emissiveIntensity }))
-      const flashing = Date.now() < flashUntil.current
-      mats.current.forEach((m, i) => {
-        if (flashing) { m.emissive.set('#ffffff'); m.emissiveIntensity = 1.2 }
-        else { m.emissive.copy(baseEmissive.current![i].c); m.emissiveIntensity = baseEmissive.current![i].i }
-      })
+      if (!baseEmissive.current) baseEmissive.current = captureLooks(mats.current)
+      applyFlash(mats.current, baseEmissive.current, Date.now() < flashUntil.current, 1.2)
     }
   })
 

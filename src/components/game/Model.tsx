@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import { models, useModelScene } from '../../game/assets/modelCache'
 import { MODEL_PATHS, noseIsNegZ, type MaterialPalette } from '../../game/models'
 import { EngineFlame } from './EngineFlame'
+import { applySilhouette } from './materialLook'
 
 export { MODEL_PATHS, type ModelKey, type MaterialPalette } from '../../game/models'
 
@@ -22,7 +23,7 @@ export function fitObject(obj: THREE.Object3D, targetSize = 1, axis: 'max' | 'y'
 }
 
 export function GlbModel({
-  path, size = 1, sizeAxis = 'max', grounded = false, rotation, color, emissive, palette, materialsRef,
+  path, size = 1, sizeAxis = 'max', grounded = false, rotation, color, emissive, palette, materialsRef, silhouette,
   castShadow = true, receiveShadow = true,
 }: {
   path: string; size?: number; sizeAxis?: 'max' | 'y'; grounded?: boolean
@@ -31,6 +32,8 @@ export function GlbModel({
   palette?: MaterialPalette
   /** Receives this instance's own (cloned) materials, e.g. for hit flashes. */
   materialsRef?: MutableRefObject<THREE.MeshStandardMaterial[]>
+  /** Draw the model as one flat dark color (a locked plane in the hangar). */
+  silhouette?: string
   castShadow?: boolean; receiveShadow?: boolean
 }) {
   const scene = useModelScene(path)
@@ -38,7 +41,7 @@ export function GlbModel({
   const obj = useMemo(() => {
     const clone = scene.clone(true)
     // scene.clone shares materials across instances — clone them before mutating
-    const custom = !!(color || emissive || palette || materialsRef)
+    const custom = !!(color || emissive || palette || materialsRef || silhouette)
     const owned: THREE.MeshStandardMaterial[] = []
     clone.traverse((c) => {
       const m = c as THREE.Mesh
@@ -61,22 +64,28 @@ export function GlbModel({
             if (p.metalness !== undefined) std.metalness = p.metalness
             if (p.roughness !== undefined) std.roughness = p.roughness
           }
+          if (silhouette) applySilhouette(std, silhouette)
           std.needsUpdate = true
           if (custom) owned.push(std)
         }
       })
     })
-    if (materialsRef) materialsRef.current = owned
     fitObject(clone, size, sizeAxis, grounded)
-    return clone
+    return { clone, owned }
     // paletteKey stands in for palette so inline objects don't rebuild every render
-  }, [scene, size, sizeAxis, grounded, color, emissive, paletteKey, materialsRef, castShadow, receiveShadow])
+  }, [scene, size, sizeAxis, grounded, color, emissive, paletteKey, materialsRef, silhouette, castShadow, receiveShadow])
+
+  // Handed out on commit, not inside useMemo: StrictMode runs the memo twice and keeps one result,
+  // so a ref set there can end up holding the materials of the clone that is never drawn
+  useLayoutEffect(() => {
+    if (materialsRef) materialsRef.current = obj.owned
+  }, [obj, materialsRef])
 
   useLayoutEffect(() => {
-    if (rotation) obj.rotation.set(...rotation)
+    if (rotation) obj.clone.rotation.set(...rotation)
   }, [obj, rotation])
 
-  return <primitive object={obj} />
+  return <primitive object={obj.clone} />
 }
 
 /** Model footprint normalised so its largest dimension is 1 (cached per path). */
@@ -102,9 +111,9 @@ export function ShipModel(props: ComponentProps<typeof ShipBody>) {
 }
 
 function ShipBody({
-  path, size, palette, emissive, materialsRef, flame, flames = 1, flameScale = 1, core = '#fff2d0', grounded = false,
+  path, size, palette, emissive, materialsRef, silhouette, flame, flames = 1, flameScale = 1, core = '#fff2d0', grounded = false,
 }: {
-  path: string; size: number; palette?: MaterialPalette; emissive?: string
+  path: string; size: number; palette?: MaterialPalette; emissive?: string; silhouette?: string
   /** Sit the model's bottom on y=0 (ships on water) instead of centring it. */
   grounded?: boolean
   materialsRef?: MutableRefObject<THREE.MeshStandardMaterial[]>
@@ -119,7 +128,7 @@ function ShipBody({
   return (
     <group>
       <group rotation={[0, noseIsNegZ(path) ? Math.PI : 0, 0]}>
-        <GlbModel path={path} size={size} palette={palette} emissive={emissive} materialsRef={materialsRef} grounded={grounded} />
+        <GlbModel path={path} size={size} palette={palette} emissive={emissive} materialsRef={materialsRef} silhouette={silhouette} grounded={grounded} />
       </group>
       {flame && xs.map((x) => (
         <EngineFlame key={x} position={[x, 0.02, tail]} color={flame} core={core} length={len} width={width} />

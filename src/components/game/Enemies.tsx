@@ -12,6 +12,7 @@ import { net } from '../../game/sim/net'
 import { rand, randFor } from '../../game/sim/rng'
 import { useSimStep } from '../../game/sim/useSimStep'
 import { ShipModel } from './Model'
+import { applyFlash, captureLooks, type Look } from './materialLook'
 import { Vehicle } from './Vehicles'
 import { sounds } from '../../hooks/useAudio'
 import { gameDt } from '../../game/speed'
@@ -186,7 +187,7 @@ function EnemyShip({ enemy, stage }: { enemy: Enemy; stage: StageConfig }) {
   const skin = stage.skins[enemy.type as AirRole]
   const bankGroup = useRef<THREE.Group>(null)
   const mats = useRef<THREE.MeshStandardMaterial[]>([])
-  const base = useRef<{ emissive: THREE.Color; intensity: number }[] | null>(null)
+  const base = useRef<Look[] | null>(null)
   const prevHeading = useRef(enemy.heading)
   const flashUntil = useHitFlash(enemy.hp)
   const latest = useRef(enemy)
@@ -204,12 +205,8 @@ function EnemyShip({ enemy, stage }: { enemy: Enemy; stage: StageConfig }) {
     prevHeading.current = e.heading
 
     if (!mats.current.length) return
-    if (!base.current) base.current = mats.current.map((m) => ({ emissive: m.emissive.clone(), intensity: m.emissiveIntensity }))
-    const flashing = Date.now() < flashUntil.current
-    mats.current.forEach((m, i) => {
-      if (flashing) { m.emissive.set('#ffffff'); m.emissiveIntensity = 1.6 }
-      else { m.emissive.copy(base.current![i].emissive); m.emissiveIntensity = base.current![i].intensity }
-    })
+    if (!base.current) base.current = captureLooks(mats.current)
+    applyFlash(mats.current, base.current, Date.now() < flashUntil.current, 1.6)
   })
 
   return (

@@ -54,7 +54,8 @@ export function HangarPreview() {
           key={plane.id}
           path={plane.model}
           size={plane.size}
-          palette={owned ? plane.palette : Object.fromEntries(Object.keys(plane.palette).map((k) => [k, { color: '#2a3140' }]))}
+          palette={plane.palette}
+          silhouette={owned ? undefined : '#2a3140'}
           flame={owned ? plane.flame : undefined}
           flames={plane.flames}
           flameScale={1.2}

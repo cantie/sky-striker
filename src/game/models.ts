@@ -56,6 +56,10 @@ export const MODEL_PATHS = {
 
 export type ModelKey = keyof typeof MODEL_PATHS
 
+/** A model built by the art pipeline (art/manifest.mjs → public/models/ai/<id>.glb). */
+export const aiModel = (id: string) => `/models/ai/${id}.glb`
+export const isAiModel = (path: string) => path.startsWith('/models/ai/')
+
 /** Kenney space craft are modelled nose −Z; everything else used as a ship faces +Z. */
 export const noseIsNegZ = (path: string) => path.includes('/kenney-space/')
 

@@ -1,6 +1,6 @@
-import { useMemo, useLayoutEffect, type MutableRefObject } from 'react'
-import { useGLTF } from '@react-three/drei'
+import { Suspense, useMemo, useLayoutEffect, type ComponentProps, type MutableRefObject } from 'react'
 import * as THREE from 'three'
+import { models, useModelScene } from '../../game/assets/modelCache'
 import { MODEL_PATHS, noseIsNegZ, type MaterialPalette } from '../../game/models'
 import { EngineFlame } from './EngineFlame'
 
@@ -33,7 +33,7 @@ export function GlbModel({
   materialsRef?: MutableRefObject<THREE.MeshStandardMaterial[]>
   castShadow?: boolean; receiveShadow?: boolean
 }) {
-  const { scene } = useGLTF(path)
+  const scene = useModelScene(path)
   const paletteKey = palette ? JSON.stringify(palette) : ''
   const obj = useMemo(() => {
     const clone = scene.clone(true)
@@ -82,7 +82,7 @@ export function GlbModel({
 /** Model footprint normalised so its largest dimension is 1 (cached per path). */
 const dimsCache = new Map<string, THREE.Vector3>()
 export function useModelDims(path: string): THREE.Vector3 {
-  const { scene } = useGLTF(path)
+  const scene = useModelScene(path)
   let d = dimsCache.get(path)
   if (!d) {
     const size = new THREE.Box3().setFromObject(scene).getSize(new THREE.Vector3())
@@ -96,7 +96,12 @@ export function useModelDims(path: string): THREE.Vector3 {
  * A flying craft with its nose on local +Z (whatever the source kit's convention)
  * and exhaust plumes placed on its tail from the model's real footprint.
  */
-export function ShipModel({
+export function ShipModel(props: ComponentProps<typeof ShipBody>) {
+  // Its own boundary: a model that arrives late hides only itself, not the whole scene
+  return <Suspense fallback={null}><ShipBody {...props} /></Suspense>
+}
+
+function ShipBody({
   path, size, palette, emissive, materialsRef, flame, flames = 1, flameScale = 1, core = '#fff2d0', grounded = false,
 }: {
   path: string; size: number; palette?: MaterialPalette; emissive?: string
@@ -123,4 +128,5 @@ export function ShipModel({
   )
 }
 
-Object.values(MODEL_PATHS).forEach((p) => useGLTF.preload(p))
+// The kit models are small: load them all up front, as before. AI models load per stage (stageLoader).
+Object.values(MODEL_PATHS).forEach((p) => { models.get(p).catch(() => {}) })

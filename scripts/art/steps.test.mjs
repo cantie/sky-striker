@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { STYLE } from '../../art/manifest.mjs'
-import { conceptPrompt, planConcept, planModel, reviewPage } from './steps.mjs'
+import { conceptPrompt, cutBackground, planConcept, planModel, reviewPage } from './steps.mjs'
 
 const design = { id: 'enemy-basic-s1', kind: 'enemy', batch: 1, budget: 'small', glow: '#ff3b2f', prompt: 'A heavy gunship.' }
 const repaint = { id: 'enemy-basic-s2', kind: 'enemy', batch: 3, budget: 'small', glow: '#ff7a2a', base: 'enemy-basic-s1', livery: 'desert sand with rust panels' }
@@ -45,6 +45,27 @@ describe('what each step still has to do', () => {
     const built = files('art/concepts/enemy-basic-s1.webp', 'art/.cache/raw/enemy-basic-s1.glb')
     expect(planModel([design], built, false)).toEqual({ todo: [], blocked: [] })
     expect(ids(planModel([design], built, true).todo)).toEqual(['enemy-basic-s1'])
+  })
+})
+
+describe('background cutout before modelling', () => {
+  // 5×5: gray backdrop, a red 3×3 craft whose middle pixel is gray paint
+  const G = [128, 128, 128, 255], R = [200, 30, 30, 255]
+  const grid = ['GGGGG', 'GRRRG', 'GRGRG', 'GRRRG', 'GGGGG']
+  const rgba = () => new Uint8Array(grid.join('').split('').flatMap((c) => (c === 'G' ? G : R)))
+  const alpha = (px) => grid.map((_, y) => [0, 1, 2, 3, 4].map((x) => (px[(y * 5 + x) * 4 + 3] ? '#' : '.')).join(''))
+
+  it('the backdrop reached from the border goes transparent, gray paint inside the craft stays', () => {
+    const px = rgba()
+    cutBackground(px, 5, 5)
+    expect(alpha(px)).toEqual(['.....', '.###.', '.###.', '.###.', '.....'])
+  })
+
+  it('a backdrop pixel a little off #808080 still goes', () => {
+    const px = rgba()
+    px.set([140, 118, 130], 0)
+    cutBackground(px, 5, 5)
+    expect(px[3]).toBe(0)
   })
 })
 

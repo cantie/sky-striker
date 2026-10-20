@@ -74,6 +74,22 @@ async function addEmissive(doc, glow) {
   }
 }
 
+/**
+ * Last resort when UV seams stop simplify short of the budget (a texture atlas cut into many small
+ * islands): collapse across the seams too. Texture coordinates bend a little along the seams that go.
+ */
+function simplifyAcrossSeams(doc, budget) {
+  const prims = doc.getRoot().listMeshes().flatMap((m) => m.listPrimitives()).filter((p) => p.getIndices())
+  const ratio = budget.tris / countTris(doc)
+  for (const p of prims) {
+    const indices = new Uint32Array(p.getIndices().getArray())
+    const positions = new Float32Array(p.getAttribute('POSITION').getArray())
+    const target = Math.floor((indices.length / 3) * ratio) * 3
+    const [kept] = MeshoptSimplifier.simplify(indices, positions, 3, target, 1, ['Permissive', 'Prune'])
+    p.getIndices().setArray(new Uint32Array(kept))
+  }
+}
+
 export async function buildAsset(rawPath, outPath, asset, budget) {
   const io = await artIO()
   await MeshoptSimplifier.ready
@@ -91,13 +107,19 @@ export async function buildAsset(rawPath, outPath, asset, budget) {
       await doc.transform(simplify({ simplifier: MeshoptSimplifier, ratio: Math.min(1, budget.tris / countTris(doc)), error }))
       if (countTris(doc) <= budget.tris) break
     }
+    if (countTris(doc) > budget.tris) {
+      simplifyAcrossSeams(doc, budget)
+      await doc.transform(weld())
+    }
   }
   bakeNormals(doc, asset.turn ?? 0)
   await doc.transform(weld())
   if (asset.glow) await addEmissive(doc, asset.glow)
   await doc.transform(
     dedup(), prune(),
-    textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [budget.px, budget.px] }),
+    // Metal and roughness change slowly across the surface: half size is enough and keeps small assets in budget
+    textureCompress({ encoder: sharp, targetFormat: 'webp', slots: /^metallicRoughness/, resize: [budget.px / 2, budget.px / 2] }),
+    textureCompress({ encoder: sharp, targetFormat: 'webp', slots: /^(?!metallicRoughness)/, resize: [budget.px, budget.px] }),
     meshopt({ encoder: MeshoptEncoder, level: 'high' }),
   )
   mkdirSync(dirname(outPath), { recursive: true })

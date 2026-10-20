@@ -64,6 +64,36 @@ img{width:320px;height:320px;object-fit:contain;background:#808080}small{color:#
 const write = (path, bytes) => { mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, bytes) }
 const toPng = (path) => sharp(path).png().toBuffer()
 
+/**
+ * The concept's flat #808080 backdrop → transparent, filled in from the border so gray paint on the
+ * craft stays. Without it Hunyuan3D can model the backdrop as a slab under the craft.
+ */
+export function cutBackground(rgba, width, height, tolerance = 14) {
+  const backdrop = (p) => [0, 1, 2].every((c) => Math.abs(rgba[p * 4 + c] - 128) <= tolerance)
+  const seen = new Uint8Array(width * height)
+  const stack = []
+  for (let x = 0; x < width; x++) stack.push(x, (height - 1) * width + x)
+  for (let y = 0; y < height; y++) stack.push(y * width, y * width + width - 1)
+  while (stack.length) {
+    const p = stack.pop()
+    if (seen[p] || !backdrop(p)) continue
+    seen[p] = 1
+    rgba[p * 4 + 3] = 0
+    const x = p % width
+    if (x > 0) stack.push(p - 1)
+    if (x < width - 1) stack.push(p + 1)
+    if (p >= width) stack.push(p - width)
+    if (p < (height - 1) * width) stack.push(p + width)
+  }
+  return rgba
+}
+
+async function cutoutPng(path) {
+  const { data, info } = await sharp(path).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+  cutBackground(data, info.width, info.height)
+  return sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer()
+}
+
 export async function runConcept(assets, { env, force = false, n, paths = artPaths(), log = console.log }) {
   requireKeys(env, ['IMAGE_API', 'IMAGE_KEY', 'IMAGE_MODEL'])
   const image = createImageClient({ api: env.IMAGE_API, key: env.IMAGE_KEY, model: env.IMAGE_MODEL })
@@ -108,7 +138,7 @@ export async function runModel(assets, { env, force = false, paths = artPaths(),
   const { todo, blocked } = planModel(assets, existsSync, force, paths)
   const res = await runBatch(todo, async (a) => {
     const t0 = Date.now()
-    const png = await toPng(paths.concept(a.id))
+    const png = await cutoutPng(paths.concept(a.id))
     write(paths.raw(a.id), await withRetry((seed) => hy3d.generate(png, seed), a.seed ?? 42))
     log(`${a.id}: model in ${((Date.now() - t0) / 1000).toFixed(0)} s`)
   }, { concurrency: 2 })

@@ -5,8 +5,12 @@ import sharp from 'sharp'
 
 const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16))
 
-/** A flattened UV sphere (Y is the thin axis) with a longer nose on +Z, and one glow stripe in its texture. */
-export async function fixtureGlb({ tris = 10_000, normals = false, mimeLie = true, stripe = '#3fd4ff' } = {}) {
+/**
+ * A flattened UV sphere (Y is the thin axis) with a longer nose on +Z, and one glow stripe in its texture.
+ * `charts`: every triangle is its own UV island, like a Hunyuan texture atlas cut into many small pieces.
+ * `mr`: a 64×64 metallic-roughness texture as well, as Hunyuan's PBR output has.
+ */
+export async function fixtureGlb({ tris = 10_000, normals = false, mimeLie = true, stripe = '#3fd4ff', charts = false, mr = false } = {}) {
   const rings = Math.max(4, Math.round(Math.sqrt(tris / 2)))
   const segs = Math.max(8, Math.round(tris / (2 * rings)))
   const pos = [], uv = [], nor = [], idx = []
@@ -23,7 +27,17 @@ export async function fixtureGlb({ tris = 10_000, normals = false, mimeLie = tru
   for (let i = 0; i < rings; i++) {
     for (let j = 0; j < segs; j++) {
       const a = i * (segs + 1) + j, b = a + segs + 1
-      idx.push(a, b, a + 1, b, b + 1, a + 1)
+      if (!charts) { idx.push(a, b, a + 1, b, b + 1, a + 1); continue }
+      // Each triangle gets its own copies of its corners, UVs shifted: every edge is a UV seam
+      for (const tri of [[a, b, a + 1], [b, b + 1, a + 1]]) {
+        const base = pos.length / 3, shift = (idx.length % 13) * 0.01
+        for (const v of tri) {
+          pos.push(pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2])
+          nor.push(nor[v * 3], nor[v * 3 + 1], nor[v * 3 + 2])
+          uv.push(uv[v * 2] + shift, uv[v * 2 + 1])
+        }
+        idx.push(base, base + 1, base + 2)
+      }
     }
   }
 
@@ -42,7 +56,14 @@ export async function fixtureGlb({ tris = 10_000, normals = false, mimeLie = tru
     .setIndices(acc('SCALAR', new Uint32Array(idx)))
   if (normals) prim.setAttribute('NORMAL', acc('VEC3', new Float32Array(nor)))
   const tex = doc.createTexture('base').setImage(new Uint8Array(jpeg)).setMimeType(mimeLie ? 'image/png' : 'image/jpeg')
-  prim.setMaterial(doc.createMaterial('mat').setBaseColorTexture(tex).setMetallicFactor(0.5).setRoughnessFactor(0.5))
+  const mat = doc.createMaterial('mat').setBaseColorTexture(tex).setMetallicFactor(0.5).setRoughnessFactor(0.5)
+  if (mr) {
+    const noise = Buffer.alloc(64 * 64 * 3)
+    for (let i = 0; i < noise.length; i++) noise[i] = (i * 37) % 256
+    const png = await sharp(noise, { raw: { width: 64, height: 64, channels: 3 } }).png().toBuffer()
+    mat.setMetallicRoughnessTexture(doc.createTexture('mr').setImage(new Uint8Array(png)).setMimeType('image/png'))
+  }
+  prim.setMaterial(mat)
   const node = doc.createNode('craft').setMesh(doc.createMesh('craft').addPrimitive(prim))
   doc.createScene().addChild(node)
   return new NodeIO().writeBinary(doc)

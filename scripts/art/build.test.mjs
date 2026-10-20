@@ -51,6 +51,23 @@ describe('buildAsset', () => {
     expect(built.stats.bytes).toBe(statSync(built.path).size)
   })
 
+  it('reaches the triangle budget even when UV seams cut the mesh into small pieces', async () => {
+    const raw = file('raw-charts.glb', await fixtureGlb({ charts: true }))
+    const out = join(dir, 'charts.glb')
+    const { tris } = await buildAsset(raw, out, asset, BUDGETS.small)
+    expect(tris).toBeLessThanOrEqual(2000)
+    expect(await checkGlb(out, asset, BUDGETS.small)).toEqual([])
+  }, 60_000)
+
+  it('the metallic-roughness map is kept at half the base color size', async () => {
+    const raw = file('raw-mr.glb', await fixtureGlb({ mr: true }))
+    const out = join(dir, 'mr.glb')
+    await buildAsset(raw, out, asset, { ...BUDGETS.small, px: 64 })
+    const mat = (await readGlb(out)).getRoot().listMaterials()[0]
+    expect(mat.getBaseColorTexture().getSize()).toEqual([64, 64])
+    expect(mat.getMetallicRoughnessTexture().getSize()).toEqual([32, 32])
+  }, 60_000)
+
   it('turn: 180 rotates the model about Y', async () => {
     const raw = file('raw-turn.glb', await fixtureGlb())
     const out = join(dir, 'turned.glb')

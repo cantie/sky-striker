@@ -3,8 +3,10 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, relative } from 'node:path'
 import sharp from 'sharp'
-import { STYLE } from '../../art/manifest.mjs'
+import { BUDGETS, STYLE } from '../../art/manifest.mjs'
 import { runBatch, withRetry } from './batch.mjs'
+import { buildAsset } from './build.mjs'
+import { checkGlb } from './checks.mjs'
 import { createHy3dClient, createImageClient } from './clients.mjs'
 import { requireKeys } from './env.mjs'
 import { artPaths } from './paths.mjs'
@@ -109,6 +111,20 @@ export async function runModel(assets, { env, force = false, paths = artPaths(),
     const png = await toPng(paths.concept(a.id))
     write(paths.raw(a.id), await withRetry((seed) => hy3d.generate(png, seed), a.seed ?? 42))
     log(`${a.id}: model in ${((Date.now() - t0) / 1000).toFixed(0)} s`)
+  }, { concurrency: 2 })
+  return { ...res, blocked }
+}
+
+/** Raw GLBs → public/models/ai; an asset over budget or failing a check fails. */
+export async function runBuild(assets, { paths = artPaths(), log = console.log } = {}) {
+  const blocked = assets.filter((a) => !existsSync(paths.raw(a.id))).map((a) => ({ id: a.id, reason: 'no raw model (run model first)' }))
+  const todo = assets.filter((a) => existsSync(paths.raw(a.id)))
+  const res = await runBatch(todo, async (a) => {
+    const budget = BUDGETS[a.budget]
+    const { tris, bytes } = await buildAsset(paths.raw(a.id), paths.out(a.id), a, budget)
+    log(`${a.id}: ${tris} tris, ${Math.round(bytes / 1024)} KB (budget ${budget.tris}, ${budget.kb} KB)`)
+    const problems = await checkGlb(paths.out(a.id), a, budget)
+    if (problems.length) throw new Error(problems.join('; '))
   }, { concurrency: 2 })
   return { ...res, blocked }
 }

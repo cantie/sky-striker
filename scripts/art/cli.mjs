@@ -7,7 +7,7 @@
 import { ASSETS, BUDGETS } from '../../art/manifest.mjs'
 import { loadArtEnv } from './env.mjs'
 import { selectAssets, validateManifest } from './manifest.mjs'
-import { runApprove, runConcept, runModel } from './steps.mjs'
+import { runApprove, runBuild, runConcept, runModel } from './steps.mjs'
 
 const args = process.argv.slice(2)
 const flags = { force: args.includes('--force'), n: undefined }
@@ -42,6 +42,7 @@ async function main() {
       return true
     }
     case 'model': return report(await runModel(pick(), { env, force: flags.force }))
+    case 'build': return report(await runBuild(pick()))
     default:
       console.error('Usage: npm run art -- <concept|approve|model|build|preview> <batch|ids> [--force] [--n N]')
       return false

@@ -58,6 +58,7 @@ export function HangarPreview() {
           silhouette={owned ? undefined : '#2a3140'}
           flame={owned ? plane.flame : undefined}
           flames={plane.flames}
+          nozzles={plane.nozzles}
           flameScale={1.2}
         />
         {plane.skill === 'wingmen' && [-1.6, 1.6].map((x) => (

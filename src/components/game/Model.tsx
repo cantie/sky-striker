@@ -1,6 +1,7 @@
 import { Suspense, useMemo, useLayoutEffect, type ComponentProps, type MutableRefObject } from 'react'
 import * as THREE from 'three'
 import { models, useModelScene } from '../../game/assets/modelCache'
+import { flamePositions, type Nozzle } from '../../game/flames'
 import { MODEL_PATHS, noseIsNegZ, type MaterialPalette } from '../../game/models'
 import { EngineFlame } from './EngineFlame'
 import { applySilhouette } from './materialLook'
@@ -111,27 +112,27 @@ export function ShipModel(props: ComponentProps<typeof ShipBody>) {
 }
 
 function ShipBody({
-  path, size, palette, emissive, materialsRef, silhouette, flame, flames = 1, flameScale = 1, core = '#fff2d0', grounded = false,
+  path, size, palette, emissive, materialsRef, silhouette, flame, flames = 1, nozzles, flameScale = 1, core = '#fff2d0', grounded = false,
 }: {
   path: string; size: number; palette?: MaterialPalette; emissive?: string; silhouette?: string
   /** Sit the model's bottom on y=0 (ships on water) instead of centring it. */
   grounded?: boolean
   materialsRef?: MutableRefObject<THREE.MeshStandardMaterial[]>
   flame?: string; flames?: 0 | 1 | 2; flameScale?: number; core?: string
+  /** Exhausts by hand (see flamePositions); replace the default one or two on the tail. */
+  nozzles?: Nozzle[]
 }) {
   const dims = useModelDims(path)
-  const tail = -(dims.z * size) / 2 * 0.94
-  const spread = dims.x * size * 0.16
   const len = (0.3 + size * 0.22) * flameScale
   const width = (0.05 + size * 0.045) * flameScale
-  const xs = flames === 2 ? [-spread, spread] : flames === 1 ? [0] : []
+  const spots = flamePositions(dims, size, flames, nozzles)
   return (
     <group>
       <group rotation={[0, noseIsNegZ(path) ? Math.PI : 0, 0]}>
         <GlbModel path={path} size={size} palette={palette} emissive={emissive} materialsRef={materialsRef} silhouette={silhouette} grounded={grounded} />
       </group>
-      {flame && xs.map((x) => (
-        <EngineFlame key={x} position={[x, 0.02, tail]} color={flame} core={core} length={len} width={width} />
+      {flame && spots.map((p) => (
+        <EngineFlame key={p.join()} position={p} color={flame} core={core} length={len} width={width} />
       ))}
     </group>
   )

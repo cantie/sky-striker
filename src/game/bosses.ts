@@ -1,4 +1,5 @@
 import { MODEL_PATHS, kenneyLivery, quatLivery, type MaterialPalette } from './models'
+import type { Nozzle } from './flames'
 import type { GroundSkin } from './roster'
 
 /** How the boss moves once it has arrived on screen. */
@@ -20,6 +21,7 @@ export interface BossDef {
   palette?: MaterialPalette
   emissive?: string
   flames: 0 | 1 | 2
+  nozzles?: Nozzle[]
   flameColor: string
   /** Bullet hit radius. */
   radius: number

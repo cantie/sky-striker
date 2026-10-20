@@ -1,3 +1,4 @@
+import type { Nozzle } from './flames'
 import { MODEL_PATHS as M, kenneyLivery as kl, quatLivery as ql, type MaterialPalette } from './models'
 
 /** Signature ability each hangar plane brings into a run. */
@@ -23,6 +24,7 @@ export interface PlaneDef {
   palette: MaterialPalette
   flame: string
   flames: 1 | 2
+  nozzles?: Nozzle[]
   /** Hits the hull can take (every bullet/ram costs 1, a boss laser 2). */
   hp: number
   /** Multiplier on cannon cooldown (<1 = faster). */

@@ -212,7 +212,7 @@ function EnemyShip({ enemy, stage }: { enemy: Enemy; stage: StageConfig }) {
   return (
     <group position={[enemy.x, 0.25, enemy.y]} rotation={[0, enemy.heading, 0]}>
       <group ref={bankGroup}>
-        <ShipModel path={skin.model} size={skin.size} palette={skin.palette} materialsRef={mats} flame={skin.flame} flames={skin.flames} />
+        <ShipModel path={skin.model} size={skin.size} palette={skin.palette} materialsRef={mats} flame={skin.flame} flames={skin.flames} nozzles={skin.nozzles} />
       </group>
     </group>
   )

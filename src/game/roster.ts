@@ -1,3 +1,4 @@
+import type { Nozzle } from './flames'
 import type { MaterialPalette } from './models'
 
 export type AirRole = 'basic' | 'fast' | 'heavy' | 'shooter'
@@ -32,6 +33,8 @@ export interface AirSkin {
   flame: string
   /** Number of exhaust plumes (1, 2 side by side). */
   flames: 1 | 2
+  /** Exhausts placed by hand where the default rule misses the model's engines. */
+  nozzles?: Nozzle[]
 }
 
 export type Vehicle = 'tank' | 'boat' | 'hover'
@@ -46,4 +49,6 @@ export interface GroundSkin {
   gunModel?: string
   baseModel?: string
   turretGunModel?: string
+  /** Height of the gun's pivot on the AI body; default 0.35 (vehicle), 0.45 (turret). */
+  gunY?: number
 }

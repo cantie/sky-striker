@@ -121,7 +121,7 @@ export function Player() {
 
   return (
     <group ref={group}>
-      <ShipModel path={plane.model} size={plane.size} palette={plane.palette} flame={plane.flame} core="#ffffff" flames={plane.flames} flameScale={1.1} />
+      <ShipModel path={plane.model} size={plane.size} palette={plane.palette} flame={plane.flame} core="#ffffff" flames={plane.flames} nozzles={plane.nozzles} flameScale={1.1} />
       {plane.skill === 'wingmen' && WINGMEN.map(([ox, oz]) => (
         <group key={ox} position={[ox, 0, oz]}>
           <ShipModel path={plane.model} size={0.9} palette={plane.palette} flame={plane.flame} flames={1} />

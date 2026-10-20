@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react'
+import { Suspense, type ReactNode } from 'react'
 import * as THREE from 'three'
 import type { GroundSkin } from '../../game/roster'
+import { GlbModel } from './Model'
 
 /**
  * Procedural ground units (no tank models in the asset packs). Built nose-forward on +Z;
@@ -48,12 +49,46 @@ function Gun({ skin, y, twin = false, aimLocal }: { skin: GroundSkin; y: number;
   )
 }
 
+/** Sizes of the AI-built parts (largest side), in the vehicle's own units. */
+export const HULL_SIZE = 1.3
+export const GUN_SIZE = 0.8
+
+/** The AI models for a ground unit, or null to draw today's boxes (both a body and a gun are needed). */
+export function vehicleParts(skin: GroundSkin, turret: boolean): { body: string; gun: string; gunY: number } | null {
+  const body = turret ? skin.baseModel : skin.hullModel
+  const gun = turret ? skin.turretGunModel : skin.gunModel
+  if (!body || !gun) return null
+  return { body, gun, gunY: skin.gunY ?? (turret ? 0.45 : 0.35) }
+}
+
+function Wake() {
+  return (
+    <mesh position={[0, 0.02, -1.05]} rotation={[-Math.PI / 2, 0, 0]} scale={[0.55, 1.4, 1]}>
+      <circleGeometry args={[0.6, 16]} />
+      <meshBasicMaterial color="#ffffff" transparent opacity={0.45} depthWrite={false} />
+    </mesh>
+  )
+}
+
 export function Vehicle({ skin, heading, aim, scale = 1, turret = false }: {
   skin: GroundSkin; heading: number; aim: number; scale?: number; turret?: boolean
 }) {
   const aimLocal = aim - heading
+  const parts = vehicleParts(skin, turret)
   let body: ReactNode
-  if (turret) {
+  if (parts) {
+    body = (
+      <>
+        {!turret && skin.vehicle === 'boat' && <Wake />}
+        <Suspense fallback={null}>
+          <GlbModel path={parts.body} size={HULL_SIZE} grounded />
+          <group position={[0, parts.gunY, 0]} rotation={[0, aimLocal, 0]}>
+            <GlbModel path={parts.gun} size={GUN_SIZE} grounded />
+          </group>
+        </Suspense>
+      </>
+    )
+  } else if (turret) {
     // Fixed emplacement: octagonal bunker with a twin-gun head
     body = (
       <>
@@ -69,11 +104,7 @@ export function Vehicle({ skin, heading, aim, scale = 1, turret = false }: {
   } else if (skin.vehicle === 'boat') {
     body = (
       <>
-        {/* wake */}
-        <mesh position={[0, 0.02, -1.05]} rotation={[-Math.PI / 2, 0, 0]} scale={[0.55, 1.4, 1]}>
-          <circleGeometry args={[0.6, 16]} />
-          <meshBasicMaterial color="#ffffff" transparent opacity={0.45} depthWrite={false} />
-        </mesh>
+        <Wake />
         <Part args={[0.72, 0.3, 1.2]} position={[0, 0.15, -0.1]} color={skin.hull} />
         <mesh position={[0, 0.15, 0.68]} rotation={[Math.PI / 2, Math.PI / 4, 0]} scale={[1, 1, 0.42]} castShadow>
           <cylinderGeometry args={[0, 0.51, 0.55, 4]} />

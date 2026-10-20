@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitest/config'
 
-// Client unit tests + the Lua match under fengari (server/ has its own Jest suite)
+// Client unit tests, the Lua match under fengari and the art pipeline (server/ has its own Jest suite)
 export default defineConfig({
-  test: { include: ['src/**/*.test.ts', 'nakama/**/*.test.ts'] },
+  test: { include: ['src/**/*.test.ts', 'nakama/**/*.test.ts', 'scripts/**/*.test.mjs'] },
 })

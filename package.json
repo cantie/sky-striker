@@ -10,6 +10,7 @@
     "gen:coop": "node scripts/gen-coop-data.mjs",
     "nakama:install": "node scripts/nakama-install.mjs",
     "art": "node scripts/art/cli.mjs",
+    "art:memory": "node scripts/art/memory-check.mjs",
     "preview": "vite preview --port 4173 --host 0.0.0.0",
     "export:zip": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/export-deploy.ps1"
   },

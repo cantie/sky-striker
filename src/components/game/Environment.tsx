@@ -205,8 +205,10 @@ function Clouds({ biome, theme }: { biome: Biome; theme: Theme }) {
   )
 }
 
-export function Environment() {
-  const biome = useGameStore((s) => s.biome)
+/** The stage's ground, sky and light; `biome` overrides the store's (the art preview shows several at once). */
+export function Environment({ biome: only }: { biome?: Biome } = {}) {
+  const stored = useGameStore((s) => s.biome)
+  const biome = only ?? stored
   const theme = THEMES[biome]
 
   return (

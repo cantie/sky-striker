@@ -41,4 +41,9 @@ export interface GroundSkin {
   hull: string
   turret: string
   accent: string
+  /** AI-built parts (public/models/ai) in place of the procedural ones: tank/boat hull and its gun, turret base and gun. */
+  hullModel?: string
+  gunModel?: string
+  baseModel?: string
+  turretGunModel?: string
 }

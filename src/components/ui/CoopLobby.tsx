@@ -5,6 +5,8 @@ import { activeSession, lastRoomCode, startNakamaCoop, stopCoop } from '../../ne
 import { takeCoopError } from '../../net/coop/coopError'
 import { coopIdentity, guestsMayCoop } from '../../net/coop/identity'
 import { getPlane } from '../../game/planes'
+import { models } from '../../game/assets/modelCache'
+import { stageModels } from '../../game/stageModels'
 import { sounds } from '../../hooks/useAudio'
 import { useCoopStatus } from './useCoop'
 
@@ -42,6 +44,14 @@ export function CoopLobby() {
 
   const inRoom = room && room.phase === 'lobby'
   const me = roster.find((r) => r.id === room?.selfId)
+  const ownPlane = useGameStore((s) => s.progress.plane)
+  const rosterPlanes = roster.map((r) => r.plane).join()
+
+  useEffect(() => {
+    // Co-op starts at stage 1: fetch its models while we wait in the room
+    if (!inRoom) return
+    for (const p of stageModels(1, [ownPlane, ...(rosterPlanes ? rosterPlanes.split(',') : [])])) models.get(p).catch(() => {})
+  }, [inRoom, ownPlane, rosterPlanes])
 
   return (
     <div style={overlay}>

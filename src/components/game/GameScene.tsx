@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useRef } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing'
 import * as THREE from 'three'
@@ -19,6 +19,11 @@ import { ORDER, frame } from '../../game/sim/clock'
 import { useSimStep } from '../../game/sim/useSimStep'
 import { Teammates } from './Teammates'
 import { ReviveBeacon } from './ReviveBeacon'
+import { models } from '../../game/assets/modelCache'
+import { isAiModel } from '../../game/models'
+import { stageModels } from '../../game/stageModels'
+import { TOTAL_STAGES } from '../../game/stages'
+import { activeSession } from '../../net/coop/active'
 /** Half-extents with padding so the ship stays inside the visible area on mobile + desktop. */
 const HALF_W = (BOUNDS.maxX - BOUNDS.minX) / 2 + 1.1
 const HALF_H = (BOUNDS.maxY - BOUNDS.minY) / 2 + 1.4
@@ -31,6 +36,28 @@ const PLAYER_SPEED = 18
 /** Within this distance the plane eases in instead of stopping dead. */
 const EASE_DIST = 1.5
 
+/**
+ * Frees the AI models of stages no longer in play: keeps this stage's (and in co-op, where stages run
+ * back to back, the next one's, which it starts fetching now) for our plane and the wingmates'.
+ */
+function useKeepStageModels() {
+  const stageId = useGameStore((s) => s.selectedStageId)
+  const coop = useGameStore((s) => s.mode === 'coop')
+  const ownPlane = useGameStore((s) => s.progress.plane)
+  // Wingmates' planes live in the co-op session, read per frame like Teammates does
+  const [matePlanes, setMatePlanes] = useState('')
+  useFrame(() => {
+    const key = coop ? [...new Set(activeSession()?.teammates().map((m) => m.plane) ?? [])].sort().join() : ''
+    if (key !== matePlanes) setMatePlanes(key)
+  })
+  useEffect(() => {
+    const planes = [ownPlane, ...(matePlanes ? matePlanes.split(',') : [])]
+    const next = coop && stageId < TOTAL_STAGES ? stageModels(stageId + 1, planes) : []
+    models.keepOnly([...stageModels(stageId, planes), ...next], isAiModel)
+    for (const p of next) models.get(p).catch(() => {})
+  }, [stageId, coop, ownPlane, matePlanes])
+}
+
 export function GameScene() {
   const { camera, gl, size } = useThree()
   const keys = useRef(new Set<string>())
@@ -42,6 +69,11 @@ export function GameScene() {
   const hitOverlay = useRef<THREE.Mesh>(null)
   const gameState = useGameStore((s) => s.gameState)
   useAudio()
+  useKeepStageModels()
+
+  useEffect(() => {
+    if (import.meta.env.DEV) (window as unknown as { __renderer: THREE.WebGLRenderer }).__renderer = gl
+  }, [gl])
 
   /** Map CSS client coords → world X / Z (playerY). Camera looks down +Y with up=+Z, so screen-right is world −X. */
   const pointerToWorld = (clientX: number, clientY: number) => {

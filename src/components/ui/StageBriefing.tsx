@@ -1,5 +1,7 @@
-import type { CSSProperties } from 'react'
+import { useMemo, type CSSProperties } from 'react'
 import { useGameStore } from '../../store/gameStore'
+import { useStageModels } from '../../game/assets/stageLoader'
+import { stageModels } from '../../game/stageModels'
 import { getStage } from '../../game/stages'
 import { BOSSES } from '../../game/bosses'
 import { getPlane } from '../../game/planes'
@@ -18,8 +20,13 @@ export function StageBriefing() {
   const earned = countStars(progress, stageId)
   const total = totalStarsPossible(stageId)
   const hi = progress.stages[stageId]?.highScore ?? 0
+  // The stage starts once every model it shows is in (the AI ones load per stage)
+  const paths = useMemo(() => stageModels(stageId, [plane.id]), [stageId, plane.id])
+  const { status, retry } = useStageModels(paths)
+  const ready = status === 'ready'
 
   const start = async (easy?: boolean) => {
+    if (!ready) return
     sounds.uiSelect()
     await onPlayGesture()
     startGame({ stageId, easy })
@@ -76,10 +83,16 @@ export function StageBriefing() {
           </div>
         )}
 
-        <button type="button" style={startBtn} onClick={() => void start()}>
-          START
+        {status === 'error' && (
+          <div style={{ color: '#ff8a80', fontSize: 13, fontWeight: 800, textAlign: 'center' }}>
+            Could not load the aircraft
+            <button type="button" style={retryBtn} onClick={() => { sounds.uiClick(); retry() }}>RETRY</button>
+          </div>
+        )}
+        <button type="button" style={dim(startBtn, ready)} disabled={!ready} onClick={() => void start()}>
+          {status === 'loading' ? 'LOADING…' : 'START'}
         </button>
-        <button type="button" style={easyBtn} onClick={() => void start(true)}>
+        <button type="button" style={dim(easyBtn, ready)} disabled={!ready} onClick={() => void start(true)}>
           EASY START
         </button>
 
@@ -151,6 +164,11 @@ const easyBtn: CSSProperties = {
   width: '100%', padding: '0.75rem', border: 'none', borderRadius: 12,
   background: 'linear-gradient(180deg, #5ec8ff, #1a8fd0)', color: '#fff',
   fontWeight: 800, fontSize: '0.95rem', cursor: 'pointer', boxShadow: '0 5px 0 #0d5f90',
+}
+const dim = (style: CSSProperties, on: boolean): CSSProperties => on ? style : { ...style, opacity: 0.55, cursor: 'default' }
+const retryBtn: CSSProperties = {
+  marginLeft: 10, background: 'transparent', border: '1px solid rgba(255,138,128,0.6)', color: '#ff8a80',
+  borderRadius: 8, padding: '3px 10px', cursor: 'pointer', fontWeight: 800,
 }
 const livesRow: CSSProperties = {
   display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 4,

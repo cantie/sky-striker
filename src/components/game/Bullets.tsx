@@ -10,14 +10,11 @@ import { onScreen } from '../../game/world'
 import { ORDER } from '../../game/sim/clock'
 import { net } from '../../game/sim/net'
 import { useSimStep } from '../../game/sim/useSimStep'
+import { ENEMY_BULLET_COLOR } from '../../game/fx/color'
 import { bossKilled, enemyKilled } from './effects'
 
 const MAX = 512
-/**
- * One enemy-bullet look for every biome: dark rim (pops on snow/sand), hot magenta halo
- * (pops on lava/forest/water — a hue no terrain uses) and a white core.
- */
-export const ENEMY_BULLET_COLOR = '#ff2bd6'
+export { ENEMY_BULLET_COLOR }
 /** Homing missiles: cruise speed and turn rate (rad / game-second). */
 const MISSILE_SPEED = 14
 const MISSILE_TURN = 5

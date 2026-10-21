@@ -11,8 +11,11 @@ import { artIO, countTris } from './checks.mjs'
 import { hexToHsv, rgbToHsv } from './manifest.mjs'
 
 const CREASE_DEG = 35
-/** webp qualities tried in turn until the GLB fits its size budget (busy paint compresses poorly). */
-const QUALITIES = [80, 70, 60, 50]
+/**
+ * Encodings tried in turn until the GLB fits its size budget (busy paint compresses poorly): each webp
+ * quality first with a near-lossless glow map, then with a lossy one (large lights keep their color lossy).
+ */
+const ENCODINGS = [80, 70, 60, 50].flatMap((quality) => [{ quality, nearLossless: true }, { quality, nearLossless: false }])
 
 export function realMime(bytes) {
   const b = bytes
@@ -24,41 +27,80 @@ export function realMime(bytes) {
 
 const hueGap = (a, b) => { const d = Math.abs(a - b) % 360; return Math.min(d, 360 - d) }
 
-/** Lights are only painted: bright pixels close to the glow hue become the emissive map, the rest black. */
-export function extractEmissive(rgba, glow) {
+/**
+ * Which pixels are painted lights: saturated, close to the glow hue, and bright. "Bright" is 0.75, or
+ * 0.15 under the brightest such pixel when the texture has none that bright (ZPS 3D paints some lights
+ * dark), never under 0.5.
+ */
+export function lightMask(rgba, glow) {
   const want = hexToHsv(glow).h
+  const n = rgba.length / 4
+  const vs = new Float32Array(n)
+  let vmax = 0
+  for (let p = 0; p < n; p++) {
+    const i = p * 4
+    const { h, s, v } = rgbToHsv(rgba[i], rgba[i + 1], rgba[i + 2])
+    vs[p] = s >= 0.45 && hueGap(h, want) <= 20 ? v : -1
+    vmax = Math.max(vmax, vs[p])
+  }
+  const cut = Math.max(0.5, Math.min(0.75, vmax - 0.15))
+  return Uint8Array.from(vs, (v) => (v >= cut ? 1 : 0))
+}
+
+/** Lights are only painted: the light pixels become the emissive map, the rest black. */
+export function extractEmissive(rgba, glow) {
+  const mask = lightMask(rgba, glow)
   const out = new Uint8Array(rgba.length)
   let lit = 0
-  for (let i = 0; i < rgba.length; i += 4) {
-    const { h, s, v } = rgbToHsv(rgba[i], rgba[i + 1], rgba[i + 2])
-    if (isLight(s, v) && hueGap(h, want) <= 20) {
-      out[i] = rgba[i]; out[i + 1] = rgba[i + 1]; out[i + 2] = rgba[i + 2]
-      lit++
-    }
+  for (let p = 0; p < mask.length; p++) {
+    const i = p * 4
+    if (mask[p]) { out.set(rgba.subarray(i, i + 3), i); lit++ }
     out[i + 3] = 255
   }
   return { rgba: out, lit }
 }
 
+/** Lit pixels spread `radius` pixels into the black around them, so a light of a few pixels survives shrinking. */
+export function growLights(rgba, width, height, radius) {
+  let src = rgba
+  for (let r = 0; r < radius; r++) {
+    const out = Uint8Array.from(src)
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 4
+        if (src[i] || src[i + 1] || src[i + 2]) continue
+        let best = -1, sum = 0
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const xx = x + dx, yy = y + dy
+          if (xx < 0 || yy < 0 || xx >= width || yy >= height) continue
+          const j = (yy * width + xx) * 4, t = src[j] + src[j + 1] + src[j + 2]
+          if (t > sum) { sum = t; best = j }
+        }
+        if (best >= 0) out.set(src.subarray(best, best + 3), i)
+      }
+    }
+    src = out
+  }
+  return src
+}
+
 const hexRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16))
-const isLight = (s, v) => v >= 0.75 && s >= 0.45
 
 /**
  * A repaint without a new model: the s1 design's gray paint mapped onto the livery by brightness
- * (dark → panel → hull), its painted lights turned to the new glow. RGBA in; out the new RGBA and
- * `lights`, the emissive map: those lights alone (paint near the glow hue must not glow).
+ * (dark → panel → hull), its painted lights (found by the base design's `baseGlow`) turned to the new
+ * glow. RGBA in; out the new RGBA and `lights`, the emissive map: those lights alone (paint near the
+ * glow hue must not glow).
  */
-export function recolorLivery(rgba, colors, glow) {
+export function recolorLivery(rgba, colors, glow, baseGlow) {
   const [hull, panel, dark] = [colors.hull, colors.panel, colors.dark].map(hexRgb)
   const glowRgb = hexRgb(glow), glowV = hexToHsv(glow).v
   const n = rgba.length / 4
-  const lum = new Float32Array(n), light = new Uint8Array(n)
+  const lum = new Float32Array(n), light = lightMask(rgba, baseGlow)
   const paint = []
   for (let p = 0; p < n; p++) {
     const i = p * 4
     lum[p] = (0.299 * rgba[i] + 0.587 * rgba[i + 1] + 0.114 * rgba[i + 2]) / 255
-    const { s, v } = rgbToHsv(rgba[i], rgba[i + 1], rgba[i + 2])
-    light[p] = isLight(s, v) ? 1 : 0
     // The black of the unused atlas is not paint
     if (!light[p] && lum[p] > 0.03) paint.push(lum[p])
   }
@@ -84,16 +126,20 @@ export function recolorLivery(rgba, colors, glow) {
   return { rgba: out, lights, lit }
 }
 
-async function recolor(doc, colors, glow) {
+/** Pixels a light spreads so it still covers about one pixel once the texture is `px` wide. */
+const growFor = (width, px) => Math.max(0, Math.ceil(width / px / 2))
+
+async function recolor(doc, colors, glow, baseGlow, px) {
   for (const mat of doc.getRoot().listMaterials()) {
     const base = mat.getBaseColorTexture()
     if (!base) continue
     const { data, info } = await sharp(Buffer.from(base.getImage())).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
-    const { rgba, lights, lit } = recolorLivery(data, colors, glow)
+    const { rgba, lights, lit } = recolorLivery(data, colors, glow, baseGlow)
     const png = (px) => sharp(Buffer.from(px), { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer()
     base.setImage(new Uint8Array(await png(rgba))).setMimeType('image/png')
     if (!lit) continue
-    const tex = doc.createTexture(`${base.getName() || 'base'}-glow`).setImage(new Uint8Array(await png(lights))).setMimeType('image/png')
+    const grown = growLights(lights, info.width, info.height, growFor(info.width, px))
+    const tex = doc.createTexture(`${base.getName() || 'base'}-glow`).setImage(new Uint8Array(await png(grown))).setMimeType('image/png')
     mat.setEmissiveTexture(tex).setEmissiveFactor([1, 1, 1])
   }
 }
@@ -121,14 +167,15 @@ function bakeNormals(doc, turn) {
   }
 }
 
-async function addEmissive(doc, glow) {
+async function addEmissive(doc, glow, px) {
   for (const mat of doc.getRoot().listMaterials()) {
     const base = mat.getBaseColorTexture()
     if (!base) continue
     const { data, info } = await sharp(Buffer.from(base.getImage())).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
     const { rgba, lit } = extractEmissive(data, glow)
     if (!lit) continue
-    const png = await sharp(Buffer.from(rgba), { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer()
+    const grown = growLights(rgba, info.width, info.height, growFor(info.width, px))
+    const png = await sharp(Buffer.from(grown), { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer()
     const tex = doc.createTexture(`${base.getName() || 'base'}-glow`).setImage(new Uint8Array(png)).setMimeType('image/png')
     mat.setEmissiveTexture(tex).setEmissiveFactor([1, 1, 1])
   }
@@ -150,7 +197,8 @@ function simplifyAcrossSeams(doc, budget) {
   }
 }
 
-export async function buildAsset(rawPath, outPath, asset, budget) {
+/** `baseGlow`: for a recolored repaint, the glow of its base design (what its lights look like in `rawPath`). */
+export async function buildAsset(rawPath, outPath, asset, budget, { baseGlow } = {}) {
   const io = await artIO()
   await MeshoptSimplifier.ready
   const doc = await io.read(rawPath)
@@ -174,16 +222,19 @@ export async function buildAsset(rawPath, outPath, asset, budget) {
   }
   bakeNormals(doc, asset.turn ?? 0)
   await doc.transform(weld())
-  if (asset.colors) await recolor(doc, asset.colors, asset.glow)
-  else if (asset.glow) await addEmissive(doc, asset.glow)
+  if (asset.colors) await recolor(doc, asset.colors, asset.glow, baseGlow ?? asset.glow, budget.px)
+  else if (asset.glow) await addEmissive(doc, asset.glow, budget.px)
   await doc.transform(dedup(), prune())
   let out, bytes
-  for (const quality of QUALITIES) {
+  for (const { quality, nearLossless } of ENCODINGS) {
     out = cloneDocument(doc)
     await out.transform(
       // Metal and roughness change slowly across the surface: half size is enough and keeps small assets in budget
       textureCompress({ encoder: sharp, targetFormat: 'webp', quality, slots: /^metallicRoughness/, resize: [budget.px / 2, budget.px / 2] }),
-      textureCompress({ encoder: sharp, targetFormat: 'webp', quality, slots: /^(?!metallicRoughness)/, resize: [budget.px, budget.px] }),
+      // Lossy webp halves the color resolution, which grays out lights of a pixel or two on black;
+      // near-lossless keeps their color and stays small on a map that is nearly all black
+      textureCompress({ encoder: sharp, targetFormat: 'webp', quality, nearLossless, slots: /^emissive/, resize: [budget.px, budget.px] }),
+      textureCompress({ encoder: sharp, targetFormat: 'webp', quality, slots: /^(?!metallicRoughness|emissive)/, resize: [budget.px, budget.px] }),
       meshopt({ encoder: MeshoptEncoder, level: 'high' }),
     )
     bytes = await io.writeBinary(out)

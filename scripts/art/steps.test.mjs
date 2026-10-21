@@ -52,6 +52,11 @@ describe('recolored repaints', () => {
   const recolored = { ...repaint, colors: { hull: '#e2c48a', panel: '#9a5a22', dark: '#2a1a0a' } }
   const end = (p) => p.replace(/\\/g, '/').split('/').slice(-3).join('/')
 
+  it('need no concept: the preview is their review', () => {
+    const base = files('art/concepts/enemy-basic-s1.webp')
+    expect(planConcept([design, recolored], base, true)).toEqual({ todo: [design], blocked: [] })
+  })
+
   it('need no model step of their own', () => {
     const approved = files('art/concepts/enemy-basic-s2.webp')
     expect(planModel([recolored], approved, true)).toEqual({ todo: [], blocked: [] })

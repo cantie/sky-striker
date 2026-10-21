@@ -34,6 +34,17 @@ describe('extractEmissive', () => {
     expect([...rgba]).toEqual([63, 212, 255, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255])
     expect(lit).toBe(1)
   })
+
+  it('finds dim lights when no texel is bright (ZPS 3D paints some lights dark)', () => {
+    const { lit } = extractEmissive(pixels([180, 70, 40], [90, 100, 60], [128, 128, 128]), '#ff5a2a')
+    expect(lit).toBe(1)
+  })
+
+  it('with bright lights present, dimmer paint in the glow hue stays dark', () => {
+    const { rgba, lit } = extractEmissive(pixels([255, 90, 42], [150, 55, 25]), '#ff5a2a')
+    expect(lit).toBe(1)
+    expect([...rgba.slice(4, 7)]).toEqual([0, 0, 0])
+  })
 })
 
 describe('recolorLivery', () => {
@@ -45,7 +56,7 @@ describe('recolorLivery', () => {
   it('maps the gray paint from light to dark onto hull, panel and dark', () => {
     // A ramp of grays as the s1 paint has, plus the black of the unused atlas
     const ramp = [0, 30, 60, 90, 120, 150, 180, 210, 230].map(gray)
-    const { rgba: out } = recolorLivery(px(...ramp), colors, '#ff3a5a')
+    const { rgba: out } = recolorLivery(px(...ramp), colors, '#ff3a5a', '#3fd4ff')
     expect(at(out, 0)).toEqual([0, 0, 0])
     expect(at(out, 1)).toEqual([10, 10, 10])
     expect(at(out, 8)).toEqual([255, 210, 26])
@@ -54,13 +65,21 @@ describe('recolorLivery', () => {
   })
 
   it('painted lights keep their brightness and take the new glow hue', () => {
-    const { rgba: out, lights } = recolorLivery(px([63, 212, 255], ...[40, 120, 220].map(gray)), colors, '#ff3a5a')
+    const { rgba: out, lights } = recolorLivery(px([63, 212, 255], ...[40, 120, 220].map(gray)), colors, '#ff3a5a', '#3fd4ff')
     const [r, g, b] = at(out, 0)
     expect(r).toBeGreaterThan(200)
     expect(g).toBeLessThan(80)
     expect(b).toBeLessThan(100)
     expect(at(lights, 0)).toEqual([r, g, b])
     expect(at(lights, 3)).toEqual([0, 0, 0])
+  })
+
+  it("lights are found by the base design's glow, dim ones too; bright paint of another hue is paint", () => {
+    // An olive base with dim orange lights, as base-s1 came back from ZPS 3D
+    const { lights, lit } = recolorLivery(px([180, 70, 40], [40, 200, 60], ...[40, 120, 220].map(gray)), colors, '#ff3a5a', '#ff5a2a')
+    expect(lit).toBe(1)
+    expect(at(lights, 0)[0]).toBeGreaterThan(150)
+    expect(at(lights, 1)).toEqual([0, 0, 0])
   })
 })
 
@@ -113,7 +132,7 @@ describe('buildAsset', () => {
     const raw = file('raw-recolor.glb', await fixtureGlb({ busy: true, tris: 500 }))
     const red = { ...asset, glow: '#ff3a5a', colors: { hull: '#ffd21a', panel: '#2a2a2a', dark: '#0a0a0a' } }
     const out = join(dir, 'recolor.glb')
-    await buildAsset(raw, out, red, BUDGETS.small)
+    await buildAsset(raw, out, red, BUDGETS.small, { baseGlow: '#3fd4ff' })
     expect(await checkGlb(out, red, BUDGETS.small)).toEqual([])
     const mat = (await readGlb(out)).getRoot().listMaterials()[0]
     const sharp = (await import('sharp')).default
@@ -128,7 +147,7 @@ describe('buildAsset', () => {
     const raw = file('raw-same-hue.glb', await fixtureGlb({ busy: true, tris: 500 }))
     const yellow = { ...asset, glow: '#ffe04a', colors: { hull: '#ffd21a', panel: '#2a2a2a', dark: '#0a0a0a' } }
     const out = join(dir, 'same-hue.glb')
-    await buildAsset(raw, out, yellow, BUDGETS.small)
+    await buildAsset(raw, out, yellow, BUDGETS.small, { baseGlow: '#3fd4ff' })
     const mat = (await readGlb(out)).getRoot().listMaterials()[0]
     const sharp = (await import('sharp')).default
     const { data, info } = await sharp(Buffer.from(mat.getEmissiveTexture().getImage())).raw().toBuffer({ resolveWithObject: true })
@@ -137,6 +156,28 @@ describe('buildAsset', () => {
     // The fixture's glow stripe is 1/8 of the texture; the yellow hull is far more
     expect(lit / (info.width * info.height)).toBeLessThan(0.2)
     expect(lit).toBeGreaterThan(0)
+  }, 60_000)
+
+  it('a light of a few texels still glows after the texture shrinks to the budget', async () => {
+    const raw = file('raw-dot.glb', await fixtureGlb({ tris: 500, dot: true }))
+    const out = join(dir, 'dot.glb')
+    await buildAsset(raw, out, asset, BUDGETS.small)
+    expect(await checkGlb(out, asset, BUDGETS.small)).toEqual([])
+  }, 60_000)
+
+  it('the glow map is near-lossless, or lossy when a large glow area would not fit the budget', async () => {
+    const raw = file('raw-noisy-glow.glb', await fixtureGlb({ tris: 500, busy: true, noisyGlow: true }))
+    const glowFormat = async (path) => {
+      const img = (await readGlb(path)).getRoot().listMaterials()[0].getEmissiveTexture().getImage()
+      return String.fromCharCode(...img.slice(12, 16)) // 'VP8L' lossless, 'VP8 ' lossy
+    }
+    const roomy = { ...BUDGETS.small, px: 256, kb: 10_000 }
+    const full = await buildAsset(raw, join(dir, 'glow-roomy.glb'), asset, roomy)
+    expect(await glowFormat(join(dir, 'glow-roomy.glb'))).toBe('VP8L')
+    const tight = { ...roomy, kb: Math.floor(full.bytes / 1024) - 1 }
+    const res = await buildAsset(raw, join(dir, 'glow-tight.glb'), asset, tight)
+    expect(res.bytes).toBeLessThanOrEqual(tight.kb * 1024)
+    expect(await glowFormat(join(dir, 'glow-tight.glb'))).toBe('VP8 ')
   }, 60_000)
 
   it('turn: 180 rotates the model about Y', async () => {

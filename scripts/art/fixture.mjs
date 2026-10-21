@@ -10,8 +10,10 @@ const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16))
  * `charts`: every triangle is its own UV island, like a Hunyuan texture atlas cut into many small pieces.
  * `mr`: a 64×64 metallic-roughness texture as well, as Hunyuan's PBR output has.
  * `busy`: a 256×256 base color full of fine painted detail, which compresses poorly.
+ * `dot`: a 1024×1024 gray base color whose only light is a 3×3 dot, as small as ZPS 3D paints some lights.
+ * `noisyGlow`: the glow stripe varies in brightness texel by texel, a large light that compresses poorly.
  */
-export async function fixtureGlb({ tris = 10_000, normals = false, mimeLie = true, stripe = '#3fd4ff', charts = false, mr = false, busy = false } = {}) {
+export async function fixtureGlb({ tris = 10_000, normals = false, mimeLie = true, stripe = '#3fd4ff', charts = false, mr = false, busy = false, dot = false, noisyGlow = false } = {}) {
   const rings = Math.max(4, Math.round(Math.sqrt(tris / 2)))
   const segs = Math.max(8, Math.round(tris / (2 * rings)))
   const pos = [], uv = [], nor = [], idx = []
@@ -43,11 +45,15 @@ export async function fixtureGlb({ tris = 10_000, normals = false, mimeLie = tru
   }
 
   // 64×64 gray (256×256 noise when busy) with a stripe of the glow color across the middle
-  const S = busy ? 256 : 64
+  const S = dot ? 1024 : busy ? 256 : 64
   const px = Buffer.alloc(S * S * 3, 110)
   if (busy) { let seed = 1; for (let i = 0; i < px.length; i++) { seed = (seed * 1103515245 + 12345) & 0x7fffffff; px[i] = 60 + (seed >> 16) % 120 } }
   const [r, g, b] = hex(stripe)
-  for (let y = (S * 7) / 16; y < (S * 9) / 16; y++) for (let x = 0; x < S; x++) px.set([r, g, b], (y * S + x) * 3)
+  if (dot) for (let y = 511; y < 514; y++) for (let x = 511; x < 514; x++) px.set([r, g, b], (y * S + x) * 3)
+  else for (let y = (S * 7) / 16; y < (S * 9) / 16; y++) for (let x = 0; x < S; x++) {
+    const k = noisyGlow ? 0.8 + 0.2 * (((x * 7919 + y * 104729) % 97) / 96) : 1
+    px.set([r * k, g * k, b * k].map(Math.round), (y * S + x) * 3)
+  }
   const jpeg = await sharp(px, { raw: { width: S, height: S, channels: 3 } }).jpeg({ quality: 95 }).toBuffer()
 
   const doc = new Document()

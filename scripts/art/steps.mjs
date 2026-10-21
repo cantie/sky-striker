@@ -3,7 +3,7 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, relative } from 'node:path'
 import sharp from 'sharp'
-import { BUDGETS, STYLE } from '../../art/manifest.mjs'
+import { ASSETS, BUDGETS, STYLE } from '../../art/manifest.mjs'
 import { runBatch, withRetry } from './batch.mjs'
 import { buildAsset } from './build.mjs'
 import { checkGlb } from './checks.mjs'
@@ -21,10 +21,11 @@ export function conceptPrompt(asset) {
   return `${asset.prompt}\n\n${STYLE} ${glowLine(asset)}`
 }
 
-/** Concepts still to draw; a repaint waits until its base design is approved. */
+/** Concepts still to draw; a repaint waits until its base design is approved, a recolored one needs none. */
 export function planConcept(assets, exists, force, paths = artPaths()) {
   const todo = [], blocked = []
   for (const a of assets) {
+    if (a.colors) continue // recolored at build time: the preview is its review
     if (!force && exists(paths.concept(a.id))) continue
     if (a.base !== undefined && !exists(paths.concept(a.base))) blocked.push({ id: a.id, reason: `base ${a.base} not approved` })
     else todo.push(a)
@@ -156,7 +157,8 @@ export async function runBuild(assets, { paths = artPaths(), log = console.log }
   const todo = assets.filter((a) => existsSync(rawFor(a, paths)))
   const res = await runBatch(todo, async (a) => {
     const budget = BUDGETS[a.budget]
-    const { tris, bytes } = await buildAsset(rawFor(a, paths), paths.out(a.id), a, budget)
+    const baseGlow = a.colors ? ASSETS.find((b) => b.id === a.base)?.glow : undefined
+    const { tris, bytes } = await buildAsset(rawFor(a, paths), paths.out(a.id), a, budget, { baseGlow })
     log(`${a.id}: ${tris} tris, ${Math.round(bytes / 1024)} KB (budget ${budget.tris}, ${budget.kb} KB)`)
     const problems = await checkGlb(paths.out(a.id), a, budget)
     if (problems.length) throw new Error(problems.join('; '))

@@ -1,0 +1,214 @@
+// Effect shaders. All draw on a unit quad lying flat in XZ (the camera looks straight down), skip tone
+// mapping (bright values feed the bloom) and never write depth. Each has a `uTime` its owner sets per frame.
+import * as THREE from 'three'
+import { boltQuad } from '../../../game/fx/bulletLook'
+
+/** The unit quad every effect draws on: XZ in [−0.5, 0.5], facing up. */
+export const fxQuad = () => new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)
+
+const NOISE = /* glsl */ `
+float fxHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float fxNoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(fxHash(i), fxHash(i + vec2(1.0, 0.0)), f.x), mix(fxHash(i + vec2(0.0, 1.0)), fxHash(i + vec2(1.0, 1.0)), f.x), f.y);
+}`
+
+/**
+ * Pool particles: per instance iPos, iVel, iCol (rgb, alpha0) and iMisc (age, life, size0, size1).
+ * vUv is (0..1, 0..1) across the quad with y = 1 at its +Z edge; vT is age over life.
+ */
+const PARTICLE_VERT = /* glsl */ `
+attribute vec3 iPos;
+attribute vec3 iVel;
+attribute vec4 iCol;
+attribute vec4 iMisc;
+uniform float uTime;
+varying vec2 vUv;
+varying vec4 vCol;
+varying float vT;
+varying float vSeed;
+void main() {
+  float t = clamp(iMisc.x / max(iMisc.y, 1e-4), 0.0, 1.0);
+  float grow = 1.0 - (1.0 - t) * (1.0 - t);
+  float size = mix(iMisc.z, iMisc.w, grow);
+  vec2 q = position.xz;
+#ifdef STRETCH
+  // A streak behind the particle along its velocity, longer the faster it flies
+  vec2 v = iVel.xz;
+  float speed = length(v);
+  vec2 dir = speed > 1e-3 ? v / speed : vec2(0.0, 1.0);
+  vec2 side = vec2(dir.y, -dir.x);
+  float len = size * 1.5 + speed * 0.035;
+  vec2 xz = iPos.xz + side * q.x * size + dir * (q.y - 0.5) * len;
+#else
+  vec2 xz = iPos.xz + q * size * SIZE_SCALE;
+#endif
+  vUv = q + 0.5;
+  vCol = iCol;
+  vT = t;
+  vSeed = fract(iMisc.y * 7.13 + iMisc.z * 3.71);
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(xz.x, iPos.y, xz.y, 1.0);
+}`
+
+function particleMaterial(frag: string, opts: { additive: boolean; defines?: Record<string, string | number>; uniforms?: Record<string, THREE.IUniform> }) {
+  return new THREE.ShaderMaterial({
+    vertexShader: PARTICLE_VERT,
+    fragmentShader: frag,
+    uniforms: { uTime: { value: 0 }, ...opts.uniforms },
+    defines: { SIZE_SCALE: '1.0', ...opts.defines },
+    transparent: true,
+    depthWrite: false,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+    blending: opts.additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+  })
+}
+
+/** Additive soft glow with a hot centre that cools with age: fire, flashes. `noise` breaks up the disc. */
+export function glowMaterial({ noise = 0 }: { noise?: number } = {}) {
+  return particleMaterial(/* glsl */ `
+    uniform float uTime;
+    uniform float uNoise;
+    varying vec2 vUv;
+    varying vec4 vCol;
+    varying float vT;
+    varying float vSeed;
+    ${NOISE}
+    void main() {
+      vec2 p = vUv - 0.5;
+      float n = fxNoise(p * 4.0 + vSeed * 23.0 + vec2(0.0, uTime * 1.5));
+      float d = length(p) * 2.0 + (n - 0.5) * uNoise;
+      if (d > 1.0) discard;
+      float fall = (1.0 - d) * (1.0 - d);
+      float core = (1.0 - smoothstep(0.0, 0.55, d)) * (1.0 - vT);
+      vec3 c = mix(vCol.rgb, vCol.rgb * vec3(0.9, 0.4, 0.25), vT) * fall + vec3(core * 0.9);
+      float fade = 1.0 - vT;
+      gl_FragColor = vec4(c, fade * vCol.a);
+      #include <colorspace_fragment>
+    }`, { additive: true, uniforms: { uNoise: { value: noise } } })
+}
+
+/**
+ * Normal-blended noisy puff that darkens, grows and fades; warm for its first moments, as if lit by
+ * the fire. `hard` makes small solid chunks instead (debris).
+ */
+export function smokeMaterial({ hard = false }: { hard?: boolean } = {}) {
+  return particleMaterial(/* glsl */ `
+    uniform float uTime;
+    varying vec2 vUv;
+    varying vec4 vCol;
+    varying float vT;
+    varying float vSeed;
+    ${NOISE}
+    void main() {
+      vec2 p = vUv - 0.5;
+      float m = fxNoise(p * 3.0 + vSeed * 17.0 + vec2(0.0, uTime * 0.15)) * 0.65 + fxNoise(p * 6.5 - vSeed * 11.0) * 0.35;
+      float d = length(p) * 2.0;
+    #ifdef HARD
+      float shape = 1.0 - smoothstep(0.6, 0.8, d + (m - 0.5) * 0.5);
+      float alpha = shape * vCol.a * (1.0 - vT * vT * vT);
+      vec3 c = vCol.rgb * (0.7 + 0.6 * m);
+    #else
+      float shape = 1.0 - smoothstep(0.25, 1.0, d + (m - 0.5) * 0.6);
+      float alpha = shape * vCol.a * (1.0 - vT) * smoothstep(0.0, 0.08, vT);
+      vec3 c = vCol.rgb * (0.75 + 0.5 * m) * mix(1.0, 0.65, vT) + vec3(0.55, 0.22, 0.05) * (1.0 - smoothstep(0.0, 0.22, vT));
+    #endif
+      if (alpha < 0.004) discard;
+      gl_FragColor = vec4(c, alpha);
+      #include <colorspace_fragment>
+    }`, { additive: false, defines: hard ? { HARD: 1 } : {} })
+}
+
+/** Additive soft annulus; size0 and size1 are its start and end radius. */
+export function ringMaterial() {
+  return particleMaterial(/* glsl */ `
+    varying vec2 vUv;
+    varying vec4 vCol;
+    varying float vT;
+    void main() {
+      float d = length(vUv - 0.5) * 2.0;
+      if (d > 1.0) discard;
+      float w = mix(0.22, 0.07, vT);
+      float band = 1.0 - smoothstep(0.0, w, abs(d - (1.0 - w)));
+      float inner = (1.0 - d) * 0.12;
+      float fade = (1.0 - vT) * (1.0 - vT);
+      gl_FragColor = vec4(vCol.rgb * (band + inner), fade * vCol.a);
+      #include <colorspace_fragment>
+    }`, { additive: true, defines: { SIZE_SCALE: '2.0' } })
+}
+
+/** Additive short streak stretched along its velocity: sparks. size0/size1 are its width. */
+export function sparkMaterial() {
+  return particleMaterial(/* glsl */ `
+    varying vec2 vUv;
+    varying vec4 vCol;
+    varying float vT;
+    void main() {
+      float across = abs(vUv.x - 0.5) * 2.0;
+      float a = (1.0 - smoothstep(0.25, 1.0, across)) * smoothstep(0.0, 0.8, vUv.y);
+      vec3 c = mix(vCol.rgb, vec3(2.2), 0.4 * (1.0 - across) * vUv.y);
+      gl_FragColor = vec4(c * a, (1.0 - vT) * vCol.a);
+      #include <colorspace_fragment>
+    }`, { additive: true, defines: { STRETCH: 1 } })
+}
+
+/**
+ * Additive plasma bolt on an InstancedMesh (instanceMatrix + instanceColor): a capsule with a white-hot
+ * core and a halo in the instance colour at the hit point, and a tail fading toward the quad's −Z end.
+ * The quad is scaled to `boltQuad`: the hit point sits `back` from its −Z end.
+ */
+export function streakMaterial() {
+  const q = boltQuad(1)
+  return new THREE.ShaderMaterial({
+    vertexShader: /* glsl */ `
+      uniform float uTime;
+      varying vec2 vUv;
+      varying vec3 vColor;
+      void main() {
+        vUv = position.xz + 0.5;
+        vec4 p = vec4(position, 1.0);
+      #ifdef USE_INSTANCING
+        p = instanceMatrix * p;
+      #endif
+      #ifdef USE_INSTANCING_COLOR
+        vColor = instanceColor;
+      #else
+        vColor = vec3(1.0);
+      #endif
+        gl_Position = projectionMatrix * modelViewMatrix * p;
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform float uTime;
+      uniform float uHead;
+      uniform float uAspect;
+      varying vec2 vUv;
+      varying vec3 vColor;
+      void main() {
+        // In quad widths, from the hit point; +y toward the tip
+        vec2 p = vec2(vUv.x - 0.5, (vUv.y - uHead) * uAspect);
+        float seg = clamp(p.y, -0.55, 0.0);
+        float d = length(vec2(p.x, p.y - seg));
+        float core = 1.0 - smoothstep(0.1, 0.17, d);
+        float halo = exp(-d * d * 16.0);
+        float tailLen = max(uHead * uAspect - 0.55, 1e-3);
+        float k = clamp((-p.y - 0.55) / tailLen, 0.0, 1.0);
+        float tw = mix(0.17, 0.03, k);
+        float tail = step(p.y, -0.55) * (1.0 - k) * (1.0 - k) * exp(-(p.x * p.x) / (tw * tw));
+        float edge = 1.0 - smoothstep(0.4, 0.5, abs(p.x));
+        vec3 c = vColor * (halo * 1.8 + tail * 1.2) + vec3(1.0) * core * 2.2;
+        gl_FragColor = vec4(c * edge, 1.0);
+        #include <colorspace_fragment>
+      }`,
+    uniforms: {
+      uTime: { value: 0 },
+      uHead: { value: q.back / (q.front + q.back) },
+      uAspect: { value: (q.front + q.back) / q.width },
+    },
+    transparent: true,
+    depthWrite: false,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+  })
+}

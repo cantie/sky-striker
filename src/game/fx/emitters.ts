@@ -58,7 +58,7 @@ export function missilePuff(x: number, z: number, vx: number, vz: number, rand: 
   return {
     x: x + bx * 0.35 + (rand() - 0.5) * 0.08, y: 0, z: z + bz * 0.35 + (rand() - 0.5) * 0.08,
     vx: bx * 0.4, vy: 0, vz: bz * 0.4,
-    life: range(rand, 0.6, 0.9), size0: 0.25, size1: 0.8, color: [0.55, 0.54, 0.52], alpha: 0.5,
+    life: range(rand, 0.6, 0.9), size0: 0.25, size1: 0.8, color: [0.72, 0.7, 0.68], alpha: 0.7,
   }
 }
 

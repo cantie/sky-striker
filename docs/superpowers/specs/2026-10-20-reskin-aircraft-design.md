@@ -228,18 +228,20 @@ a few seconds, and no model appears late during play.
 container by docker-compose, and the repo is public):
 
 ```
-HY3D_API=<Hunyuan3D base URL, from HUNYUAN3D_AGENT_GUIDE.md>
-HY3D_KEY=<Hunyuan3D key, from the same guide>
+ZPS3D_API=<ZPS 3D base URL, from ZPS-3D.md>
+ZPS3D_KEY=<ZPS 3D key, from the same guide>
 IMAGE_API=<LLM gateway base URL, OpenAI-compatible; ask the user>
 IMAGE_MODEL=openai/gpt-image-2.5-flare
 IMAGE_KEY=<gateway key; ask the user>
 ```
 
-- Hunyuan3D (from the guide): `POST /send {image: <base64>, seed}` → `uid`; `GET /status/{uid}` every 5 s
-  until `completed` or `error`, give up after 30 min; download `result_url` with the Bearer header right away
-  (results are deleted after 24 h). Never `/generate`, never `?base64=true`. Input: one object, centered with
-  margin, square, plain medium-gray background, soft light. On a bad result fix the image rather than
-  resubmitting it.
+- ZPS 3D (from ZPS-3D.md; replaced Hunyuan3D on 2026-10-21): `POST /send {image: <base64>, seed,
+  remove_background: false, face_count: 40000, texture_size: 1024}` → `uid` (the concept's backdrop is cut to
+  alpha first; the build shrinks mesh and texture to the budget anyway); a 429 (queue full) waits 60 s and
+  sends again. `GET /status/{uid}` every 5 s until `completed` or `error`, give up after 30 min; a 404 there
+  tries `GET /result/{uid}.glb` once. Download `result_url` with the Bearer header right away (results are
+  deleted after 24 h). Never `/generate`, never `?base64=true`. Input: one object, centered with margin,
+  square, plain medium-gray background, soft light. On a bad result fix the image rather than resubmitting it.
 - Image model: `POST /v1/images/generations {model, prompt, size: '1024x1024', n: 1}` → `data[0].b64_json`.
   Edits: `POST /v1/images/edits`, multipart with `model`, `prompt`, `size`, `image`.
 - On the Windows machine C: is nearly full: point TEMP, TMP and `npm_config_cache` at E: when running npm,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createHy3dClient, createImageClient } from './clients.mjs'
+import { createImageClient, createZps3dClient } from './clients.mjs'
 
 /** A fetch that answers each call with the next reply and records what it was asked. */
 function fakeFetch(replies) {
@@ -53,19 +53,19 @@ describe('image client', () => {
   })
 })
 
-describe('Hunyuan3D client', () => {
+describe('ZPS 3D client', () => {
   const make = (replies) => {
     const f = fakeFetch(replies)
     let t = 0
     const sleeps = []
-    const client = createHy3dClient({
+    const client = createZps3dClient({
       api: 'https://hy.test', key: 'k', fetch: f.fetch,
       sleep: async (ms) => { sleeps.push(ms); t += ms }, now: () => t,
     })
     return { ...f, client, sleeps, now: () => t }
   }
 
-  it('sends the image as base64 with the seed, polls every 5 s and downloads with the Bearer header', async () => {
+  it('sends the cut-out image with the seed and game-sized output, polls every 5 s, downloads with the Bearer header', async () => {
     const { client, calls, sleeps } = make([
       json({ uid: 'u1' }), json({ status: 'running' }), json({ status: 'running' }),
       json({ status: 'completed', result_url: 'https://hy.test/files/u1.glb' }), bytes('GLB'),
@@ -73,7 +73,8 @@ describe('Hunyuan3D client', () => {
     const out = await client.generate(Buffer.from('png'), 7)
     expect(out.toString()).toBe('GLB')
     expect(calls[0].url).toBe('https://hy.test/send')
-    expect(JSON.parse(calls[0].init.body)).toEqual({ image: b64('png'), seed: 7 })
+    // remove_background false: the concept's backdrop is already transparent; small mesh and texture, the build shrinks them further
+    expect(JSON.parse(calls[0].init.body)).toEqual({ image: b64('png'), seed: 7, remove_background: false, face_count: 40000, texture_size: 1024 })
     expect(calls[1].url).toBe('https://hy.test/status/u1')
     expect(sleeps).toEqual([5000, 5000, 5000])
     expect(calls[4].url).toBe('https://hy.test/files/u1.glb')
@@ -87,6 +88,28 @@ describe('Hunyuan3D client', () => {
       json({ status: 'completed', result_url: 'https://hy.test/r' }), bytes('GLB'),
     ])
     expect((await client.generate(Buffer.from('png'), 1)).toString()).toBe('GLB')
+  })
+
+  it('a full queue (429) waits 60 s and sends again', async () => {
+    const { client, calls, sleeps } = make([
+      new Response('full', { status: 429 }), json({ uid: 'u2' }),
+      json({ status: 'completed', result_url: 'https://hy.test/r' }), bytes('GLB'),
+    ])
+    expect((await client.generate(Buffer.from('png'), 1)).toString()).toBe('GLB')
+    expect(calls.map((c) => c.url).slice(0, 2)).toEqual(['https://hy.test/send', 'https://hy.test/send'])
+    expect(sleeps[0]).toBe(60_000)
+  })
+
+  it('an unknown uid (404, e.g. the service restarted) tries the result once', async () => {
+    const { client, calls } = make([json({ uid: 'u3' }), new Response('gone', { status: 404 }), bytes('GLB')])
+    expect((await client.generate(Buffer.from('png'), 1)).toString()).toBe('GLB')
+    expect(calls[2].url).toBe('https://hy.test/result/u3.glb')
+    expect(calls[2].init.headers.Authorization).toBe('Bearer k')
+  })
+
+  it('an unknown uid with no result throws, so the batch retries with a new job', async () => {
+    const { client } = make([json({ uid: 'u4' }), new Response('gone', { status: 404 }), new Response('gone', { status: 404 })])
+    await expect(client.generate(Buffer.from('png'), 1)).rejects.toThrow(/u4/)
   })
 
   it('status error throws its message', async () => {

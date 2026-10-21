@@ -4,7 +4,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 export const ART_ENV_FILE = '~/.config/sky-striker/assets.env'
-const KEYS = ['HY3D_API', 'HY3D_KEY', 'IMAGE_API', 'IMAGE_MODEL', 'IMAGE_KEY']
+const KEYS = ['ZPS3D_API', 'ZPS3D_KEY', 'IMAGE_API', 'IMAGE_MODEL', 'IMAGE_KEY']
 
 /** KEY=value lines from ~/.config/sky-striker/assets.env, overridden by the environment. */
 export function loadArtEnv({ home = homedir(), env = process.env, readFile = readFileSync } = {}) {

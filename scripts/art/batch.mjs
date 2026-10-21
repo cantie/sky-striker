@@ -24,7 +24,7 @@ export async function runBatch(items, worker, { concurrency }) {
   return { ok, failed }
 }
 
-/** One retry, with the next seed (a different seed often fixes a failed Hunyuan3D job). */
+/** One retry, with the next seed (a different seed often fixes a failed image-to-3D job). */
 export async function withRetry(fn, seed) {
   try {
     return await fn(seed)

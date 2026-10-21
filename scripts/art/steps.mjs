@@ -7,7 +7,7 @@ import { BUDGETS, STYLE } from '../../art/manifest.mjs'
 import { runBatch, withRetry } from './batch.mjs'
 import { buildAsset } from './build.mjs'
 import { checkGlb } from './checks.mjs'
-import { createHy3dClient, createImageClient } from './clients.mjs'
+import { createImageClient, createZps3dClient } from './clients.mjs'
 import { requireKeys } from './env.mjs'
 import { artPaths } from './paths.mjs'
 
@@ -67,7 +67,7 @@ const toPng = (path) => sharp(path).png().toBuffer()
 
 /**
  * The concept's flat #808080 backdrop → transparent, filled in from the border so gray paint on the
- * craft stays. Without it Hunyuan3D can model the backdrop as a slab under the craft.
+ * craft stays. Without it the image-to-3D service can model the backdrop as a slab under the craft.
  */
 export function cutBackground(rgba, width, height, tolerance = 14) {
   const backdrop = (p) => [0, 1, 2].every((c) => Math.abs(rgba[p * 4 + c] - 128) <= tolerance)
@@ -134,13 +134,13 @@ export async function runApprove(id, k, { paths = artPaths(), log = console.log 
 }
 
 export async function runModel(assets, { env, force = false, paths = artPaths(), log = console.log }) {
-  requireKeys(env, ['HY3D_API', 'HY3D_KEY'])
-  const hy3d = createHy3dClient({ api: env.HY3D_API, key: env.HY3D_KEY })
+  requireKeys(env, ['ZPS3D_API', 'ZPS3D_KEY'])
+  const zps3d = createZps3dClient({ api: env.ZPS3D_API, key: env.ZPS3D_KEY })
   const { todo, blocked } = planModel(assets, existsSync, force, paths)
   const res = await runBatch(todo, async (a) => {
     const t0 = Date.now()
     const png = await cutoutPng(paths.concept(a.id))
-    write(paths.raw(a.id), await withRetry((seed) => hy3d.generate(png, seed), a.seed ?? 42))
+    write(paths.raw(a.id), await withRetry((seed) => zps3d.generate(png, seed), a.seed ?? 42))
     log(`${a.id}: model in ${((Date.now() - t0) / 1000).toFixed(0)} s`)
   }, { concurrency: 2 })
   return { ...res, blocked }

@@ -1,7 +1,7 @@
 // npm run art -- <step> <batch|ids> [--force] [--n N]
 //   concept <sel>        draw concept drafts and a review page
 //   approve <id> <k>     keep draft k as the approved concept
-//   model <sel>          approved concepts → raw GLBs (Hunyuan3D)
+//   model <sel>          approved concepts → raw GLBs (ZPS 3D)
 //   build <sel>          raw GLBs → public/models/ai
 //   preview <sel>        screenshots from the game camera (needs npm run dev)
 import { ASSETS, BUDGETS } from '../../art/manifest.mjs'

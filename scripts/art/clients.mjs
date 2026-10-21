@@ -1,4 +1,4 @@
-// HTTP clients for the internal image model (OpenAI-compatible) and Hunyuan3D image-to-3D.
+// HTTP clients for the internal image model (OpenAI-compatible) and ZPS 3D image-to-3D.
 
 async function failure(res, what) {
   const text = await res.text().catch(() => '')
@@ -45,35 +45,51 @@ export function createImageClient({ api, key, model, fetch = globalThis.fetch })
 
 const realSleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-/** POST /send, poll GET /status/{uid}, download result_url right away (results expire after 24 h). */
-export function createHy3dClient({
+/**
+ * ZPS 3D image-to-3D: POST /send, poll GET /status/{uid} every 5 s, download the GLB right away
+ * (results expire after 24 h). The input's backdrop is already transparent, so the service uses its
+ * alpha; the mesh and texture are requested near game size, as the build shrinks them further anyway.
+ */
+export function createZps3dClient({
   api, key, fetch = globalThis.fetch, sleep = realSleep, now = Date.now, pollMs = 5000, capMs = 1_800_000,
+  faceCount = 40_000, textureSize = 1024,
 }) {
   const base = trim(api)
   const auth = { Authorization: `Bearer ${key}` }
+  const download = (url) => fetch(url, { headers: auth })
   return {
     async generate(png, seed) {
-      const send = await fetch(`${base}/send`, {
-        method: 'POST',
-        headers: { ...auth, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: Buffer.from(png).toString('base64'), seed }),
+      const body = JSON.stringify({
+        image: Buffer.from(png).toString('base64'), seed, remove_background: false, face_count: faceCount, texture_size: textureSize,
       })
-      if (!send.ok) throw await failure(send, 'Hunyuan3D send')
-      const { uid } = await send.json()
       const t0 = now()
+      let send
+      for (;;) {
+        send = await fetch(`${base}/send`, { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body })
+        if (send.status !== 429 || now() - t0 >= capMs) break
+        await sleep(60_000) // the queue is full (100 jobs)
+      }
+      if (!send.ok) throw await failure(send, 'ZPS 3D send')
+      const { uid } = await send.json()
       while (now() - t0 < capMs) {
         await sleep(pollMs)
         const r = await fetch(`${base}/status/${uid}`, { headers: auth })
+        if (r.status === 404) {
+          // Unknown uid (expired, or the service restarted): the result may still be there
+          const g = await download(`${base}/result/${uid}.glb`)
+          if (!g.ok) throw await failure(g, `ZPS 3D job ${uid} is gone`)
+          return Buffer.from(await g.arrayBuffer())
+        }
         if (!r.ok) continue // a busy or restarting server: keep polling until the cap
         const s = await r.json()
-        if (s.status === 'error') throw new Error(`Hunyuan3D job ${uid}: ${s.message ?? 'error'}`)
+        if (s.status === 'error') throw new Error(`ZPS 3D job ${uid}: ${s.message ?? 'error'}`)
         if (s.status === 'completed') {
-          const g = await fetch(s.result_url, { headers: auth })
-          if (!g.ok) throw await failure(g, `Hunyuan3D download ${uid}`)
+          const g = await download(s.result_url)
+          if (!g.ok) throw await failure(g, `ZPS 3D download ${uid}`)
           return Buffer.from(await g.arrayBuffer())
         }
       }
-      throw new Error(`Hunyuan3D: gave up on ${uid} after ${Math.round(capMs / 60_000)} min`)
+      throw new Error(`ZPS 3D: gave up on ${uid} after ${Math.round(capMs / 60_000)} min`)
     },
   }
 }

@@ -20,6 +20,8 @@ export interface ArtAsset {
   stage?: number
   old?: string
   turn?: 0 | 180
+  /** Taller than wide, checked by eye in the angled preview: skips the lies-flat check. */
+  tall?: true
 }
 
 export const STYLE: string

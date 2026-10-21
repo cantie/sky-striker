@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { BUDGETS } from '../../art/manifest.mjs'
 import { buildAsset, extractEmissive, realMime, recolorLivery } from './build.mjs'
-import { checkGlb, readGlb } from './checks.mjs'
+import { artIO, checkGlb, readGlb } from './checks.mjs'
 import { fixtureGlb } from './fixture.mjs'
 
 const dir = mkdtempSync(join(tmpdir(), 'art-build-'))
@@ -180,6 +180,18 @@ describe('buildAsset', () => {
     expect(await glowFormat(join(dir, 'glow-tight.glb'))).toBe('VP8 ')
   }, 60_000)
 
+  it('when even the lowest texture quality is too big, fewer triangles make it fit', async () => {
+    const raw = file('raw-heavy-mesh.glb', await fixtureGlb({ tris: 6000, charts: true }))
+    const roomy = { tris: 4000, px: 64, kb: 10_000 }
+    const full = await buildAsset(raw, join(dir, 'mesh-roomy.glb'), asset, roomy)
+    const tight = { ...roomy, kb: Math.floor((full.bytes * 0.8) / 1024) }
+    const out = join(dir, 'mesh-tight.glb')
+    const res = await buildAsset(raw, out, asset, tight)
+    expect(res.bytes).toBeLessThanOrEqual(tight.kb * 1024)
+    expect(res.tris).toBeLessThan(full.tris)
+    expect(await checkGlb(out, asset, tight)).toEqual([])
+  }, 120_000)
+
   it('turn: 180 rotates the model about Y', async () => {
     const raw = file('raw-turn.glb', await fixtureGlb())
     const out = join(dir, 'turned.glb')
@@ -200,6 +212,19 @@ describe('buildAsset', () => {
     expect(problems).toMatch(/2000/)
     expect((await checkGlb(built.path, { ...asset, glow: '#ff3b2f' }, BUDGETS.small)).join('\n')).toMatch(/glow/i)
   })
+
+  it('tall: a craft checked by eye as taller than wide skips only the flat check', async () => {
+    const raw = file('raw-tall.glb', await fixtureGlb({ tris: 500 }))
+    const out = join(dir, 'tall.glb')
+    await buildAsset(raw, out, asset, BUDGETS.small)
+    const doc = await readGlb(out)
+    // Stand it on its side: the 0.5 thin axis becomes its width
+    doc.getRoot().listNodes().forEach((n) => n.getMesh() && n.setRotation([0, 0, Math.SQRT1_2, Math.SQRT1_2]))
+    const side = join(dir, 'tall-side.glb')
+    await (await artIO()).write(side, doc)
+    expect(await checkGlb(side, asset, BUDGETS.small)).toContainEqual(expect.stringMatching(/does not lie flat/))
+    expect((await checkGlb(side, { ...asset, tall: true }, BUDGETS.small)).filter((p) => /flat/.test(p))).toEqual([])
+  }, 60_000)
 
   it('the raw fixture is a Hunyuan-like file: JPEG bytes labeled PNG, no normals', async () => {
     const doc = await readGlb(file('raw-look.glb', await fixtureGlb()))

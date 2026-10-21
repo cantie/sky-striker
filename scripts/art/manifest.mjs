@@ -40,6 +40,7 @@ export function validateManifest(assets, budgets) {
     if (a.stage !== undefined && !isInt(a.stage, 1, 10)) bad('stage must be 1..10')
     if (a.turn !== undefined && a.turn !== 0 && a.turn !== 180) bad('turn must be 0 or 180')
     if (a.seed !== undefined && !Number.isInteger(a.seed)) bad('seed must be an integer')
+    if (a.tall !== undefined && a.tall !== true) bad('tall must be true or absent')
     const hsv = hexToHsv(a.glow)
     if (!hsv) bad('glow must be #rrggbb')
     else if (hsv.s < 0.4 || hsv.v < 0.5) bad(`glow ${a.glow} is too gray or dark to pick out lights`)

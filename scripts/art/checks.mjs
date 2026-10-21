@@ -64,7 +64,7 @@ export async function checkGlb(path, asset, budget) {
   if (tris > budget.tris) problems.push(`${tris} triangles, budget ${budget.tris}`)
   const bytes = statSync(path).size
   if (bytes > budget.kb * 1024) problems.push(`${Math.round(bytes / 1024)} KB, budget ${budget.kb} KB`)
-  if (FLAT_KINDS.includes(asset.kind)) {
+  if (FLAT_KINDS.includes(asset.kind) && !asset.tall) {
     const b = getBounds(root.listScenes()[0])
     const [x, y, z] = [0, 1, 2].map((i) => b.max[i] - b.min[i])
     if (!(y < x && y < z)) problems.push(`does not lie flat (size ${x.toFixed(2)} × ${y.toFixed(2)} × ${z.toFixed(2)})`)

@@ -112,6 +112,20 @@ describe('ZPS 3D client', () => {
     await expect(client.generate(Buffer.from('png'), 1)).rejects.toThrow(/u4/)
   })
 
+  it('a network error while polling is retried like a busy server', async () => {
+    const { client } = make([
+      json({ uid: 'u8' }), () => { throw new TypeError('fetch failed') },
+      json({ status: 'completed', result_url: 'https://hy.test/r' }), bytes('GLB'),
+    ])
+    expect((await client.generate(Buffer.from('png'), 1)).toString()).toBe('GLB')
+  })
+
+  it('wait(uid) picks up a job sent earlier', async () => {
+    const { client, calls } = make([json({ status: 'completed', result_url: 'https://hy.test/r9' }), bytes('GLB')])
+    expect((await client.wait('u9')).toString()).toBe('GLB')
+    expect(calls[0].url).toBe('https://hy.test/status/u9')
+  })
+
   it('status error throws its message', async () => {
     const { client } = make([json({ uid: 'u1' }), json({ status: 'error', message: 'bad mesh' })])
     await expect(client.generate(Buffer.from('png'), 1)).rejects.toThrow(/bad mesh/)

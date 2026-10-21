@@ -34,6 +34,11 @@ describe('art manifest', () => {
     expect(errorsFor({ ...design, id: 'x5', colors })).toEqual([])
   })
 
+  it('tall is true or absent', () => {
+    expect(errorsFor({ ...design, id: 'x6', tall: true })).toEqual([])
+    expect(errorsFor({ ...design, id: 'x7', tall: 'yes' })).not.toEqual([])
+  })
+
   it('needs exactly one of prompt and base', () => {
     expect(errorsFor({ ...repaint, id: 'x3', prompt: 'both' })).not.toEqual([])
     const { prompt, ...neither } = design

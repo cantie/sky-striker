@@ -197,10 +197,8 @@ function simplifyAcrossSeams(doc, budget) {
   }
 }
 
-/** `baseGlow`: for a recolored repaint, the glow of its base design (what its lights look like in `rawPath`). */
-export async function buildAsset(rawPath, outPath, asset, budget, { baseGlow } = {}) {
-  const io = await artIO()
-  await MeshoptSimplifier.ready
+/** The raw model simplified to `tris`, with normals, the glow map and the recolor done; textures still full size. */
+async function prepare(io, rawPath, asset, tris, px, baseGlow) {
   const doc = await io.read(rawPath)
   doc.setLogger(new Logger(Logger.Verbosity.WARN))
   // Hunyuan labels its JPEG base color image/png; resizing then fails ("width 0")
@@ -209,36 +207,51 @@ export async function buildAsset(rawPath, outPath, asset, budget, { baseGlow } =
     if (real && real !== t.getMimeType()) t.setMimeType(real)
   }
   await doc.transform(weld())
-  const tris = countTris(doc)
-  if (tris > budget.tris) {
+  if (countTris(doc) > tris) {
     for (const error of [0.01, 0.05]) {
-      await doc.transform(simplify({ simplifier: MeshoptSimplifier, ratio: Math.min(1, budget.tris / countTris(doc)), error }))
-      if (countTris(doc) <= budget.tris) break
+      await doc.transform(simplify({ simplifier: MeshoptSimplifier, ratio: Math.min(1, tris / countTris(doc)), error }))
+      if (countTris(doc) <= tris) break
     }
-    if (countTris(doc) > budget.tris) {
-      simplifyAcrossSeams(doc, budget)
+    if (countTris(doc) > tris) {
+      simplifyAcrossSeams(doc, { tris })
       await doc.transform(weld())
     }
   }
   bakeNormals(doc, asset.turn ?? 0)
   await doc.transform(weld())
-  if (asset.colors) await recolor(doc, asset.colors, asset.glow, baseGlow ?? asset.glow, budget.px)
-  else if (asset.glow) await addEmissive(doc, asset.glow, budget.px)
+  if (asset.colors) await recolor(doc, asset.colors, asset.glow, baseGlow ?? asset.glow, px)
+  else if (asset.glow) await addEmissive(doc, asset.glow, px)
   await doc.transform(dedup(), prune())
+  return doc
+}
+
+/**
+ * Shares of the triangle budget tried in turn when even the lowest texture quality leaves the GLB over its
+ * size budget (ZPS 3D meshes have many seams, so their vertices, not their textures, fill a large budget).
+ */
+const TRI_SHARES = [1, 0.85, 0.7, 0.55]
+
+/** `baseGlow`: for a recolored repaint, the glow of its base design (what its lights look like in `rawPath`). */
+export async function buildAsset(rawPath, outPath, asset, budget, { baseGlow } = {}) {
+  const io = await artIO()
+  await MeshoptSimplifier.ready
   let out, bytes
-  for (const { quality, nearLossless } of ENCODINGS) {
-    out = cloneDocument(doc)
-    await out.transform(
-      // Metal and roughness change slowly across the surface: half size is enough and keeps small assets in budget
-      textureCompress({ encoder: sharp, targetFormat: 'webp', quality, slots: /^metallicRoughness/, resize: [budget.px / 2, budget.px / 2] }),
-      // Lossy webp halves the color resolution, which grays out lights of a pixel or two on black;
-      // near-lossless keeps their color and stays small on a map that is nearly all black
-      textureCompress({ encoder: sharp, targetFormat: 'webp', quality, nearLossless, slots: /^emissive/, resize: [budget.px, budget.px] }),
-      textureCompress({ encoder: sharp, targetFormat: 'webp', quality, slots: /^(?!metallicRoughness|emissive)/, resize: [budget.px, budget.px] }),
-      meshopt({ encoder: MeshoptEncoder, level: 'high' }),
-    )
-    bytes = await io.writeBinary(out)
-    if (bytes.length <= budget.kb * 1024) break
+  search: for (const share of TRI_SHARES) {
+    const doc = await prepare(io, rawPath, asset, Math.floor(budget.tris * share), budget.px, baseGlow)
+    for (const { quality, nearLossless } of ENCODINGS) {
+      out = cloneDocument(doc)
+      await out.transform(
+        // Metal and roughness change slowly across the surface: half size is enough and keeps small assets in budget
+        textureCompress({ encoder: sharp, targetFormat: 'webp', quality, slots: /^metallicRoughness/, resize: [budget.px / 2, budget.px / 2] }),
+        // Lossy webp halves the color resolution, which grays out lights of a pixel or two on black;
+        // near-lossless keeps their color and stays small on a map that is nearly all black
+        textureCompress({ encoder: sharp, targetFormat: 'webp', quality, nearLossless, slots: /^emissive/, resize: [budget.px, budget.px] }),
+        textureCompress({ encoder: sharp, targetFormat: 'webp', quality, slots: /^(?!metallicRoughness|emissive)/, resize: [budget.px, budget.px] }),
+        meshopt({ encoder: MeshoptEncoder, level: 'high' }),
+      )
+      bytes = await io.writeBinary(out)
+      if (bytes.length <= budget.kb * 1024) break search
+    }
   }
   mkdirSync(dirname(outPath), { recursive: true })
   writeFileSync(outPath, bytes)

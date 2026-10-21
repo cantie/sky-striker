@@ -67,6 +67,13 @@ describe('recolored repaints', () => {
     expect(end(rawFor(repaint))).toBe('.cache/raw/enemy-basic-s2.glb')
     expect(end(rawFor(design))).toBe('.cache/raw/enemy-basic-s1.glb')
   })
+
+  it('a recolored design still has its concept and model steps, and builds from its own model', () => {
+    const own = { ...design, colors: recolored.colors }
+    expect(planConcept([own], files(), false).todo).toEqual([own])
+    expect(planModel([own], files('art/concepts/enemy-basic-s1.webp'), false).todo).toEqual([own])
+    expect(end(rawFor(own))).toBe('.cache/raw/enemy-basic-s1.glb')
+  })
 })
 
 describe('background cutout before modelling', () => {

@@ -8,6 +8,7 @@ import { runBatch, withRetry } from './batch.mjs'
 import { buildAsset } from './build.mjs'
 import { checkGlb } from './checks.mjs'
 import { createImageClient, createZps3dClient } from './clients.mjs'
+import { levelGlb } from './level.mjs'
 import { requireKeys } from './env.mjs'
 import { artPaths } from './paths.mjs'
 
@@ -25,7 +26,7 @@ export function conceptPrompt(asset) {
 export function planConcept(assets, exists, force, paths = artPaths()) {
   const todo = [], blocked = []
   for (const a of assets) {
-    if (a.colors) continue // recolored at build time: the preview is its review
+    if (a.colors && a.base) continue // recolored at build time: the preview is its review
     if (!force && exists(paths.concept(a.id))) continue
     if (a.base !== undefined && !exists(paths.concept(a.base))) blocked.push({ id: a.id, reason: `base ${a.base} not approved` })
     else todo.push(a)
@@ -37,7 +38,7 @@ export function planConcept(assets, exists, force, paths = artPaths()) {
 export function planModel(assets, exists, force, paths = artPaths()) {
   const todo = [], blocked = []
   for (const a of assets) {
-    if (a.colors) continue // recolored from its base's model at build time
+    if (a.colors && a.base) continue // recolored from its base's model at build time
     if (!exists(paths.concept(a.id))) blocked.push({ id: a.id, reason: 'not approved' })
     else if (force || !exists(paths.raw(a.id))) todo.push(a)
   }
@@ -141,23 +142,24 @@ export async function runModel(assets, { env, force = false, paths = artPaths(),
   const res = await runBatch(todo, async (a) => {
     const t0 = Date.now()
     const png = await cutoutPng(paths.concept(a.id))
-    write(paths.raw(a.id), await withRetry((seed) => zps3d.generate(png, seed), a.seed ?? 42))
+    // ZPS 3D answers in the concept camera's frame; level the model before it is cached
+    write(paths.raw(a.id), await levelGlb(await withRetry((seed) => zps3d.generate(png, seed), a.seed ?? 42)))
     log(`${a.id}: model in ${((Date.now() - t0) / 1000).toFixed(0)} s`)
   }, { concurrency: 2 })
   return { ...res, blocked }
 }
 
 /** The raw model an asset builds from: a recolored repaint uses its base's. */
-export const rawFor = (a, paths = artPaths()) => paths.raw(a.colors ? a.base : a.id)
+export const rawFor = (a, paths = artPaths()) => paths.raw(a.colors && a.base ? a.base : a.id)
 
 /** Raw GLBs → public/models/ai; an asset over budget or failing a check fails. */
 export async function runBuild(assets, { paths = artPaths(), log = console.log } = {}) {
   const blocked = assets.filter((a) => !existsSync(rawFor(a, paths)))
-    .map((a) => ({ id: a.id, reason: a.colors ? `no raw model of ${a.base}` : 'no raw model (run model first)' }))
+    .map((a) => ({ id: a.id, reason: a.colors && a.base ? `no raw model of ${a.base}` : 'no raw model (run model first)' }))
   const todo = assets.filter((a) => existsSync(rawFor(a, paths)))
   const res = await runBatch(todo, async (a) => {
     const budget = BUDGETS[a.budget]
-    const baseGlow = a.colors ? ASSETS.find((b) => b.id === a.base)?.glow : undefined
+    const baseGlow = a.colors && a.base ? ASSETS.find((b) => b.id === a.base)?.glow : undefined
     const { tris, bytes } = await buildAsset(rawFor(a, paths), paths.out(a.id), a, budget, { baseGlow })
     log(`${a.id}: ${tris} tris, ${Math.round(bytes / 1024)} KB (budget ${budget.tris}, ${budget.kb} KB)`)
     const problems = await checkGlb(paths.out(a.id), a, budget)

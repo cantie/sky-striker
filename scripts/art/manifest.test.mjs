@@ -30,7 +30,8 @@ describe('art manifest', () => {
     expect(errorsFor({ ...repaint, colors: { ...colors, dark: 'brown' } })).not.toEqual([])
     const { panel, ...noPanel } = colors
     expect(errorsFor({ ...repaint, colors: noPanel })).not.toEqual([])
-    expect(errorsFor({ ...design, id: 'x5', colors })).not.toEqual([])
+    // A design may be recolored too: its own model, repainted after the preview
+    expect(errorsFor({ ...design, id: 'x5', colors })).toEqual([])
   })
 
   it('needs exactly one of prompt and base', () => {

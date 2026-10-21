@@ -11,7 +11,10 @@ import { aiModel } from './game/models'
 import { getStage } from './game/stages'
 import { GROUND_Y } from './game/world'
 
-const ids = (new URLSearchParams(location.search).get('ids') ?? '').split(',').filter(Boolean)
+const query = new URLSearchParams(location.search)
+const ids = (query.get('ids') ?? '').split(',').filter(Boolean)
+/** `view=angle`: from the front left and above instead of the game camera, to see which way up a model is. */
+const angled = query.get('view') === 'angle'
 const assets = ids.map((id) => ASSETS.find((a) => a.id === id)).filter((a): a is ArtAsset => !!a)
 const ground = (a: ArtAsset) => a.kind === 'hull' || a.kind === 'base' || a.kind === 'gun'
 
@@ -48,9 +51,9 @@ function Row({ asset }: { asset: ArtAsset }) {
       <Canvas
         orthographic
         style={{ width: 540, height: 300 }}
-        camera={{ position: [0, 50, 0], zoom: 28, near: 0.1, far: 200, up: [0, 0, 1] }}
+        camera={angled ? { position: [-30, 30, 30], zoom: 40, near: 0.1, far: 200, up: [0, 1, 0] } : { position: [0, 50, 0], zoom: 28, near: 0.1, far: 200, up: [0, 0, 1] }}
         gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.15, preserveDrawingBuffer: true }}
-        onCreated={({ camera }) => { camera.up.set(0, 0, 1); camera.lookAt(0, 0, 0) }}
+        onCreated={({ camera }) => { camera.up.set(0, angled ? 1 : 0, angled ? 0 : 1); camera.lookAt(0, 0, 0) }}
       >
         <Missing id={asset.id}>
           <Suspense fallback={null}>

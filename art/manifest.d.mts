@@ -13,7 +13,7 @@ export interface ArtAsset {
   prompt?: string
   base?: string
   livery?: string
-  /** A repaint recolored from its base's model: the livery's three paint colors. */
+  /** Recolored at build time (a repaint from its base's model, a design from its own): the three paint colors. */
   colors?: { hull: string; panel: string; dark: string }
   seed?: number
   size?: number

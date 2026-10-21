@@ -7,6 +7,7 @@ import { useAudio, onPlayGesture } from '../../hooks/useAudio'
 import { Environment } from './Environment'
 import { Player } from './Player'
 import { ModelBoundary } from './ModelBoundary'
+import { STATS, StatsProbe } from './StatsProbe'
 import { Enemies } from './Enemies'
 import { Boss } from './Boss'
 import { Bullets } from './Bullets'
@@ -256,6 +257,7 @@ export function GameScene() {
           </>
         )}
       </Suspense>
+      {STATS && <StatsProbe />}
       <EffectComposer multisampling={0}>
         <Bloom intensity={0.7} luminanceThreshold={0.7} mipmapBlur levels={5} />
         <Vignette offset={0.3} darkness={0.35} />

@@ -9,8 +9,8 @@ before implementing.
 ## How to resume (next session, any machine)
 1. Create `~/.config/sky-striker/assets.env` (format in [Setup](#setup-on-another-machine)): copy it from the
    first machine or ask the user. Never commit it — this repo is public.
-2. If no plan exists yet in docs/superpowers/plans/, run superpowers:writing-plans for this spec;
-   otherwise follow the plan.
+2. Part 1 is done (branch `feat/reskin`, 2026-10-21): every aircraft, ground unit and boss is on an AI model.
+   What is left is listed under [Follow-ups](#follow-ups-after-part-1).
 3. The user writes Vietnamese; answer in Vietnamese.
 
 ## Goal
@@ -232,6 +232,27 @@ city and pirate scenery stay for sub-project 3.
 ### By hand, at the end of the sub-project
 Play stage 1 and one co-op run on a real mid-range phone: FPS no lower than today, the briefing loads within
 a few seconds, and no model appears late during play.
+
+## Follow-ups after part 1
+- **Boss hit radii.** Bosses are drawn 1.6× larger, but their hit radii are unchanged because this part froze
+  hitboxes. Shots pass through wide wings: about 45 % of each Wraith wing is outside its hit circle, and
+  Galleon shots go about 3 units into the hull before they hit. Wide bosses can also touch the screen edge
+  when they sway. Fixing this is a gameplay change and needs the same radii in co-op.
+- Pipeline:
+  - A failed download of a finished ZPS job starts a new paid job; retry the download first.
+  - Add a CLI command that resumes a wait by job id.
+  - A failed build overwrites the committed GLB in `public/models/ai`; write to a temp file instead.
+  - `checkGlb` does not check texture size against `budget.px`.
+  - `levelGlb` should read through `artIO()`.
+  - `concept <id> --force` rewrites the batch review page with only that row.
+  - The 36 enemy repaint concepts in `art/concepts` are no longer read by any step.
+- Game:
+  - Planes browsed in the hangar stay in memory until the next stage.
+  - Emissive maps could be half size, like the metallic-roughness map.
+  - The first hit flash compiles a new shader variant.
+  - The silhouette keeps the metallic-roughness map.
+  - On starts that skip the briefing, the Player waits on its plane and holds the whole scene back.
+  - The `gunY` comment in `roster.ts` is stale.
 
 ## Setup on another machine
 `~/.config/sky-striker/assets.env`, outside the repo (the repo's `.env` is loaded into the game server

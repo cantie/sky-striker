@@ -1,7 +1,7 @@
 import type { Biome } from './biomes'
 import type { BossId } from './bosses'
 import type { PathId } from './paths'
-import { MODEL_PATHS as M, aiModel as ai, kenneyLivery as kl, quatLivery as ql } from './models'
+import { aiModel as ai } from './models'
 import type { AirRole, AirSkin, EnemyType, GroundSkin } from './roster'
 import { buildWaves, type GenGroup } from './waveGen'
 
@@ -97,10 +97,10 @@ const DEFS: StageDef[] = [
     waveInterval: 3000, boss: 'crawler', bossHp: 2000,
     enemyHpMult: 1, bulletSpeedMult: 1.04, fireRateMult: 1, basicFire: 0,
     skins: {
-      basic: air(M.speederC, 1.3, kl('#e2c48a', '#9a5a22', '#2a1a0a', '#ff8a2a'), '#ffa040', 2),
-      fast: air(M.racer, 1.15, kl('#d8b070', '#b03a1a', '#2a120a', '#ffcf4a'), '#ffcf4a'),
-      heavy: air(M.cargoB, 1.85, kl('#c8a46a', '#6a4a24', '#1e140a', '#ff6a2a'), '#ff8a3d', 2),
-      shooter: air(M.speederA, 1.35, kl('#c9a46a', '#6b4a2a', '#20140a', '#ff4a2a'), '#ff7a3d'),
+      basic: air(ai('enemy-basic-s2'), 1.45, undefined, '#ffa040'),
+      fast: air(ai('enemy-fast-s2'), 1.5, undefined, '#ffcf4a'),
+      heavy: air(ai('enemy-heavy-s2'), 1.85, undefined, '#ff8a3d', 2),
+      shooter: air(ai('enemy-shooter-s2'), 1.35, undefined, '#ff7a3d', 2),
     },
     ground: { vehicle: 'tank', hull: '#b8955a', turret: '#8a6a3a', accent: '#ff7a2a' },
     waves: [
@@ -119,10 +119,10 @@ const DEFS: StageDef[] = [
     waveInterval: 2900, boss: 'galleon', bossHp: 2600,
     enemyHpMult: 1.15, bulletSpeedMult: 1.08, fireRateMult: 1.05, basicFire: 0,
     skins: {
-      basic: air(M.ship7, 1.35, ql('#dfe6f0', '#1d2a4a', '#2a8cff', '#2a8cff'), '#5ab4ff'),
-      fast: air(M.speederC, 1.2, kl('#e8f4f4', '#14a0a0', '#0a2424', '#4affe0'), '#4affe0', 2),
-      heavy: air(M.ship2, 1.9, ql('#d8e2ee', '#1a2c4a', '#ff4a4a', '#ff4a4a'), '#ff6a5a', 2),
-      shooter: air(M.speederB, 1.35, kl('#e6ecf4', '#1f3a7a', '#0a1430', '#ff3a4a'), '#ff5a6a', 2),
+      basic: air(ai('enemy-basic-s3'), 1.45, undefined, '#5ab4ff'),
+      fast: air(ai('enemy-fast-s3'), 1.5, undefined, '#4affe0'),
+      heavy: air(ai('enemy-heavy-s3'), 1.85, undefined, '#ff6a5a', 2),
+      shooter: air(ai('enemy-shooter-s3'), 1.35, undefined, '#ff5a6a', 2),
     },
     ground: { vehicle: 'boat', hull: '#d8dde6', turret: '#4a5468', accent: '#ff3a3a' },
     waves: [
@@ -141,10 +141,10 @@ const DEFS: StageDef[] = [
     waveInterval: 2800, boss: 'hornet', bossHp: 3200,
     enemyHpMult: 1.3, bulletSpeedMult: 1.12, fireRateMult: 1.1, basicFire: 0,
     skins: {
-      basic: air(M.ship3, 1.35, ql('#e8d6c0', '#3a1a10', '#ff6a1a', '#ff4a10'), '#ff8a3d', 2),
-      fast: air(M.racer, 1.15, kl('#2a1a14', '#c0242f', '#120a08', '#ff4a1a'), '#ff5a2a'),
-      heavy: air(M.miner, 1.85, kl('#c08a4a', '#6a3a1a', '#1e100a', '#ffb02e'), '#ffb02e', 2),
-      shooter: air(M.speederC, 1.35, kl('#f0d8b0', '#d0601a', '#2a140a', '#ff7a1a'), '#ff9a3d', 2),
+      basic: air(ai('enemy-basic-s4'), 1.45, undefined, '#ff8a3d'),
+      fast: air(ai('enemy-fast-s4'), 1.5, undefined, '#ff5a2a'),
+      heavy: air(ai('enemy-heavy-s4'), 1.85, undefined, '#ffb02e', 2),
+      shooter: air(ai('enemy-shooter-s4'), 1.35, undefined, '#ff9a3d', 2),
     },
     ground: { vehicle: 'tank', hull: '#7a4a2a', turret: '#5a3218', accent: '#ffb02e' },
     waves: [
@@ -163,10 +163,10 @@ const DEFS: StageDef[] = [
     waveInterval: 2700, boss: 'warden', bossHp: 3900,
     enemyHpMult: 1.5, bulletSpeedMult: 1.16, fireRateMult: 1.15, basicFire: 2800,
     skins: {
-      basic: air(M.speederA, 1.25, kl('#f2f8ff', '#3a7ab8', '#0e1e2e', '#45c8ff'), '#7fe0ff'),
-      fast: air(M.ship4, 1.4, ql('#eef6ff', '#1a3a5a', '#45c8ff', '#45c8ff'), '#9be8ff'),
-      heavy: air(M.cargoA, 1.85, kl('#b8c8d8', '#2a4a6a', '#0e1a26', '#7fdcff'), '#7fe0ff', 2),
-      shooter: air(M.ship7, 1.4, ql('#ffffff', '#2a4a7a', '#ff3a6a', '#ff3a6a'), '#ff7a9a'),
+      basic: air(ai('enemy-basic-s5'), 1.45, undefined, '#7fe0ff'),
+      fast: air(ai('enemy-fast-s5'), 1.5, undefined, '#9be8ff'),
+      heavy: air(ai('enemy-heavy-s5'), 1.85, undefined, '#7fe0ff', 2),
+      shooter: air(ai('enemy-shooter-s5'), 1.35, undefined, '#ff7a9a', 2),
     },
     ground: { vehicle: 'tank', hull: '#dfe7ee', turret: '#9aa8b4', accent: '#45c8ff' },
     waves: [
@@ -186,10 +186,10 @@ const DEFS: StageDef[] = [
     waveInterval: 2600, boss: 'breaker', bossHp: 4600,
     enemyHpMult: 1.7, bulletSpeedMult: 1.2, fireRateMult: 1.2, basicFire: 2600,
     skins: {
-      basic: air(M.speederB, 1.3, kl('#d08a5a', '#7a2a14', '#24100a', '#ffb02e'), '#ffb02e', 2),
-      fast: air(M.racer, 1.15, kl('#24140e', '#d02a1a', '#0a0604', '#ff3a1a'), '#ff4a2a'),
-      heavy: air(M.miner, 1.9, kl('#9a5a3a', '#4a2414', '#160a06', '#ff7a2a'), '#ff8a3d', 2),
-      shooter: air(M.ship6, 1.45, ql('#e0a080', '#2a0e06', undefined, '#ff5a1a'), '#ff7a3d', 2),
+      basic: air(ai('enemy-basic-s6'), 1.45, undefined, '#ffb02e'),
+      fast: air(ai('enemy-fast-s6'), 1.5, undefined, '#ff4a2a'),
+      heavy: air(ai('enemy-heavy-s6'), 1.85, undefined, '#ff8a3d', 2),
+      shooter: air(ai('enemy-shooter-s6'), 1.35, undefined, '#ff7a3d', 2),
     },
     ground: { vehicle: 'tank', hull: '#9a4a2a', turret: '#6a2e18', accent: '#ffcf4a' },
     waves: [
@@ -209,10 +209,10 @@ const DEFS: StageDef[] = [
     waveInterval: 2500, boss: 'wraith', bossHp: 5400,
     enemyHpMult: 1.9, bulletSpeedMult: 1.24, fireRateMult: 1.25, basicFire: 2400,
     skins: {
-      basic: air(M.ship4, 1.4, ql('#5a7a4a', '#0e1a10', '#9bff5a', '#6aff3a'), '#9bff5a'),
-      fast: air(M.speederC, 1.2, kl('#3a4a2a', '#8aff2a', '#0a1006', '#c8ff3a'), '#c8ff3a', 2),
-      heavy: air(M.cargoB, 1.9, kl('#4a5a3a', '#2a3a1a', '#0a1006', '#6aff3a'), '#9bff5a', 2),
-      shooter: air(M.ship2, 1.45, ql('#6a7a5a', '#141e10', '#d0ff4a', '#a8ff3a'), '#d0ff4a', 2),
+      basic: air(ai('enemy-basic-s7'), 1.45, undefined, '#9bff5a'),
+      fast: air(ai('enemy-fast-s7'), 1.5, undefined, '#c8ff3a'),
+      heavy: air(ai('enemy-heavy-s7'), 1.85, undefined, '#9bff5a', 2),
+      shooter: air(ai('enemy-shooter-s7'), 1.35, undefined, '#d0ff4a', 2),
     },
     ground: { vehicle: 'hover', hull: '#4a5a34', turret: '#2a3a1c', accent: '#9bff5a' },
     waves: [
@@ -232,10 +232,10 @@ const DEFS: StageDef[] = [
     waveInterval: 2400, boss: 'hive', bossHp: 6200,
     enemyHpMult: 2.15, bulletSpeedMult: 1.28, fireRateMult: 1.3, basicFire: 2200,
     skins: {
-      basic: air(M.speederA, 1.25, kl('#2a2a3a', '#ff2ab8', '#0a0a14', '#ff2ab8', 1.8), '#ff4ad8'),
-      fast: air(M.racer, 1.15, kl('#1a2a3a', '#2af0ff', '#06101a', '#2af0ff', 1.8), '#4af0ff'),
-      heavy: air(M.cargoA, 1.85, kl('#2a2a2a', '#ffd21a', '#0a0a0a', '#ffd21a', 1.6), '#ffe04a', 2),
-      shooter: air(M.ship5, 1.45, ql('#ff9ae0', '#1a0a1a', undefined, '#ff2ab8'), '#ff4ad8', 2),
+      basic: air(ai('enemy-basic-s8'), 1.45, undefined, '#ff4ad8'),
+      fast: air(ai('enemy-fast-s8'), 1.5, undefined, '#4af0ff'),
+      heavy: air(ai('enemy-heavy-s8'), 1.85, undefined, '#ffe04a', 2),
+      shooter: air(ai('enemy-shooter-s8'), 1.35, undefined, '#ff4ad8', 2),
     },
     ground: { vehicle: 'tank', hull: '#3a3e48', turret: '#24262e', accent: '#2af0ff' },
     waves: [
@@ -256,10 +256,10 @@ const DEFS: StageDef[] = [
     waveInterval: 2300, boss: 'leviathan', bossHp: 7100,
     enemyHpMult: 2.4, bulletSpeedMult: 1.32, fireRateMult: 1.35, basicFire: 2000,
     skins: {
-      basic: air(M.ship6, 1.4, ql('#3a2a26', '#120604', undefined, '#ff4a10'), '#ff6a2a', 2),
-      fast: air(M.speederC, 1.2, kl('#1e1614', '#ff5a10', '#080404', '#ff7a1a', 1.8), '#ff8a3d', 2),
-      heavy: air(M.miner, 1.9, kl('#2e2622', '#1a1210', '#060404', '#ff4a10', 1.8), '#ff5a1f', 2),
-      shooter: air(M.ship1, 1.5, ql('#8a3a2a', '#1a0604', undefined, '#ff3a00'), '#ff5a1f', 2),
+      basic: air(ai('enemy-basic-s9'), 1.45, undefined, '#ff6a2a'),
+      fast: air(ai('enemy-fast-s9'), 1.5, undefined, '#ff8a3d'),
+      heavy: air(ai('enemy-heavy-s9'), 1.85, undefined, '#ff5a1f', 2),
+      shooter: air(ai('enemy-shooter-s9'), 1.35, undefined, '#ff5a1f', 2),
     },
     ground: { vehicle: 'tank', hull: '#2e2a28', turret: '#1a1716', accent: '#ff5a1a' },
     waves: [
@@ -280,10 +280,10 @@ const DEFS: StageDef[] = [
     waveInterval: 2200, boss: 'citadel', bossHp: 8000,
     enemyHpMult: 2.7, bulletSpeedMult: 1.36, fireRateMult: 1.4, basicFire: 1800,
     skins: {
-      basic: air(M.ship7, 1.35, ql('#8a92a4', '#14161c', '#ff1a3a', '#ff1a3a'), '#ff3a5a'),
-      fast: air(M.ship4, 1.4, ql('#9aa2b4', '#101218', '#ff1a3a', '#ff1a3a'), '#ff5a7a'),
-      heavy: air(M.cargoB, 1.95, kl('#3a3e48', '#a01a2a', '#0a0a0e', '#ff1a3a', 1.6), '#ff3a5a', 2),
-      shooter: air(M.ship3, 1.45, ql('#a7afc2', '#14161c', '#ff1a3a', '#ff1a3a'), '#ff3a5a', 2),
+      basic: air(ai('enemy-basic-s10'), 1.45, undefined, '#ff3a5a'),
+      fast: air(ai('enemy-fast-s10'), 1.5, undefined, '#ff5a7a'),
+      heavy: air(ai('enemy-heavy-s10'), 1.85, undefined, '#ff3a5a', 2),
+      shooter: air(ai('enemy-shooter-s10'), 1.35, undefined, '#ff3a5a', 2),
     },
     ground: { vehicle: 'tank', hull: '#4a505c', turret: '#2a2e36', accent: '#ff1a3a' },
     waves: [

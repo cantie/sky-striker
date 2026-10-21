@@ -4,7 +4,8 @@
 //
 // Row: { id, kind: player|enemy|boss|hull|base|gun, batch: 1..5, budget, glow: '#rrggbb',
 //   prompt (a design) | base + livery (a repaint of an approved design),
-//   seed?, size? (game size), stage? (1..10), old? (the model it replaces), turn? (0 | 180) }
+//   seed?, size? (game size), stage? (1..10), old? (the model it replaces), turn? (0 | 180),
+//   colors? ({ hull, panel, dark }: recolored at build time, a repaint from its base's model) }
 
 /** Shared style block of every concept prompt (spec, Section 2). */
 export const STYLE = 'Semi-realistic 3D render in the style of Sky Force Reloaded: painted PBR metal with crisp panel lines. ' +
@@ -280,5 +281,103 @@ export const ASSETS = [
     id: 'enemy-shooter-s10', kind: 'enemy', batch: 3, budget: 'small', glow: '#ff3a5a', size: 1.35, stage: 10, old: '/models/quaternius/spaceship3.glb',
     base: 'enemy-shooter-s1', livery: 'light steel gray hull with black panels and crimson accents',
     colors: { hull: '#a7afc2', panel: '#14161c', dark: '#09090c' },
+  },
+  // Batch 4: ground units. New designs: the boat, the hovercraft, the fixed-turret base and three guns.
+  // Recolored repaints (colors, no concept): tank hulls of the other tank stages, the base of every stage.
+  {
+    id: 'hull-s3', kind: 'hull', batch: 4, budget: 'small', glow: '#ff3a3a', size: 1.6, stage: 3,
+    prompt: 'A small fast military patrol boat seen without its gun: pointed bow, low flat deck, a round empty gun ring in the exact middle ' +
+      'of the deck, a low cabin at the stern. Livery: light gray-white hull with slate blue-gray deck panels.',
+  },
+  {
+    id: 'hull-s7', kind: 'hull', batch: 4, budget: 'small', glow: '#9bff5a', size: 1.6, stage: 7,
+    prompt: 'A compact military hovercraft seen without its gun: a rounded armored body on a thick black rubber skirt, ' +
+      'two glowing exhaust fans at the back, a round empty turret ring on top. Livery: swamp olive green with dark green panels.',
+    // Brightened after the preview: the swamp ground swallowed the dark olive paint
+    colors: { hull: '#8a9a6a', panel: '#4a5a34', dark: '#1e2816' },
+  },
+  {
+    id: 'base-s1', kind: 'base', batch: 4, budget: 'small', glow: '#ff5a2a', size: 1.6, stage: 1,
+    prompt: 'A fixed gun emplacement seen without its gun: a low octagonal armored bunker with sloped sides, ' +
+      'a round empty turret ring on top, small glowing lights around the ring. Livery: jungle olive green with darker olive panels.',
+  },
+  {
+    id: 'gun-boat', kind: 'gun', batch: 4, budget: 'small', glow: '#ff3a3a', size: 1, stage: 3,
+    prompt: 'A naval deck gun turret on its own, no boat: a rounded armored turret with one long cannon barrel pointing forward, ' +
+      'a glowing muzzle tip. Livery: dark gunmetal steel.',
+  },
+  {
+    id: 'gun-hover', kind: 'gun', batch: 4, budget: 'small', glow: '#9bff5a', size: 1, stage: 7,
+    prompt: 'A compact energy cannon turret on its own, no vehicle: a low wedge-shaped turret with two short thick barrels ' +
+      'pointing forward, glowing coils at the barrel tips. Livery: dark gunmetal steel.',
+  },
+  {
+    id: 'gun-turret', kind: 'gun', batch: 4, budget: 'small', glow: '#ff5a2a', size: 1, stage: 1,
+    prompt: 'A heavy twin-barrel gun turret on its own, no base: a squat armored turret with two long cannon barrels side by side ' +
+      'pointing forward, glowing muzzle tips. Livery: dark gunmetal steel.',
+  },
+  {
+    id: 'hull-s2', kind: 'hull', batch: 4, budget: 'small', glow: '#ff7a2a', size: 1.6, stage: 2,
+    base: 'hull-s1', livery: 'desert sand', colors: { hull: '#b8955a', panel: '#8a6a3a', dark: '#3e2f1a' },
+  },
+  {
+    id: 'hull-s4', kind: 'hull', batch: 4, budget: 'small', glow: '#ffb02e', size: 1.6, stage: 4,
+    base: 'hull-s1', livery: 'autumn brown', colors: { hull: '#7a4a2a', panel: '#5a3218', dark: '#28160a' },
+  },
+  {
+    id: 'hull-s5', kind: 'hull', batch: 4, budget: 'small', glow: '#45c8ff', size: 1.6, stage: 5,
+    base: 'hull-s1', livery: 'arctic white', colors: { hull: '#dfe7ee', panel: '#9aa8b4', dark: '#454b51' },
+  },
+  {
+    id: 'hull-s6', kind: 'hull', batch: 4, budget: 'small', glow: '#ffcf4a', size: 1.6, stage: 6,
+    base: 'hull-s1', livery: 'canyon red-brown', colors: { hull: '#9a4a2a', panel: '#6a2e18', dark: '#2f140a' },
+  },
+  {
+    id: 'hull-s8', kind: 'hull', batch: 4, budget: 'small', glow: '#2af0ff', size: 1.6, stage: 8,
+    base: 'hull-s1', livery: 'city gunmetal', colors: { hull: '#3a3e48', panel: '#24262e', dark: '#101114' },
+  },
+  {
+    id: 'hull-s9', kind: 'hull', batch: 4, budget: 'small', glow: '#ff5a1a', size: 1.6, stage: 9,
+    base: 'hull-s1', livery: 'light volcanic ash', colors: { hull: '#8a8078', panel: '#3a2a22', dark: '#140e0c' },
+  },
+  {
+    id: 'hull-s10', kind: 'hull', batch: 4, budget: 'small', glow: '#ff1a3a', size: 1.6, stage: 10,
+    base: 'hull-s1', livery: 'fortress steel', colors: { hull: '#4a505c', panel: '#2a2e36', dark: '#121418' },
+  },
+  {
+    id: 'base-s2', kind: 'base', batch: 4, budget: 'small', glow: '#ff7a2a', size: 1.6, stage: 2,
+    base: 'base-s1', livery: 'desert sand', colors: { hull: '#b8955a', panel: '#8a6a3a', dark: '#3e2f1a' },
+  },
+  {
+    id: 'base-s3', kind: 'base', batch: 4, budget: 'small', glow: '#ff3a3a', size: 1.6, stage: 3,
+    base: 'base-s1', livery: 'navy white', colors: { hull: '#d8dde6', panel: '#4a5468', dark: '#21252e' },
+  },
+  {
+    id: 'base-s4', kind: 'base', batch: 4, budget: 'small', glow: '#ffb02e', size: 1.6, stage: 4,
+    base: 'base-s1', livery: 'autumn brown', colors: { hull: '#7a4a2a', panel: '#5a3218', dark: '#28160a' },
+  },
+  {
+    id: 'base-s5', kind: 'base', batch: 4, budget: 'small', glow: '#45c8ff', size: 1.6, stage: 5,
+    base: 'base-s1', livery: 'arctic white', colors: { hull: '#dfe7ee', panel: '#9aa8b4', dark: '#454b51' },
+  },
+  {
+    id: 'base-s6', kind: 'base', batch: 4, budget: 'small', glow: '#ffcf4a', size: 1.6, stage: 6,
+    base: 'base-s1', livery: 'canyon red-brown', colors: { hull: '#9a4a2a', panel: '#6a2e18', dark: '#2f140a' },
+  },
+  {
+    id: 'base-s7', kind: 'base', batch: 4, budget: 'small', glow: '#9bff5a', size: 1.6, stage: 7,
+    base: 'base-s1', livery: 'light swamp moss', colors: { hull: '#8a9a6a', panel: '#4a5a34', dark: '#1e2816' },
+  },
+  {
+    id: 'base-s8', kind: 'base', batch: 4, budget: 'small', glow: '#2af0ff', size: 1.6, stage: 8,
+    base: 'base-s1', livery: 'city gunmetal', colors: { hull: '#3a3e48', panel: '#24262e', dark: '#101114' },
+  },
+  {
+    id: 'base-s9', kind: 'base', batch: 4, budget: 'small', glow: '#ff5a1a', size: 1.6, stage: 9,
+    base: 'base-s1', livery: 'light volcanic ash', colors: { hull: '#8a8078', panel: '#3a2a22', dark: '#140e0c' },
+  },
+  {
+    id: 'base-s10', kind: 'base', batch: 4, budget: 'small', glow: '#ff1a3a', size: 1.6, stage: 10,
+    base: 'base-s1', livery: 'fortress steel', colors: { hull: '#4a505c', panel: '#2a2e36', dark: '#121418' },
   },
 ]

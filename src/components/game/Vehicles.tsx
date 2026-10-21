@@ -53,12 +53,15 @@ function Gun({ skin, y, twin = false, aimLocal }: { skin: GroundSkin; y: number;
 export const HULL_SIZE = 1.6
 export const GUN_SIZE = 1
 
+/** Where the AI gun sits on the AI body (the top of its gun ring at HULL_SIZE), per body. */
+const GUN_Y = { turret: 0.72, tank: 0.43, boat: 0.45, hover: 0.68 }
+
 /** The AI models for a ground unit, or null to draw today's boxes (both a body and a gun are needed). */
 export function vehicleParts(skin: GroundSkin, turret: boolean): { body: string; gun: string; gunY: number } | null {
   const body = turret ? skin.baseModel : skin.hullModel
   const gun = turret ? skin.turretGunModel : skin.gunModel
   if (!body || !gun) return null
-  return { body, gun, gunY: skin.gunY ?? (turret ? 0.45 : 0.43) }
+  return { body, gun, gunY: skin.gunY ?? GUN_Y[turret ? 'turret' : skin.vehicle] }
 }
 
 function Wake() {

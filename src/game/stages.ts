@@ -79,7 +79,7 @@ const DEFS: StageDef[] = [
     },
     ground: {
       vehicle: 'tank', hull: '#5d6b3a', turret: '#46522a', accent: '#ff5a2a',
-      hullModel: ai('hull-s1'), gunModel: ai('gun-tank'),
+      hullModel: ai('hull-s1'), gunModel: ai('gun-tank'), baseModel: ai('base-s1'), turretGunModel: ai('gun-turret'),
     },
     waves: [
       [G('basic', 'dive', { x: [-3, 0, 3] })],
@@ -102,7 +102,10 @@ const DEFS: StageDef[] = [
       heavy: air(ai('enemy-heavy-s2'), 1.85, undefined, '#ff8a3d', 2),
       shooter: air(ai('enemy-shooter-s2'), 1.35, undefined, '#ff7a3d', 2),
     },
-    ground: { vehicle: 'tank', hull: '#b8955a', turret: '#8a6a3a', accent: '#ff7a2a' },
+    ground: {
+      vehicle: 'tank', hull: '#b8955a', turret: '#8a6a3a', accent: '#ff7a2a',
+      hullModel: ai('hull-s2'), gunModel: ai('gun-tank'), baseModel: ai('base-s2'), turretGunModel: ai('gun-turret'),
+    },
     waves: [
       [G('basic', 'sine', { x: [-3, 3], count: 3, gap: 0.5, amp: 1.6 })],
       [G('tank', 'crossGround', { count: 3, gap: 1.1 })],
@@ -124,7 +127,10 @@ const DEFS: StageDef[] = [
       heavy: air(ai('enemy-heavy-s3'), 1.85, undefined, '#ff6a5a', 2),
       shooter: air(ai('enemy-shooter-s3'), 1.35, undefined, '#ff5a6a', 2),
     },
-    ground: { vehicle: 'boat', hull: '#d8dde6', turret: '#4a5468', accent: '#ff3a3a' },
+    ground: {
+      vehicle: 'boat', hull: '#d8dde6', turret: '#4a5468', accent: '#ff3a3a',
+      hullModel: ai('hull-s3'), gunModel: ai('gun-boat'), baseModel: ai('base-s3'), turretGunModel: ai('gun-turret'),
+    },
     waves: [
       [G('basic', 'snake', { x: 0, count: 5, gap: 0.4, amp: 3 })],
       [G('tank', 'driveS', { x: [-4, 4], amp: 2 })],
@@ -146,7 +152,10 @@ const DEFS: StageDef[] = [
       heavy: air(ai('enemy-heavy-s4'), 1.85, undefined, '#ffb02e', 2),
       shooter: air(ai('enemy-shooter-s4'), 1.35, undefined, '#ff9a3d', 2),
     },
-    ground: { vehicle: 'tank', hull: '#7a4a2a', turret: '#5a3218', accent: '#ffb02e' },
+    ground: {
+      vehicle: 'tank', hull: '#7a4a2a', turret: '#5a3218', accent: '#ffb02e',
+      hullModel: ai('hull-s4'), gunModel: ai('gun-tank'), baseModel: ai('base-s4'), turretGunModel: ai('gun-turret'),
+    },
     waves: [
       [G('basic', 'zigzag', { x: [-3, 3], count: 3, gap: 0.5, amp: 2 })],
       [G('fast', 'arc', { count: 6, gap: 0.3 })],
@@ -168,7 +177,10 @@ const DEFS: StageDef[] = [
       heavy: air(ai('enemy-heavy-s5'), 1.85, undefined, '#7fe0ff', 2),
       shooter: air(ai('enemy-shooter-s5'), 1.35, undefined, '#ff7a9a', 2),
     },
-    ground: { vehicle: 'tank', hull: '#dfe7ee', turret: '#9aa8b4', accent: '#45c8ff' },
+    ground: {
+      vehicle: 'tank', hull: '#dfe7ee', turret: '#9aa8b4', accent: '#45c8ff',
+      hullModel: ai('hull-s5'), gunModel: ai('gun-tank'), baseModel: ai('base-s5'), turretGunModel: ai('gun-turret'),
+    },
     waves: [
       [G('fast', 'spiral', { x: [-3, 3], count: 3, gap: 0.5 })],
       [G('tank', 'crossGround', { count: 4, gap: 1 }), G('tank', 'crossGround', { m: -1, y: 5, count: 4, gap: 1 })],
@@ -191,7 +203,10 @@ const DEFS: StageDef[] = [
       heavy: air(ai('enemy-heavy-s6'), 1.85, undefined, '#ff8a3d', 2),
       shooter: air(ai('enemy-shooter-s6'), 1.35, undefined, '#ff7a3d', 2),
     },
-    ground: { vehicle: 'tank', hull: '#9a4a2a', turret: '#6a2e18', accent: '#ffcf4a' },
+    ground: {
+      vehicle: 'tank', hull: '#9a4a2a', turret: '#6a2e18', accent: '#ffcf4a',
+      hullModel: ai('hull-s6'), gunModel: ai('gun-tank'), baseModel: ai('base-s6'), turretGunModel: ai('gun-turret'),
+    },
     waves: [
       [G('basic', 'pincer', { count: 4, gap: 0.35, m: 'both' })],
       [G('tank', 'driveS', { x: [-3, 3], amp: 2 }), G('turret', 'static', { x: 0, y: 3 })],
@@ -214,7 +229,10 @@ const DEFS: StageDef[] = [
       heavy: air(ai('enemy-heavy-s7'), 1.85, undefined, '#9bff5a', 2),
       shooter: air(ai('enemy-shooter-s7'), 1.35, undefined, '#d0ff4a', 2),
     },
-    ground: { vehicle: 'hover', hull: '#4a5a34', turret: '#2a3a1c', accent: '#9bff5a' },
+    ground: {
+      vehicle: 'hover', hull: '#4a5a34', turret: '#2a3a1c', accent: '#9bff5a',
+      hullModel: ai('hull-s7'), gunModel: ai('gun-hover'), baseModel: ai('base-s7'), turretGunModel: ai('gun-turret'),
+    },
     waves: [
       [G('basic', 'snake', { x: [-3, 3], count: 4, gap: 0.4, amp: 2.5 })],
       [G('tank', 'driveS', { x: [-4, 0, 4], amp: 2.2 })],
@@ -237,7 +255,10 @@ const DEFS: StageDef[] = [
       heavy: air(ai('enemy-heavy-s8'), 1.85, undefined, '#ffe04a', 2),
       shooter: air(ai('enemy-shooter-s8'), 1.35, undefined, '#ff4ad8', 2),
     },
-    ground: { vehicle: 'tank', hull: '#3a3e48', turret: '#24262e', accent: '#2af0ff' },
+    ground: {
+      vehicle: 'tank', hull: '#3a3e48', turret: '#24262e', accent: '#2af0ff',
+      hullModel: ai('hull-s8'), gunModel: ai('gun-tank'), baseModel: ai('base-s8'), turretGunModel: ai('gun-turret'),
+    },
     waves: [
       [G('fast', 'pincer', { count: 5, gap: 0.3, m: 'both' })],
       [G('tank', 'drive', { x: [-4.5, -1.5, 1.5, 4.5] })],
@@ -261,7 +282,10 @@ const DEFS: StageDef[] = [
       heavy: air(ai('enemy-heavy-s9'), 1.85, undefined, '#ff5a1f', 2),
       shooter: air(ai('enemy-shooter-s9'), 1.35, undefined, '#ff5a1f', 2),
     },
-    ground: { vehicle: 'tank', hull: '#2e2a28', turret: '#1a1716', accent: '#ff5a1a' },
+    ground: {
+      vehicle: 'tank', hull: '#2e2a28', turret: '#1a1716', accent: '#ff5a1a',
+      hullModel: ai('hull-s9'), gunModel: ai('gun-tank'), baseModel: ai('base-s9'), turretGunModel: ai('gun-turret'),
+    },
     waves: [
       [G('basic', 'swoop', { count: 6, gap: 0.3, m: 'both' })],
       [G('tank', 'driveS', { x: [-4, 0, 4], amp: 1.6 }), G('turret', 'static', { x: [-5.5, 5.5], y: 3 })],
@@ -285,7 +309,10 @@ const DEFS: StageDef[] = [
       heavy: air(ai('enemy-heavy-s10'), 1.85, undefined, '#ff3a5a', 2),
       shooter: air(ai('enemy-shooter-s10'), 1.35, undefined, '#ff3a5a', 2),
     },
-    ground: { vehicle: 'tank', hull: '#4a505c', turret: '#2a2e36', accent: '#ff1a3a' },
+    ground: {
+      vehicle: 'tank', hull: '#4a505c', turret: '#2a2e36', accent: '#ff1a3a',
+      hullModel: ai('hull-s10'), gunModel: ai('gun-tank'), baseModel: ai('base-s10'), turretGunModel: ai('gun-turret'),
+    },
     waves: [
       [G('fast', 'pincer', { count: 6, gap: 0.3, m: 'both' })],
       [G('turret', 'static', { x: [-5, -2.5, 0, 2.5, 5] })],

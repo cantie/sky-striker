@@ -30,7 +30,12 @@ describe('vehicleParts', () => {
   })
 
   it('a turret with base and gun models', () => {
-    expect(vehicleParts({ ...skin, baseModel: 'base', turretGunModel: 'tg' }, true)).toEqual({ body: 'base', gun: 'tg', gunY: 0.45 })
+    expect(vehicleParts({ ...skin, baseModel: 'base', turretGunModel: 'tg' }, true)).toEqual({ body: 'base', gun: 'tg', gunY: 0.72 })
+  })
+
+  it('the gun sits on the deck of a boat and on the ring of a hovercraft', () => {
+    expect(vehicleParts({ ...skin, vehicle: 'boat', hullModel: 'hull', gunModel: 'gun' }, false)?.gunY).toBe(0.45)
+    expect(vehicleParts({ ...skin, vehicle: 'hover', hullModel: 'hull', gunModel: 'gun' }, false)?.gunY).toBe(0.68)
   })
 
   it('an explicit gunY wins', () => {

@@ -26,12 +26,17 @@ describe('model cache', () => {
     expect(cache.peek('a')).toBe('A')
   })
 
-  it('a failed load is forgotten so the next get retries', async () => {
+  it('a failed load stays failed until forgetFailures, then the next get retries', async () => {
     const f = fakeLoader()
     const cache = createModelCache(f.load, f.dispose)
     const first = cache.get('a')
     f.pending.get('a')!.reject(new Error('404'))
     await expect(first).rejects.toThrow('404')
+    // A render after the failure must see it (React's `use` throws it), not start another request:
+    // every frame would ask the network again
+    expect(cache.get('a')).toBe(first)
+    expect(f.calls).toEqual(['a'])
+    cache.forgetFailures()
     const second = cache.get('a')
     expect(f.calls).toEqual(['a', 'a'])
     f.pending.get('a')!.resolve('A')

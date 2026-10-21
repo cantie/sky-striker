@@ -1,5 +1,5 @@
 // Step preview: a screenshot of the batch from the game camera (art-preview.html on the dev server).
-import { mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { artPaths } from './paths.mjs'
 
@@ -7,13 +7,21 @@ export const DEV_URL = 'http://localhost:5847'
 
 export const previewUrl = (base, assets) => `${base}/art-preview.html?ids=${assets.map((a) => a.id).join(',')}`
 
-/** Headless Chromium as the playtest bot runs it (software GL, so it works without a GPU). */
+/**
+ * Launch options for headless Chromium with software GL, so it works without a GPU: the Windows headless
+ * shell the playtest bot uses where it is installed, otherwise whatever Chromium Playwright installed.
+ */
+export function browserOptions(env = process.env, exists = existsSync) {
+  const shell = env.LOCALAPPDATA && `${env.LOCALAPPDATA}/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-win64/chrome-headless-shell.exe`
+  return {
+    ...(shell && exists(shell) ? { executablePath: shell } : {}),
+    args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
+  }
+}
+
 export async function launchBrowser() {
   const { chromium } = await import('playwright')
-  return chromium.launch({
-    executablePath: process.env.LOCALAPPDATA + '/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-win64/chrome-headless-shell.exe',
-    args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
-  })
+  return chromium.launch(browserOptions())
 }
 
 /** False (and a hint printed) when nothing answers on the dev server port. */

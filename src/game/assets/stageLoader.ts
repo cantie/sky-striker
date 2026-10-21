@@ -7,7 +7,7 @@ export type StageLoadStatus = 'loading' | 'ready' | 'error'
  * Waits for one set of paths at a time (the stage about to start). A newer request supersedes an older
  * one: only the latest set decides the status.
  */
-export function createStageLoader(cache: Pick<ModelCache<unknown>, 'get'>) {
+export function createStageLoader(cache: Pick<ModelCache<unknown>, 'get' | 'peek' | 'forgetFailures'>) {
   let key = ''
   let paths: string[] = []
   let status: StageLoadStatus = 'ready'
@@ -17,6 +17,8 @@ export function createStageLoader(cache: Pick<ModelCache<unknown>, 'get'>) {
   const load = () => {
     const mine = ++run
     set('loading')
+    // Every load it starts tries failed models again (a RETRY, or a briefing opened after a failure)
+    cache.forgetFailures()
     Promise.all(paths.map((p) => cache.get(p))).then(
       () => { if (mine === run) set('ready') },
       () => { if (mine === run) set('error') },
@@ -25,7 +27,8 @@ export function createStageLoader(cache: Pick<ModelCache<unknown>, 'get'>) {
   return {
     request(next: string[]) {
       const k = [...next].sort().join('\n')
-      if (k === key) return
+      // The same set again reloads only if it failed, or a stage change freed part of it since
+      if (k === key && (status === 'loading' || (status === 'ready' && paths.every((p) => cache.peek(p) !== undefined)))) return
       key = k
       paths = [...next]
       load()

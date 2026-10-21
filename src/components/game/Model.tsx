@@ -4,6 +4,7 @@ import { models, useModelScene } from '../../game/assets/modelCache'
 import { flamePositions, type Nozzle } from '../../game/flames'
 import { MODEL_PATHS, noseIsNegZ, type MaterialPalette } from '../../game/models'
 import { EngineFlame } from './EngineFlame'
+import { ModelBoundary } from './ModelBoundary'
 import { applySilhouette } from './materialLook'
 
 export { MODEL_PATHS, type ModelKey, type MaterialPalette } from '../../game/models'
@@ -107,8 +108,8 @@ export function useModelDims(path: string): THREE.Vector3 {
  * and exhaust plumes placed on its tail from the model's real footprint.
  */
 export function ShipModel(props: ComponentProps<typeof ShipBody>) {
-  // Its own boundary: a model that arrives late hides only itself, not the whole scene
-  return <Suspense fallback={null}><ShipBody {...props} /></Suspense>
+  // Its own boundaries: a model that arrives late, or fails, hides only itself, not the whole scene
+  return <ModelBoundary><Suspense fallback={null}><ShipBody {...props} /></Suspense></ModelBoundary>
 }
 
 function ShipBody({

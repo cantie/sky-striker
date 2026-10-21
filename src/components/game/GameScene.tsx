@@ -6,6 +6,7 @@ import { useGameStore } from '../../store/gameStore'
 import { useAudio, onPlayGesture } from '../../hooks/useAudio'
 import { Environment } from './Environment'
 import { Player } from './Player'
+import { ModelBoundary } from './ModelBoundary'
 import { Enemies } from './Enemies'
 import { Boss } from './Boss'
 import { Bullets } from './Bullets'
@@ -242,7 +243,8 @@ export function GameScene() {
         {gameState === 'hangar' && <HangarPreview />}
         {showActors && (
           <>
-            <Player />
+            {/* The plane loads outside the briefing on a co-op or shortcut start; a failed load must not blank the game */}
+            <ModelBoundary><Player /></ModelBoundary>
             <Enemies />
             <Boss />
             <Bullets />

@@ -2,6 +2,7 @@ import { Suspense, type ReactNode } from 'react'
 import * as THREE from 'three'
 import type { GroundSkin } from '../../game/roster'
 import { GlbModel } from './Model'
+import { ModelBoundary } from './ModelBoundary'
 
 /**
  * Procedural ground units (no tank models in the asset packs). Built nose-forward on +Z;
@@ -83,12 +84,12 @@ export function Vehicle({ skin, heading, aim, scale = 1, turret = false }: {
     body = (
       <>
         {!turret && skin.vehicle === 'boat' && <Wake />}
-        <Suspense fallback={null}>
+        <ModelBoundary><Suspense fallback={null}>
           <GlbModel path={parts.body} size={HULL_SIZE} grounded />
           <group position={[0, parts.gunY, 0]} rotation={[0, aimLocal, 0]}>
             <GlbModel path={parts.gun} size={GUN_SIZE} grounded />
           </group>
-        </Suspense>
+        </Suspense></ModelBoundary>
       </>
     )
   } else if (turret) {

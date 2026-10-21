@@ -59,4 +59,5 @@ Secrets from Vault can be injected as env vars, or rendered to a dotenv file and
 - **Keys on menu**: `B` boss, `E` easy start
 
 ## Assets
-See [CREDITS.md](./CREDITS.md). All models are CC0 (Kenney + Quaternius).
+See [CREDITS.md](./CREDITS.md). The Kenney scenery models and the audio are CC0; the aircraft, ground units and bosses
+under `public/models/ai/` were made for Sky Striker with the art pipeline.

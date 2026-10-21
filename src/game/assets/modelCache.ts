@@ -5,7 +5,8 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 
 /**
  * GLB scenes by path, as promises that can be awaited (the stage briefing waits for its models) and
- * released (a finished stage frees its AI models). A failed load is forgotten, so asking again retries.
+ * released (a finished stage frees its AI models). A failed load stays failed until `forgetFailures`, so a
+ * render after the failure sees it rather than asking the network again on every frame.
  */
 export interface ModelCache<T> {
   get(path: string): Promise<T>
@@ -13,10 +14,12 @@ export interface ModelCache<T> {
   release(path: string): void
   /** Releases every loaded path that is releasable and not in `keep`; returns those paths. */
   keepOnly(keep: Iterable<string>, releasable: (path: string) => boolean): string[]
+  /** Forgets every failed load, so the next get of those paths tries again. */
+  forgetFailures(): void
 }
 
 export function createModelCache<T>(load: (path: string) => Promise<T>, dispose: (value: T) => void): ModelCache<T> {
-  interface Entry { promise: Promise<T>; value?: T; done: boolean }
+  interface Entry { promise: Promise<T>; value?: T; done: boolean; failed?: boolean }
   const entries = new Map<string, Entry>()
   const release = (path: string) => {
     const e = entries.get(path)
@@ -31,7 +34,7 @@ export function createModelCache<T>(load: (path: string) => Promise<T>, dispose:
       const entry: Entry = { done: false, promise: undefined as unknown as Promise<T> }
       entry.promise = load(path).then(
         (v) => { if (entries.get(path) === entry) { entry.value = v; entry.done = true } return v },
-        (err) => { if (entries.get(path) === entry) entries.delete(path); throw err },
+        (err) => { entry.failed = true; throw err },
       )
       entries.set(path, entry)
       return entry.promise
@@ -43,6 +46,9 @@ export function createModelCache<T>(load: (path: string) => Promise<T>, dispose:
       const gone = [...entries.keys()].filter((p) => releasable(p) && !kept.has(p))
       gone.forEach(release)
       return gone
+    },
+    forgetFailures() {
+      for (const [path, e] of entries) if (e.failed) entries.delete(path)
     },
   }
 }

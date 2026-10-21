@@ -1,6 +1,8 @@
 # Reskin, part 1: AI art pipeline + aircraft — design
 
 Status: **approved by the user (2026-10-20).**
+Changed during implementation, each on the user's call: ZPS 3D replaced Hunyuan3D, and repaints are recolored
+textures instead of new models (2026-10-21).
 Next: superpowers:writing-plans (plan in docs/superpowers/plans/). Branch off `main` (e.g. `feat/reskin`)
 before implementing.
 
@@ -247,7 +249,7 @@ IMAGE_KEY=<gateway key; ask the user>
   remove_background: false, face_count: 40000, texture_size: 1024}` → `uid` (the concept's backdrop is cut to
   alpha first; the build shrinks mesh and texture to the budget anyway); a 429 (queue full) waits 60 s and
   sends again. `GET /status/{uid}` every 5 s until `completed` or `error`, give up 30 min after it starts processing
-  (3 h while still in line; a network error keeps polling; the logged job id can resume a wait); a 404 there
+  (3 h while still in line; a network error keeps polling; the logged job id lets `wait(uid)` in `scripts/art/clients.mjs` resume a wait); a 404 there
   tries `GET /result/{uid}.glb` once. Download `result_url` with the Bearer header right away (results are
   deleted after 24 h). Never `/generate`, never `?base64=true`. Input: one object, centered with margin,
   square, plain medium-gray background, soft light. On a bad result fix the image rather than resubmitting it.

@@ -1,4 +1,4 @@
-import { aiModel, type MaterialPalette } from './models'
+import { aiModel } from './models'
 import type { Nozzle } from './flames'
 import type { GroundSkin } from './roster'
 
@@ -18,8 +18,6 @@ export interface BossDef {
   model?: string
   vehicle?: GroundSkin
   size: number
-  palette?: MaterialPalette
-  emissive?: string
   flames: 0 | 1 | 2
   nozzles?: Nozzle[]
   flameColor: string

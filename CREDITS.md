@@ -2,13 +2,13 @@
 
 ## Game assets (CC0 / Public Domain)
 
-All 3D models and audio used in Sky Striker are licensed under **CC0 1.0 Universal** (public domain dedication). No attribution is legally required; we credit the authors out of appreciation.
+All third-party 3D models and audio used in Sky Striker are licensed under **CC0 1.0 Universal** (public domain dedication). No attribution is legally required; we credit the authors out of appreciation.
 
 ### Kenney (https://kenney.nl) — CC0
-- **Space Kit** — player jet, enemy craft, boss craft, turrets  
+- **Space Kit** — parked cargo craft and turrets (scenery)  
   https://kenney.nl/assets/space-kit  
   Files under `public/models/kenney-space/`
-- **Pirate Kit** — ships, palms, rocks, grass patches, docks, towers  
+- **Pirate Kit** — shipwrecks, palms, rocks, grass patches, docks, towers  
   https://kenney.nl/assets/pirate-kit  
   Files under `public/models/kenney-pirate/`
 - **Nature Kit** — palm/oak trees, bushes, cliffs, rocks  
@@ -18,10 +18,9 @@ All 3D models and audio used in Sky Striker are licensed under **CC0 1.0 Univers
   https://kenney.nl/assets/city-kit-commercial  
   Files under `public/models/kenney-city/`
 
-### Quaternius (via poly.pizza) — CC0
-- Spaceship pack models (`spaceship1`–`spaceship7`, `small_ship`)  
-  https://poly.pizza (creator: Quaternius)  
-  Files under `public/models/quaternius/`
+## Aircraft, ground units and bosses
+Made for Sky Striker with the art pipeline (`art/manifest.mjs`, `scripts/art/`).  
+Files under `public/models/ai/`
 
 ## Audio (CC0) — `public/audio/`
 All SFX and the looping ambient bed are from Kenney CC0 packs (downloaded via OpenGameArt / community mirrors):

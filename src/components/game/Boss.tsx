@@ -266,7 +266,7 @@ export function Boss() {
       <group rotation={[0, Math.PI, 0]}>
         <group ref={bankGroup}>
           {def.model ? (
-            <ShipModel path={def.model} size={def.size} palette={def.palette} emissive={def.emissive}
+            <ShipModel path={def.model} size={def.size}
               materialsRef={mats} flame={def.flames ? def.flameColor : undefined} flames={def.flames} nozzles={def.nozzles} flameScale={1.3} grounded={def.ground} />
           ) : def.vehicle ? (
             <Vehicle skin={def.vehicle} heading={0} aim={aim - Math.PI} scale={hit ? def.size * 1.04 : def.size} />

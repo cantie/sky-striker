@@ -63,7 +63,7 @@ function Mate({ id }: { id: string }) {
 
   return (
     <group ref={group}>
-      <ShipModel path={plane.model} size={plane.size * 0.95} palette={plane.palette} flame={plane.flame} flames={plane.flames} nozzles={plane.nozzles} />
+      <ShipModel path={plane.model} size={plane.size * 0.95} flame={plane.flame} flames={plane.flames} nozzles={plane.nozzles} />
       {/* marker ring so the wingmate is never mistaken for an enemy */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]}>
         <ringGeometry args={[0.95, 1.05, 32]} />

@@ -54,7 +54,6 @@ export function HangarPreview() {
           key={plane.id}
           path={plane.model}
           size={plane.size}
-          palette={plane.palette}
           silhouette={owned ? undefined : '#2a3140'}
           flame={owned ? plane.flame : undefined}
           flames={plane.flames}
@@ -63,7 +62,7 @@ export function HangarPreview() {
         />
         {plane.skill === 'wingmen' && [-1.6, 1.6].map((x) => (
           <group key={x} position={[x, 0, -0.7]}>
-            <ShipModel path={plane.model} size={0.9} palette={plane.palette} flame={owned ? plane.flame : undefined} flames={1} />
+            <ShipModel path={plane.model} size={0.9} flame={owned ? plane.flame : undefined} flames={1} />
           </group>
         ))}
       </group>

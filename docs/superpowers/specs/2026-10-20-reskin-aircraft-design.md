@@ -13,7 +13,7 @@ before implementing.
 
 ## Goal
 User: reskin the whole game so it is more eye-catching and looks more realistic. Style: Sky Force Reloaded
-(semi-realistic PBR). 3D models come from the internal Hunyuan3D image-to-3D service, input images from the
+(semi-realistic PBR). 3D models come from the internal ZPS 3D image-to-3D service (Hunyuan3D until 2026-10-21), input images from the
 internal image model.
 
 This part builds the asset pipeline and replaces every aircraft, ground vehicle and boss.
@@ -35,10 +35,10 @@ Each gets its own spec → plan → implementation, in this order (chosen by the
 | Question | Answer |
 |---|---|
 | Style | Sky Force Reloaded, semi-realistic PBR |
-| Models | AI-generated with the internal Hunyuan3D |
+| Models | AI-generated with the internal ZPS 3D (Hunyuan3D until 2026-10-21) |
 | Input images | internal image model |
 | First sub-project | pipeline + aircraft |
-| Enemy aircraft | 4 base designs (one per role: basic, fast, heavy, shooter), each repainted per stage by image edit → 40 models. The silhouette tells the role, the colors follow the biome |
+| Enemy aircraft | 4 base designs (one per role: basic, fast, heavy, shooter), each recolored per stage (same mesh, its texture remapped to the stage's colors) → 40 models. The silhouette tells the role, the colors follow the biome |
 | Ground vehicles (tank, boat, hover, fixed turret, Sand Crawler boss) | AI in two pieces, hull + gun, put together at runtime so the gun still turns on its own |
 | Review | 2D concept images reviewed in batches; only approved images go to 3D; each batch is then checked in the game view |
 | Pipeline | A: in the repo, driven by a manifest (rejected: B throwaway scripts, C separate tool repo) |
@@ -71,8 +71,8 @@ optimize → view from the game camera, next to the current Kenney Hawk.
 - `art/manifest.mjs`: every asset with `id`; `kind` (player | enemy | boss | hull | base | gun); the design
   prompt, or `base` + `livery` for a repaint of an approved base; `seed`; `glow` color; budget `small`
   (2k tris, 256 px), `medium` (4k, 512) or `large` (8k, 512); approval state.
-- `art/concepts/<id>.webp`: approved concept images at 512 px. Hunyuan shrinks its input to 512 anyway, so
-  rebuilding from these loses nothing.
+- `art/concepts/<id>.webp`: approved concept images at 512 px. The 3D service is sent these same images, so
+  rebuilding from them loses nothing.
 - `art/.gitignore` with `.cache/`: drafts and raw GLBs live in `art/.cache/`. A separate ignore file keeps the
   root `.gitignore` untouched.
 - `scripts/art/*.mjs`: the steps, run as `npm run art -- <step> <batch|id>`.
@@ -84,16 +84,22 @@ optimize → view from the game camera, next to the current Kenney Hawk.
    approved first). Then build a review page for the batch: a grid with id and prompt.
 2. Review in chat (e.g. "hawk #2; viper: thicker wings, redo"). `approve` copies the pick to `art/concepts/`
    and marks it in the manifest.
-3. `model`: approved images → Hunyuan3D, at most 2 jobs in flight (2 GPUs), following the service rules in
-   [Setup](#setup-on-another-machine). On a failed job, retry once with another seed. Assets that already
+3. `model`: approved images → ZPS 3D, up to 12 jobs in flight (its queue is shared and first in, first out),
+   following the service rules in [Setup](#setup-on-another-machine). Each download is levelled: thinnest
+   axis up, longest axis forward. On a failed job, retry once with another seed. Assets that already
    have a raw GLB are skipped unless `--force`.
 4. `build`: raw GLB → `public/models/ai/<id>.glb`:
    - set each texture's mimeType from its magic bytes;
+   - turn by the manifest's `turn`, and by `pitch`/`yaw`/`roll` (degrees within ±90) where levelling got the
+     model wrong;
+   - recolor an asset with `colors`: its texture (its base's, for a repaint) remapped dark → panel → hull by
+     brightness, lights kept;
    - weld and simplify to the budget;
    - bake creased normals (35°);
    - emissive map: base-color pixels that are bright and close to the asset's `glow` hue;
    - WebP textures at the budget size; meshopt.
-   Prints tris and KB per asset; fails an asset that is over budget.
+   Prints tris and KB per asset. When the lowest texture quality is still over the KB budget it retries with
+   85, 70 and 55 % of the triangles; an asset still over budget fails.
 5. `preview`: screenshots of the batch from the game camera next to the old model, for the after-3D review
    (Playwright).
 
@@ -118,7 +124,7 @@ so `build` can pull out the emissive map.
 - **Player planes**: one design each, matching its character (Titan a heavy "flying fortress", Viper slim and
   fast, …). Keep the colors of `planes.ts`. Bright and clean "hero" look.
 - **Enemy aircraft**: 4 base designs, more angular and aggressive than the player planes. A base is approved
-  in a neutral livery, then repainted for each stage starting from that stage's colors in `stages.ts`.
+  in a neutral livery, then recolored for each stage starting from that stage's colors in `stages.ts`.
 - **Ground vehicles**: one hull design each for tank, boat and hover, repainted per stage. One fixed-turret
   base design, repainted per stage. 4 guns in dark steel shared by all stages (small; repainting is not worth
   it).
@@ -184,8 +190,9 @@ memory, too much for phones.
   scene (today one `Suspense` covers the scene).
 
 ### Clean-up
-The Kenney space and Quaternius kits are removed at the end of this sub-project, once nothing uses them.
-Kenney nature, city and pirate stay for sub-project 3.
+The Quaternius kit, the Kenney space craft and the old Kenney pirate ships are removed at the end of this
+sub-project, once nothing uses them. The Kenney space cargo craft and turrets (scenery) and the Kenney nature,
+city and pirate scenery stay for sub-project 3.
 
 ## Section 4 — Testing
 
@@ -195,8 +202,9 @@ Kenney nature, city and pirate stay for sub-project 3.
   - Emissive extraction: on a small synthetic image, bright pixels near `glow` go into the emissive map,
     gray ones do not.
   - Budget: an asset over its tris or KB budget fails, others pass.
-  - Hunyuan3D client, with a fake `fetch` and a fake clock: polls every 5 s and gives up after 30 min; a
-    failed job is retried exactly once with another seed; never more than 2 jobs in flight; one failed asset
+  - ZPS 3D client, with a fake `fetch` and a fake clock: polls every 5 s and gives up 30 min after the job
+    starts processing; a failed job is retried exactly once with another seed; never more than 12 jobs in
+    flight; one failed asset
     does not stop the batch, and the batch ends with the list of failures.
   - Safe re-runs: an asset with a raw GLB is skipped unless `--force`.
   - A missing `assets.env` or key gives a clear error that says where to create the file.
@@ -238,7 +246,8 @@ IMAGE_KEY=<gateway key; ask the user>
 - ZPS 3D (from ZPS-3D.md; replaced Hunyuan3D on 2026-10-21): `POST /send {image: <base64>, seed,
   remove_background: false, face_count: 40000, texture_size: 1024}` → `uid` (the concept's backdrop is cut to
   alpha first; the build shrinks mesh and texture to the budget anyway); a 429 (queue full) waits 60 s and
-  sends again. `GET /status/{uid}` every 5 s until `completed` or `error`, give up after 30 min; a 404 there
+  sends again. `GET /status/{uid}` every 5 s until `completed` or `error`, give up 30 min after it starts processing
+  (3 h while still in line; a network error keeps polling; the logged job id can resume a wait); a 404 there
   tries `GET /result/{uid}.glb` once. Download `result_url` with the Bearer header right away (results are
   deleted after 24 h). Never `/generate`, never `?base64=true`. Input: one object, centered with margin,
   square, plain medium-gray background, soft light. On a bad result fix the image rather than resubmitting it.

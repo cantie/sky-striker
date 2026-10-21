@@ -62,7 +62,7 @@ const OBJECTIVES = [OBJ.finish, OBJ.destroy70, OBJ.destroy100, OBJ.defeatBoss, O
 
 const G = (type: EnemyType, path: PathId, o: Omit<SpawnGroup, 'type' | 'path'> = {}): SpawnGroup => ({ type, path, ...o })
 
-const air = (model: string, size: number, palette: AirSkin['palette'], flame: string, flames: 1 | 2 = 1): AirSkin => ({ model, size, palette, flame, flames })
+const air = (model: string, size: number, flame: string, flames: 1 | 2 = 1): AirSkin => ({ model, size, flame, flames })
 
 type StageDef = Omit<StageConfig, 'maxWaves' | 'hasBoss' | 'objectives'>
 
@@ -72,10 +72,10 @@ const DEFS: StageDef[] = [
     waveInterval: 3200, boss: 'vulture', bossHp: 1500,
     enemyHpMult: 0.85, bulletSpeedMult: 1, fireRateMult: 0.9, basicFire: 0,
     skins: {
-      basic: air(ai('enemy-basic-s1'), 1.45, undefined, '#ff6a3d'),
-      fast: air(ai('enemy-fast-s1'), 1.5, undefined, '#ffcf4a'),
-      heavy: air(ai('enemy-heavy-s1'), 1.85, undefined, '#c46bff', 2),
-      shooter: air(ai('enemy-shooter-s1'), 1.35, undefined, '#ff3f7a', 2),
+      basic: air(ai('enemy-basic-s1'), 1.45, '#ff6a3d'),
+      fast: air(ai('enemy-fast-s1'), 1.5, '#ffcf4a'),
+      heavy: air(ai('enemy-heavy-s1'), 1.85, '#c46bff', 2),
+      shooter: air(ai('enemy-shooter-s1'), 1.35, '#ff3f7a', 2),
     },
     ground: {
       vehicle: 'tank', hull: '#5d6b3a', turret: '#46522a', accent: '#ff5a2a',
@@ -97,10 +97,10 @@ const DEFS: StageDef[] = [
     waveInterval: 3000, boss: 'crawler', bossHp: 2000,
     enemyHpMult: 1, bulletSpeedMult: 1.04, fireRateMult: 1, basicFire: 0,
     skins: {
-      basic: air(ai('enemy-basic-s2'), 1.45, undefined, '#ffa040'),
-      fast: air(ai('enemy-fast-s2'), 1.5, undefined, '#ffcf4a'),
-      heavy: air(ai('enemy-heavy-s2'), 1.85, undefined, '#ff8a3d', 2),
-      shooter: air(ai('enemy-shooter-s2'), 1.35, undefined, '#ff7a3d', 2),
+      basic: air(ai('enemy-basic-s2'), 1.45, '#ffa040'),
+      fast: air(ai('enemy-fast-s2'), 1.5, '#ffcf4a'),
+      heavy: air(ai('enemy-heavy-s2'), 1.85, '#ff8a3d', 2),
+      shooter: air(ai('enemy-shooter-s2'), 1.35, '#ff7a3d', 2),
     },
     ground: {
       vehicle: 'tank', hull: '#b8955a', turret: '#8a6a3a', accent: '#ff7a2a',
@@ -122,10 +122,10 @@ const DEFS: StageDef[] = [
     waveInterval: 2900, boss: 'galleon', bossHp: 2600,
     enemyHpMult: 1.15, bulletSpeedMult: 1.08, fireRateMult: 1.05, basicFire: 0,
     skins: {
-      basic: air(ai('enemy-basic-s3'), 1.45, undefined, '#5ab4ff'),
-      fast: air(ai('enemy-fast-s3'), 1.5, undefined, '#4affe0'),
-      heavy: air(ai('enemy-heavy-s3'), 1.85, undefined, '#ff6a5a', 2),
-      shooter: air(ai('enemy-shooter-s3'), 1.35, undefined, '#ff5a6a', 2),
+      basic: air(ai('enemy-basic-s3'), 1.45, '#5ab4ff'),
+      fast: air(ai('enemy-fast-s3'), 1.5, '#4affe0'),
+      heavy: air(ai('enemy-heavy-s3'), 1.85, '#ff6a5a', 2),
+      shooter: air(ai('enemy-shooter-s3'), 1.35, '#ff5a6a', 2),
     },
     ground: {
       vehicle: 'boat', hull: '#d8dde6', turret: '#4a5468', accent: '#ff3a3a',
@@ -147,10 +147,10 @@ const DEFS: StageDef[] = [
     waveInterval: 2800, boss: 'hornet', bossHp: 3200,
     enemyHpMult: 1.3, bulletSpeedMult: 1.12, fireRateMult: 1.1, basicFire: 0,
     skins: {
-      basic: air(ai('enemy-basic-s4'), 1.45, undefined, '#ff8a3d'),
-      fast: air(ai('enemy-fast-s4'), 1.5, undefined, '#ff5a2a'),
-      heavy: air(ai('enemy-heavy-s4'), 1.85, undefined, '#ffb02e', 2),
-      shooter: air(ai('enemy-shooter-s4'), 1.35, undefined, '#ff9a3d', 2),
+      basic: air(ai('enemy-basic-s4'), 1.45, '#ff8a3d'),
+      fast: air(ai('enemy-fast-s4'), 1.5, '#ff5a2a'),
+      heavy: air(ai('enemy-heavy-s4'), 1.85, '#ffb02e', 2),
+      shooter: air(ai('enemy-shooter-s4'), 1.35, '#ff9a3d', 2),
     },
     ground: {
       vehicle: 'tank', hull: '#7a4a2a', turret: '#5a3218', accent: '#ffb02e',
@@ -172,10 +172,10 @@ const DEFS: StageDef[] = [
     waveInterval: 2700, boss: 'warden', bossHp: 3900,
     enemyHpMult: 1.5, bulletSpeedMult: 1.16, fireRateMult: 1.15, basicFire: 2800,
     skins: {
-      basic: air(ai('enemy-basic-s5'), 1.45, undefined, '#7fe0ff'),
-      fast: air(ai('enemy-fast-s5'), 1.5, undefined, '#9be8ff'),
-      heavy: air(ai('enemy-heavy-s5'), 1.85, undefined, '#7fe0ff', 2),
-      shooter: air(ai('enemy-shooter-s5'), 1.35, undefined, '#ff7a9a', 2),
+      basic: air(ai('enemy-basic-s5'), 1.45, '#7fe0ff'),
+      fast: air(ai('enemy-fast-s5'), 1.5, '#9be8ff'),
+      heavy: air(ai('enemy-heavy-s5'), 1.85, '#7fe0ff', 2),
+      shooter: air(ai('enemy-shooter-s5'), 1.35, '#ff7a9a', 2),
     },
     ground: {
       vehicle: 'tank', hull: '#dfe7ee', turret: '#9aa8b4', accent: '#45c8ff',
@@ -198,10 +198,10 @@ const DEFS: StageDef[] = [
     waveInterval: 2600, boss: 'breaker', bossHp: 4600,
     enemyHpMult: 1.7, bulletSpeedMult: 1.2, fireRateMult: 1.2, basicFire: 2600,
     skins: {
-      basic: air(ai('enemy-basic-s6'), 1.45, undefined, '#ffb02e'),
-      fast: air(ai('enemy-fast-s6'), 1.5, undefined, '#ff4a2a'),
-      heavy: air(ai('enemy-heavy-s6'), 1.85, undefined, '#ff8a3d', 2),
-      shooter: air(ai('enemy-shooter-s6'), 1.35, undefined, '#ff7a3d', 2),
+      basic: air(ai('enemy-basic-s6'), 1.45, '#ffb02e'),
+      fast: air(ai('enemy-fast-s6'), 1.5, '#ff4a2a'),
+      heavy: air(ai('enemy-heavy-s6'), 1.85, '#ff8a3d', 2),
+      shooter: air(ai('enemy-shooter-s6'), 1.35, '#ff7a3d', 2),
     },
     ground: {
       vehicle: 'tank', hull: '#9a4a2a', turret: '#6a2e18', accent: '#ffcf4a',
@@ -224,10 +224,10 @@ const DEFS: StageDef[] = [
     waveInterval: 2500, boss: 'wraith', bossHp: 5400,
     enemyHpMult: 1.9, bulletSpeedMult: 1.24, fireRateMult: 1.25, basicFire: 2400,
     skins: {
-      basic: air(ai('enemy-basic-s7'), 1.45, undefined, '#9bff5a'),
-      fast: air(ai('enemy-fast-s7'), 1.5, undefined, '#c8ff3a'),
-      heavy: air(ai('enemy-heavy-s7'), 1.85, undefined, '#9bff5a', 2),
-      shooter: air(ai('enemy-shooter-s7'), 1.35, undefined, '#d0ff4a', 2),
+      basic: air(ai('enemy-basic-s7'), 1.45, '#9bff5a'),
+      fast: air(ai('enemy-fast-s7'), 1.5, '#c8ff3a'),
+      heavy: air(ai('enemy-heavy-s7'), 1.85, '#9bff5a', 2),
+      shooter: air(ai('enemy-shooter-s7'), 1.35, '#d0ff4a', 2),
     },
     ground: {
       vehicle: 'hover', hull: '#4a5a34', turret: '#2a3a1c', accent: '#9bff5a',
@@ -250,10 +250,10 @@ const DEFS: StageDef[] = [
     waveInterval: 2400, boss: 'hive', bossHp: 6200,
     enemyHpMult: 2.15, bulletSpeedMult: 1.28, fireRateMult: 1.3, basicFire: 2200,
     skins: {
-      basic: air(ai('enemy-basic-s8'), 1.45, undefined, '#ff4ad8'),
-      fast: air(ai('enemy-fast-s8'), 1.5, undefined, '#4af0ff'),
-      heavy: air(ai('enemy-heavy-s8'), 1.85, undefined, '#ffe04a', 2),
-      shooter: air(ai('enemy-shooter-s8'), 1.35, undefined, '#ff4ad8', 2),
+      basic: air(ai('enemy-basic-s8'), 1.45, '#ff4ad8'),
+      fast: air(ai('enemy-fast-s8'), 1.5, '#4af0ff'),
+      heavy: air(ai('enemy-heavy-s8'), 1.85, '#ffe04a', 2),
+      shooter: air(ai('enemy-shooter-s8'), 1.35, '#ff4ad8', 2),
     },
     ground: {
       vehicle: 'tank', hull: '#3a3e48', turret: '#24262e', accent: '#2af0ff',
@@ -277,10 +277,10 @@ const DEFS: StageDef[] = [
     waveInterval: 2300, boss: 'leviathan', bossHp: 7100,
     enemyHpMult: 2.4, bulletSpeedMult: 1.32, fireRateMult: 1.35, basicFire: 2000,
     skins: {
-      basic: air(ai('enemy-basic-s9'), 1.45, undefined, '#ff6a2a'),
-      fast: air(ai('enemy-fast-s9'), 1.5, undefined, '#ff8a3d'),
-      heavy: air(ai('enemy-heavy-s9'), 1.85, undefined, '#ff5a1f', 2),
-      shooter: air(ai('enemy-shooter-s9'), 1.35, undefined, '#ff5a1f', 2),
+      basic: air(ai('enemy-basic-s9'), 1.45, '#ff6a2a'),
+      fast: air(ai('enemy-fast-s9'), 1.5, '#ff8a3d'),
+      heavy: air(ai('enemy-heavy-s9'), 1.85, '#ff5a1f', 2),
+      shooter: air(ai('enemy-shooter-s9'), 1.35, '#ff5a1f', 2),
     },
     ground: {
       vehicle: 'tank', hull: '#2e2a28', turret: '#1a1716', accent: '#ff5a1a',
@@ -304,10 +304,10 @@ const DEFS: StageDef[] = [
     waveInterval: 2200, boss: 'citadel', bossHp: 8000,
     enemyHpMult: 2.7, bulletSpeedMult: 1.36, fireRateMult: 1.4, basicFire: 1800,
     skins: {
-      basic: air(ai('enemy-basic-s10'), 1.45, undefined, '#ff3a5a'),
-      fast: air(ai('enemy-fast-s10'), 1.5, undefined, '#ff5a7a'),
-      heavy: air(ai('enemy-heavy-s10'), 1.85, undefined, '#ff3a5a', 2),
-      shooter: air(ai('enemy-shooter-s10'), 1.35, undefined, '#ff3a5a', 2),
+      basic: air(ai('enemy-basic-s10'), 1.45, '#ff3a5a'),
+      fast: air(ai('enemy-fast-s10'), 1.5, '#ff5a7a'),
+      heavy: air(ai('enemy-heavy-s10'), 1.85, '#ff3a5a', 2),
+      shooter: air(ai('enemy-shooter-s10'), 1.35, '#ff3a5a', 2),
     },
     ground: {
       vehicle: 'tank', hull: '#4a505c', turret: '#2a2e36', accent: '#ff1a3a',

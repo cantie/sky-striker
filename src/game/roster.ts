@@ -1,5 +1,4 @@
 import type { Nozzle } from './flames'
-import type { MaterialPalette } from './models'
 
 export type AirRole = 'basic' | 'fast' | 'heavy' | 'shooter'
 export type GroundRole = 'tank' | 'turret'
@@ -29,7 +28,6 @@ export const isGround = (t: EnemyType) => ROLE_STATS[t].ground
 export interface AirSkin {
   model: string
   size: number
-  palette?: MaterialPalette
   flame: string
   /** Number of exhaust plumes (1, 2 side by side). */
   flames: 1 | 2

@@ -192,6 +192,18 @@ describe('buildAsset', () => {
     expect(await checkGlb(out, asset, tight)).toEqual([])
   }, 120_000)
 
+  it('yaw and roll fine-tune a model by hand, in degrees', async () => {
+    const raw = file('raw-trim.glb', await fixtureGlb())
+    const yawed = join(dir, 'yawed.glb'), rolled = join(dir, 'rolled.glb')
+    await buildAsset(raw, yawed, { ...asset, yaw: 30 }, BUDGETS.small)
+    await buildAsset(raw, rolled, { ...asset, roll: 30 }, BUDGETS.small)
+    // The 2-long nose swings off +Z; on its side the 0.5-thin craft gets taller
+    expect((await zBounds(yawed))[1]).toBeCloseTo(1.8, 1)
+    const { getBounds } = await import('@gltf-transform/core')
+    const b = getBounds((await readGlb(rolled)).getRoot().listScenes()[0])
+    expect(b.max[1] - b.min[1]).toBeGreaterThan(0.9)
+  }, 60_000)
+
   it('turn: 180 rotates the model about Y', async () => {
     const raw = file('raw-turn.glb', await fixtureGlb())
     const out = join(dir, 'turned.glb')

@@ -144,8 +144,11 @@ async function recolor(doc, colors, glow, baseGlow, px) {
   }
 }
 
-/** Hunyuan3D gives no normals: bake creased ones (and apply `turn`) through three.js, then re-index. */
-function bakeNormals(doc, turn) {
+/**
+ * Hunyuan3D gives no normals: bake creased ones through three.js, then re-index. On the way, apply the asset's
+ * hand fine-tuning (`pitch`, `yaw`, `roll` in degrees: roll first, then pitch, then yaw) and `turn`.
+ */
+function bakeNormals(doc, asset) {
   for (const mesh of doc.getRoot().listMeshes()) {
     for (const prim of mesh.listPrimitives()) {
       const g = new THREE.BufferGeometry()
@@ -154,7 +157,9 @@ function bakeNormals(doc, turn) {
       if (uv) g.setAttribute('uv', new THREE.BufferAttribute(uv.getArray().slice(), 2))
       const idx = prim.getIndices()
       if (idx) g.setIndex(Array.from(idx.getArray()))
-      if (turn === 180) g.rotateY(Math.PI)
+      const deg = (v) => THREE.MathUtils.degToRad(v ?? 0)
+      g.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(deg(asset.pitch), deg(asset.yaw), deg(asset.roll), 'YXZ')))
+      if (asset.turn === 180) g.rotateY(Math.PI)
       const c = toCreasedNormals(g, (CREASE_DEG * Math.PI) / 180)
       const buffer = doc.getRoot().listBuffers()[0]
       const acc = (type, array) => doc.createAccessor().setType(type).setArray(array).setBuffer(buffer)
@@ -217,7 +222,7 @@ async function prepare(io, rawPath, asset, tris, px, baseGlow) {
       await doc.transform(weld())
     }
   }
-  bakeNormals(doc, asset.turn ?? 0)
+  bakeNormals(doc, asset)
   await doc.transform(weld())
   if (asset.colors) await recolor(doc, asset.colors, asset.glow, baseGlow ?? asset.glow, px)
   else if (asset.glow) await addEmissive(doc, asset.glow, px)

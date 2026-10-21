@@ -34,6 +34,14 @@ describe('art manifest', () => {
     expect(errorsFor({ ...design, id: 'x5', colors })).toEqual([])
   })
 
+  it('pitch, yaw and roll are angles in degrees within ±90', () => {
+    expect(errorsFor({ ...design, id: 'x8', pitch: 2, yaw: -5, roll: -3 })).toEqual([])
+    // Levelling can pick the wrong face as the top (a ship whose tall tower makes it about as tall as it is wide)
+    expect(errorsFor({ ...design, id: 'x11', roll: -63 })).toEqual([])
+    expect(errorsFor({ ...design, id: 'x9', yaw: 91 })).not.toEqual([])
+    expect(errorsFor({ ...design, id: 'x10', roll: 'a bit' })).not.toEqual([])
+  })
+
   it('tall is true or absent', () => {
     expect(errorsFor({ ...design, id: 'x6', tall: true })).toEqual([])
     expect(errorsFor({ ...design, id: 'x7', tall: 'yes' })).not.toEqual([])

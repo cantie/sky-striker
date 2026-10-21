@@ -22,6 +22,10 @@ export interface ArtAsset {
   turn?: 0 | 180
   /** Taller than wide, checked by eye in the angled preview: skips the lies-flat check. */
   tall?: true
+  /** Hand fine-tuning after the angled preview, degrees within ±90 (roll first, then pitch, then yaw). */
+  pitch?: number
+  yaw?: number
+  roll?: number
 }
 
 export const STYLE: string

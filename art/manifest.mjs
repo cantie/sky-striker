@@ -5,7 +5,9 @@
 // Row: { id, kind: player|enemy|boss|hull|base|gun, batch: 1..5, budget, glow: '#rrggbb',
 //   prompt (a design) | base + livery (a repaint of an approved design),
 //   seed?, size? (game size), stage? (1..10), old? (the model it replaces), turn? (0 | 180),
-//   colors? ({ hull, panel, dark }: recolored at build time, a repaint from its base's model) }
+//   colors? ({ hull, panel, dark }: recolored at build time, a repaint from its base's model),
+//   tall? (true: taller than wide, checked by eye in the angled preview; skips the lies-flat check),
+//   pitch?, yaw?, roll? (degrees within ±90: hand fine-tuning of a model after the preview) }
 
 /** Shared style block of every concept prompt (spec, Section 2). */
 export const STYLE = 'Semi-realistic 3D render in the style of Sky Force Reloaded: painted PBR metal with crisp panel lines. ' +
@@ -288,6 +290,8 @@ export const ASSETS = [
     id: 'hull-s3', kind: 'hull', batch: 4, budget: 'small', glow: '#ff3a3a', size: 1.6, stage: 3,
     prompt: 'A small fast military patrol boat seen without its gun: pointed bow, low flat deck, a round empty gun ring in the exact middle ' +
       'of the deck, a low cabin at the stern. Livery: light gray-white hull with slate blue-gray deck panels.',
+    // Levelled with its deck 10° off, squared up by its flat faces
+    roll: -10,
   },
   {
     id: 'hull-s7', kind: 'hull', batch: 4, budget: 'small', glow: '#9bff5a', size: 1.6, stage: 7,
@@ -379,5 +383,74 @@ export const ASSETS = [
   {
     id: 'base-s10', kind: 'base', batch: 4, budget: 'small', glow: '#ff1a3a', size: 1.6, stage: 10,
     base: 'base-s1', livery: 'fortress steel', colors: { hull: '#4a505c', panel: '#2a2e36', dark: '#121418' },
+  },
+  // Batch 5: the bosses, one design each in its bosses.ts colors. Sand Crawler is a giant tank (hull + gun).
+  {
+    id: 'boss-vulture', kind: 'boss', batch: 5, budget: 'large', glow: '#ff7a3d', size: 5.8, stage: 1, old: `${K}craft_cargoB.glb`,
+    prompt: 'A huge armored military gunship, the boss of a jungle level: a wide boxy fuselage, short thick wings with gun pods ' +
+      'built into them, a heavy chin cannon, two big engines side by side at the tail. Livery: olive green with dark olive panels ' +
+      'and near-black trim.',
+  },
+  {
+    id: 'boss-crawler', kind: 'hull', batch: 5, budget: 'large', glow: '#ff7a2a', size: 8.6, stage: 2,
+    prompt: 'A giant desert siege tank hull seen without its turret: a long low armored body on four huge tracks, sloped armor ' +
+      'plates, a wide round empty turret ring in the exact middle on top, small glowing lights at the front. ' +
+      'Livery: desert sand with brown panels.',
+  },
+  {
+    id: 'boss-crawler-gun', kind: 'gun', batch: 5, budget: 'large', glow: '#ff7a2a', size: 5.4, stage: 2,
+    prompt: 'A giant siege tank turret on its own, no hull: a wide low armored turret with two very thick long cannon barrels ' +
+      'side by side pointing forward, glowing muzzle tips. Livery: dark gunmetal steel with sand-colored plates.',
+  },
+  {
+    id: 'boss-galleon', kind: 'boss', batch: 5, budget: 'large', glow: '#ff3a3a', size: 9.6, stage: 3, old: '/models/kenney-pirate/ship-pirate-large.glb',
+    prompt: 'A dreadnought battleship, the boss of a sea level: a long armored steel hull with a pointed bow, three big gun ' +
+      'turrets along the deck, a tall armored bridge tower in the middle, glowing red lights. ' +
+      'Livery: dark navy-gray steel with lighter gray deck and red trim.',
+    // Levelling took its side for its top (the tall tower makes it about as tall as it is wide); squared up by its flat faces
+    pitch: 3.5, yaw: -4, roll: -63,
+    tall: true,
+  },
+  {
+    id: 'boss-hornet', kind: 'boss', batch: 5, budget: 'large', glow: '#ff8a3d', size: 7.0, stage: 4, old: '/models/quaternius/spaceship3.glb',
+    prompt: 'A huge wasp-shaped warship: a long segmented armored body with a pointed stinger tail, four broad swept wings, ' +
+      'glowing orange vents, two big engines at the tail. Livery: cream hull with dark brown panels and orange accents.',
+  },
+  {
+    id: 'boss-warden', kind: 'boss', batch: 5, budget: 'large', glow: '#7fe0ff', size: 7.4, stage: 5, old: '/models/quaternius/spaceship2.glb',
+    prompt: 'A huge armored ice fortress warship: a broad heavy body with crystal-like angular armor plates, wide square wings, ' +
+      'glowing ice-blue lights, two big engines at the tail. Livery: ice white hull with dark steel-blue panels and light blue accents.',
+  },
+  {
+    id: 'boss-breaker', kind: 'boss', batch: 5, budget: 'large', glow: '#ffb02e', size: 7.4, stage: 6, old: `${K}craft_miner.glb`,
+    prompt: 'A huge mining warship: a heavy armored body with two giant drill heads at the front, thick side armor, glowing ' +
+      'amber lights, two big engines at the tail. Livery: copper hull with dark rust-brown panels and amber accents.',
+  },
+  {
+    id: 'boss-wraith', kind: 'boss', batch: 5, budget: 'large', glow: '#9bff5a', size: 7.7, stage: 7, old: '/models/quaternius/spaceship4.glb',
+    prompt: 'A huge eerie swamp warship: a long manta-shaped body with ragged swept wings, glowing toxic green vents along its ' +
+      'back, one big engine at the tail. Livery: light moss green hull with very dark green panels and lime accents.',
+    // Brightened and drawn larger after the in-game check: thin, and lost in the swamp fog
+    colors: { hull: '#b4d49a', panel: '#2e4a26', dark: '#0e1a10' },
+  },
+  {
+    id: 'boss-hive', kind: 'boss', batch: 5, budget: 'large', glow: '#ff4ad8', size: 7.0, stage: 8, old: '/models/quaternius/spaceship5.glb',
+    prompt: 'A huge neon carrier warship: a round hexagonal hive-like body with honeycomb armor, wide short wings, glowing ' +
+      'magenta hexagon lights, two big engines at the tail. Livery: hot pink hull with very dark purple panels and magenta accents.',
+  },
+  {
+    id: 'boss-leviathan', kind: 'boss', batch: 5, budget: 'large', glow: '#ff5a1f', size: 7.4, stage: 9, old: '/models/quaternius/spaceship1.glb',
+    prompt: 'A huge serpent-like magma warship: a long armored body with overlapping plates like scales, a fanged prow, ' +
+      'glowing molten orange cracks, two big engines at the tail. Livery: bright salmon-orange hull with near-black panels and orange accents.',
+    // Its outline sat a few degrees off after levelling (a tall tower / a curved body pull the mass axis)
+    pitch: -1, yaw: -9, roll: -4,
+  },
+  {
+    id: 'boss-citadel', kind: 'boss', batch: 5, budget: 'large', glow: '#ff3a5a', size: 8.6, stage: 10, old: '/models/quaternius/spaceship6.glb',
+    prompt: 'A colossal flying fortress, the final boss: a massive square armored body with stepped battlements and gun ' +
+      'turrets built into its deck, a glowing red core in the middle, two big engines at the tail. ' +
+      'Livery: steel gray hull with black panels and crimson accents.',
+    // Level (checked in the angled preview), but its fortress body is a hair taller than it is wide
+    tall: true,
   },
 ]

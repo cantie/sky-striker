@@ -52,7 +52,7 @@ const realSleep = (ms) => new Promise((r) => setTimeout(r, ms))
  */
 export function createZps3dClient({
   api, key, fetch = globalThis.fetch, sleep = realSleep, now = Date.now, pollMs = 5000, capMs = 1_800_000,
-  faceCount = 40_000, textureSize = 1024,
+  queueCapMs = 10_800_000, faceCount = 40_000, textureSize = 1024, onSend = () => {},
 }) {
   const base = trim(api)
   const auth = { Authorization: `Bearer ${key}` }
@@ -71,7 +71,17 @@ export function createZps3dClient({
       }
       if (!send.ok) throw await failure(send, 'ZPS 3D send')
       const { uid } = await send.json()
-      while (now() - t0 < capMs) {
+      onSend(uid)
+      // The queue is shared with other users: time in line has its own, longer limit
+      const sent = now()
+      let started = null
+      for (;;) {
+        if (started === null && now() - sent >= queueCapMs) {
+          throw new Error(`ZPS 3D: gave up on ${uid} after ${Math.round(queueCapMs / 60_000)} min in the queue`)
+        }
+        if (started !== null && now() - started >= capMs) {
+          throw new Error(`ZPS 3D: gave up on ${uid} after ${Math.round(capMs / 60_000)} min`)
+        }
         await sleep(pollMs)
         const r = await fetch(`${base}/status/${uid}`, { headers: auth })
         if (r.status === 404) {
@@ -82,6 +92,7 @@ export function createZps3dClient({
         }
         if (!r.ok) continue // a busy or restarting server: keep polling until the cap
         const s = await r.json()
+        if (s.status !== 'queued' && started === null) started = now()
         if (s.status === 'error') throw new Error(`ZPS 3D job ${uid}: ${s.message ?? 'error'}`)
         if (s.status === 'completed') {
           const g = await download(s.result_url)
@@ -89,7 +100,6 @@ export function createZps3dClient({
           return Buffer.from(await g.arrayBuffer())
         }
       }
-      throw new Error(`ZPS 3D: gave up on ${uid} after ${Math.round(capMs / 60_000)} min`)
     },
   }
 }

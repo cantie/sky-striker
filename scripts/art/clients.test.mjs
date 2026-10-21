@@ -117,6 +117,30 @@ describe('ZPS 3D client', () => {
     await expect(client.generate(Buffer.from('png'), 1)).rejects.toThrow(/bad mesh/)
   })
 
+  it('time waiting in the queue does not count toward the 30 minutes', async () => {
+    const queued = () => json({ status: 'queued', position: 40 })
+    const { client } = make([
+      json({ uid: 'u5' }), ...Array.from({ length: 480 }, () => queued), // 40 min in line
+      json({ status: 'processing' }), json({ status: 'completed', result_url: 'https://hy.test/r' }), bytes('GLB'),
+    ])
+    expect((await client.generate(Buffer.from('png'), 1)).toString()).toBe('GLB')
+  })
+
+  it('gives up after 3 hours in the queue', async () => {
+    const queued = () => json({ status: 'queued', position: 90 })
+    const { client, now } = make([json({ uid: 'u6' }), ...Array.from({ length: 2200 }, () => queued)])
+    await expect(client.generate(Buffer.from('png'), 1)).rejects.toThrow(/u6.*180 min in the queue/)
+    expect(now()).toBeGreaterThanOrEqual(10_800_000)
+  })
+
+  it('reports each job id as it is sent, so a result can be fetched later', async () => {
+    const sent = []
+    const f = fakeFetch([json({ uid: 'u7' }), json({ status: 'completed', result_url: 'https://hy.test/r' }), bytes('GLB')])
+    const client = createZps3dClient({ api: 'https://hy.test', key: 'k', fetch: f.fetch, sleep: async () => {}, onSend: (uid) => sent.push(uid) })
+    await client.generate(Buffer.from('png'), 1)
+    expect(sent).toEqual(['u7'])
+  })
+
   it('gives up after 30 minutes', async () => {
     const running = () => json({ status: 'running' })
     const { client, now } = make([json({ uid: 'u1' }), ...Array.from({ length: 400 }, () => running)])

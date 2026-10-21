@@ -135,17 +135,24 @@ export async function runApprove(id, k, { paths = artPaths(), log = console.log 
   log(`approved ${id} #${k} → ${paths.concept(id)}`)
 }
 
+/**
+ * ZPS 3D runs one FIFO queue shared with other users: send a whole batch at once so its jobs wait in line
+ * together, rather than rejoining the back of the line two at a time.
+ */
+const MODELS_IN_FLIGHT = 12
+
 export async function runModel(assets, { env, force = false, paths = artPaths(), log = console.log }) {
   requireKeys(env, ['ZPS3D_API', 'ZPS3D_KEY'])
-  const zps3d = createZps3dClient({ api: env.ZPS3D_API, key: env.ZPS3D_KEY })
   const { todo, blocked } = planModel(assets, existsSync, force, paths)
   const res = await runBatch(todo, async (a) => {
     const t0 = Date.now()
     const png = await cutoutPng(paths.concept(a.id))
+    // The job id is logged so a result can still be fetched if this run stops (results live 24 h)
+    const zps3d = createZps3dClient({ api: env.ZPS3D_API, key: env.ZPS3D_KEY, onSend: (uid) => log(`${a.id}: job ${uid} sent`) })
     // ZPS 3D answers in the concept camera's frame; level the model before it is cached
     write(paths.raw(a.id), await levelGlb(await withRetry((seed) => zps3d.generate(png, seed), a.seed ?? 42)))
     log(`${a.id}: model in ${((Date.now() - t0) / 1000).toFixed(0)} s`)
-  }, { concurrency: 2 })
+  }, { concurrency: MODELS_IN_FLIGHT })
   return { ...res, blocked }
 }
 

@@ -29,11 +29,4 @@ describe('health drops', () => {
     expect(rollCounted(3, 5000, 0.34).health).toBe(2)
     expect(rollCounted(4, 5000, 0.67).health).toBe(3)
   })
-
-  it('stay uncapped when not counted (the co-op servers keep the old rule)', () => {
-    const r = mulberry32(5)
-    let health = 0
-    for (let i = 0; i < 5000; i++) if (pickDrop(r, { powerupsDropped: 9, shieldsDropped: 9, progress: 1 }) === 'health') health++
-    expect(health).toBeGreaterThan(MAX_HEALTH * 10)
-  })
 })

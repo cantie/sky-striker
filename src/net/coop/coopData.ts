@@ -2,7 +2,7 @@ import { STAGES, type StageConfig } from '../../game/stages'
 import { PLANES } from '../../game/planes'
 import { MAX_WEAPON_POWER, weaponStats } from '../../game/weapon'
 import { GAME_SPEED } from '../../game/speed'
-import { DROP_CHANCE, DROP_WEIGHTS, MAX_POWERUPS, MAX_SHIELDS } from '../../game/dropRules'
+import { DROP_CHANCE, DROP_WEIGHTS, MAX_HEALTH, MAX_POWERUPS, MAX_SHIELDS } from '../../game/dropRules'
 import { BOSS_SCORE, POD_SCORE, RESCUE_SCORE } from '../../game/scoring'
 import { hashSeed } from '../../game/sim/rng'
 import { stageScript, type ScriptedEnemy } from '../../game/sim/stageScript'
@@ -41,6 +41,7 @@ export interface CoopRules {
   dropWeights: { health: number; powerup: number; shield: number }
   maxPowerups: number
   maxShields: number
+  maxHealth: number
 }
 export interface CoopData {
   version: string
@@ -77,6 +78,7 @@ export const RULES: CoopRules = {
   dropWeights: DROP_WEIGHTS,
   maxPowerups: MAX_POWERUPS,
   maxShields: MAX_SHIELDS,
+  maxHealth: MAX_HEALTH,
 }
 
 const r4 = (n: number) => Math.round(n * 1e4) / 1e4

@@ -84,7 +84,7 @@ describe('drop rules', () => {
     const r = mulberry32(1)
     let powerups = 0
     for (let i = 0; i < 5000; i++) {
-      const t = pickDrop(r, { powerupsDropped: powerups, shieldsDropped: 9, progress: 1 })
+      const t = pickDrop(r, { powerupsDropped: powerups, shieldsDropped: 9, healthDropped: 0, progress: 1 })
       if (t === 'powerup') powerups++
     }
     expect(powerups).toBe(MAX_POWERUPS)
@@ -93,7 +93,7 @@ describe('drop rules', () => {
   it('same random source → same drops', () => {
     const roll = (seed: number) => {
       const r = mulberry32(seed)
-      return Array.from({ length: 200 }, () => pickDrop(r, { powerupsDropped: 0, shieldsDropped: 0, progress: 0.5 }))
+      return Array.from({ length: 200 }, () => pickDrop(r, { powerupsDropped: 0, shieldsDropped: 0, healthDropped: 0, progress: 0.5 }))
     }
     expect(roll(3)).toEqual(roll(3))
   })

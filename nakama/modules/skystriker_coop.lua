@@ -197,7 +197,7 @@ local function start_stage(dispatcher, state, index, now)
   state.stage_t0 = now + R.countdownMs
   state.hp, state.dirty, state.dead, state.next_shot, state.pickups, state.taken = {}, {}, {}, {}, {}, {}
   for _, e in ipairs(st.enemies) do state.hp[e.id] = e.hp end
-  state.drops = { powerups = 0, shields = 0, n = 0 }
+  state.drops = { powerups = 0, shields = 0, health = 0, n = 0 }
   state.boss_hp, state.boss_target, state.boss_swap_at = nil, nil, 0
   -- Everyone still connected comes back for the new stage
   for _, id in ipairs(state.order) do
@@ -226,9 +226,11 @@ end
 local function pick_drop(state, progress)
   if math.random() >= R.dropChance then return nil end
   local d, w = state.drops, R.dropWeights
-  local options = { { "health", w.health } }
+  local options = {}
+  if d.health < R.maxHealth and progress >= d.health / R.maxHealth then options[#options + 1] = { "health", w.health } end
   if d.powerups < R.maxPowerups and progress >= d.powerups / R.maxPowerups then options[#options + 1] = { "powerup", w.powerup } end
   if d.shields < R.maxShields and progress >= d.shields / R.maxShields then options[#options + 1] = { "shield", w.shield } end
+  if #options == 0 then return nil end
   local total = 0
   for _, o in ipairs(options) do total = total + o[2] end
   local roll = math.random() * total
@@ -236,7 +238,7 @@ local function pick_drop(state, progress)
     roll = roll - o[2]
     if roll < 0 then return o[1] end
   end
-  return "health"
+  return options[1][1]
 end
 
 local function in_window(e, T)
@@ -279,6 +281,7 @@ local function apply_hit(dispatcher, state, m, target, dmg, now)
   if kind then
     if kind == "powerup" then state.drops.powerups = state.drops.powerups + 1 end
     if kind == "shield" then state.drops.shields = state.drops.shields + 1 end
+    if kind == "health" then state.drops.health = state.drops.health + 1 end
     local id = "d" .. state.drops.n
     state.drops.n = state.drops.n + 1
     state.pickups[id] = { id = id, type = kind, enemy = target, t = T }
@@ -478,7 +481,7 @@ local function match_init(context, params)
     members = {}, order = {}, pending = {},
     stage_index = 0, seed = 0, stage_t0 = 0,
     hp = {}, dirty = {}, dead = {}, next_shot = {}, pickups = {}, taken = {},
-    drops = { powerups = 0, shields = 0, n = 0 },
+    drops = { powerups = 0, shields = 0, health = 0, n = 0 },
     boss_hp = nil, phase_at = 0, boss_target = nil, boss_swap_at = 0,
     team = { score = 0, kills = 0 }, stages_cleared = 0, run_start = 0, summary = nil, recorded = false,
     last_tick_ms = 0, empty_ticks = 0, ended_ticks = 0,

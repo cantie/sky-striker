@@ -156,6 +156,23 @@ export function conformance(name: string, make: (data: CoopData) => ServerDriver
       expect(last(msgs, Op.STATES)?.team.score).toBe(300)
     })
 
+    it('health drops stop at maxHealth a stage, spread over it like power-ups', () => {
+      // Every kill drops and only health is allowed. Four kills in the first of three waves, then four
+      // in the last (they are hit in that order)
+      const base = testData()
+      const enemies = [0, 2].flatMap((wave) => Array.from({ length: 4 }, (_, i): CoopEnemy => ({
+        id: `w${wave}.g0.u${i}`, wave, spawnT: 0, enterT: 0.5, despawnT: 6, hp: 20, score: 100, shot: 'aimed', fireInterval: 0,
+      })))
+      const stage: CoopStage = { id: 1, bossHp: 50, waves: 3, enemies }
+      const d = make({ ...base, rules: { ...RULES, dropChance: 1, maxPowerups: 0, maxShields: 0 }, stages: [stage] })
+      playing(d)
+      killWave(d, stage)
+      const drops = of(d.drain(A), Op.DROP)
+      expect(drops.map((x) => x.type)).toEqual(['health', 'health', 'health'])
+      // The first wave only unlocks the first; the other two wait for two thirds of the stage
+      expect(drops.map((x) => x.enemy.slice(0, 2))).toEqual(['w0', 'w2', 'w2'])
+    })
+
     it('down and revive', () => {
       const d = make(testData())
       playing(d)

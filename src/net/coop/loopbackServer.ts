@@ -67,7 +67,7 @@ export class LoopbackServer {
   private nextShot = new Map<string, number>()
   private pickups = new Map<string, DropInfo>()
   private taken = new Set<string>()
-  private drops = { powerups: 0, shields: 0, n: 0 }
+  private drops = { powerups: 0, shields: 0, health: 0, n: 0 }
   private bossHp: number | null = null
   private phaseAt = 0
   private bossTarget: string | null = null
@@ -212,11 +212,13 @@ export class LoopbackServer {
     this.team.score += e.score
     this.broadcast(Op.ENEMY_DEAD, { id: target, by: m.id })
     const type = pickDrop(this.random, {
-      powerupsDropped: this.drops.powerups, shieldsDropped: this.drops.shields, progress: e.wave / Math.max(1, this.stage.waves),
-    })
+      powerupsDropped: this.drops.powerups, shieldsDropped: this.drops.shields, healthDropped: this.drops.health,
+      progress: e.wave / Math.max(1, this.stage.waves),
+    }, this.rules)
     if (type) {
       if (type === 'powerup') this.drops.powerups++
       if (type === 'shield') this.drops.shields++
+      if (type === 'health') this.drops.health++
       const drop: DropInfo = { id: `d${this.drops.n++}`, type, enemy: target, t: T }
       this.pickups.set(drop.id, drop)
       this.broadcast(Op.DROP, drop)
@@ -274,7 +276,7 @@ export class LoopbackServer {
     this.lastSpawn = enemies.reduce((t, e) => Math.max(t, e.spawnT), 0)
     this.hp = new Map(enemies.map((e) => [e.id, e.hp]))
     this.dirty.clear(); this.dead.clear(); this.nextShot.clear(); this.pickups.clear(); this.taken.clear()
-    this.drops = { powerups: 0, shields: 0, n: 0 }
+    this.drops = { powerups: 0, shields: 0, health: 0, n: 0 }
     this.bossHp = null; this.bossTarget = null; this.bossSwapAt = 0
     // Everyone still connected comes back for the new stage
     for (const p of this.members.values()) {

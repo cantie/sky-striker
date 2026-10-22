@@ -160,10 +160,10 @@ item they like there is the winged fire-rate badge).
 - **Decided with the user:** mockup direction B (each item its own shape: gold winged badge with a red crest
   and white chevrons for the power-up, a glossy red heart with a white cross for health, a glass orb with a
   white shield, a faceted gold star). **The star pod stays** (and is redrawn), so Nakama needs no redeploy.
-- **Health cap:** single-player only. Co-op drops come from the Nakama server, so co-op keeps uncapped
-  health until the server is next deployed: add `healthDropped` / `MAX_HEALTH` to `coopData`, the Lua
-  `pick_drop` and the loopback server then (it changes the co-op data version, so clients and server must
-  update together).
+- **Health cap:** single-player first, then co-op on the user's go-ahead: `maxHealth` is in the co-op rules,
+  the Lua `pick_drop` and the loopback server (which now plays by its data's rules, as the Lua match does),
+  pinned by a conformance test on both. It changed the co-op data version (`7f34547c`): the Nakama image and
+  the game must go live together, or co-op joins are refused until both match.
 - **My calls:** health is spread like power-ups (the 2nd after a third of the stage, the 3rd after two
   thirds); when no drop type is allowed, a kill drops nothing. The pieces are about 1.35× the old badge (the
   power-up's wings about 2.2 wide); the pick-up radius is unchanged. They draw in the see-through pass with
@@ -173,7 +173,6 @@ item they like there is the winged fire-rate badge).
 - **Where:** `src/components/game/pickups/` (shapes, finishes, PickupArt) and the `pickups` preview cell.
 
 ## Follow-ups after part 2
-- Co-op health cap: see "Items pass" above (needs a Nakama deploy).
 - `npm run art:memory` reads the texture count 5 s into each stage, before its models have always loaded,
   so it passes or fails by load timing on a slow machine (`main` does the same). It should wait for the
   stage's models, or compare counts once they settle.

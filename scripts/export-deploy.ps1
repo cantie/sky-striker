@@ -26,7 +26,7 @@ $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $include = @(
   'Dockerfile', '.dockerignore',
   'package.json', 'package-lock.json', 'index.html', 'vite.config.ts', 'tsconfig.json',
-  'public', 'src',
+  'public', 'src', 'art/manifest.d.mts', 'scripts/art/checks.d.mts',
   'server/package.json', 'server/package-lock.json', 'server/tsconfig.json', 'server/tsconfig.build.json',
   'server/nest-cli.json', 'server/start.sh', 'server/src'
 )

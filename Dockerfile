@@ -8,6 +8,9 @@ RUN npm ci
 COPY index.html vite.config.ts tsconfig.json ./
 COPY public ./public
 COPY src ./src
+# tsc checks all of src: an art dev page and a test read these types from outside it
+COPY art/manifest.d.mts ./art/
+COPY scripts/art/checks.d.mts ./scripts/art/
 RUN npm run build
 
 # ── 2. Build the API (NestJS) ──

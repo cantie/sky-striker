@@ -26,7 +26,7 @@ export function spawnCoins(x: number, z: number, count: number) {
   }
 }
 
-function starShape(outer: number, inner: number) {
+export function starShape(outer: number, inner: number) {
   const s = new THREE.Shape()
   for (let i = 0; i < 10; i++) {
     const r = i % 2 === 0 ? outer : inner

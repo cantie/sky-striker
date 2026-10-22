@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useGameStore } from '../../store/gameStore'
 import { getPlane } from '../../game/planes'
+import { planeBoltColor } from '../../game/fx/color'
 import { PLAYER_BULLET_SPEED, weaponStats } from '../../game/weapon'
 import { gameDt, gameInterval } from '../../game/speed'
 import { ORDER } from '../../game/sim/clock'
@@ -33,7 +34,7 @@ export function Teammates() {
       if (since > gameInterval(w.interval * plane.fireRate)) {
         sinceShot.current.set(m.id, 0)
         for (const sh of w.streams) {
-          s.addBullet({ x: m.x + sh.x, y: 0.3, z: m.y + 0.6, vx: sh.vx, vy: 0, vz: PLAYER_BULLET_SPEED, isEnemy: false, damage: 0, radius: w.radius, ghost: true })
+          s.addBullet({ x: m.x + sh.x, y: 0.3, z: m.y + 0.6, vx: sh.vx, vy: 0, vz: PLAYER_BULLET_SPEED, isEnemy: false, damage: 0, radius: w.radius, ghost: true, color: planeBoltColor(m.plane) })
         }
       } else sinceShot.current.set(m.id, since)
     }

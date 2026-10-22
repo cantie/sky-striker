@@ -7,11 +7,14 @@ import { useAudio, onPlayGesture } from '../../hooks/useAudio'
 import { Environment } from './Environment'
 import { Player } from './Player'
 import { ModelBoundary } from './ModelBoundary'
+import { STATS, StatsProbe } from './StatsProbe'
+import { FxRenderer } from './fx/FxRenderer'
+import { FxGame } from './fx/FxGame'
+import { fxShouldStep } from '../../game/fx/emitters'
 import { Enemies } from './Enemies'
 import { Boss } from './Boss'
 import { Bullets } from './Bullets'
 import { Pickups } from './Pickups'
-import { Explosions } from './Explosions'
 import { Coins } from './Coins'
 import { HangarPreview } from './HangarPreview'
 import { GAME_SPEED } from '../../game/speed'
@@ -29,6 +32,26 @@ import { activeSession } from '../../net/coop/active'
 const HALF_W = (BOUNDS.maxX - BOUNDS.minX) / 2 + 1.1
 const HALF_H = (BOUNDS.maxY - BOUNDS.minY) / 2 + 1.4
 const CAMERA_Y = 50
+/** Effects freeze whenever the game is not running (pause, boss warning, results). */
+const fxPaused = () => !fxShouldStep(useGameStore.getState().gameState)
+const fxStageNow = { id: 0, state: 'menu' }
+const fxShieldNow = { x: 0, z: 0, ms: 0, down: false }
+/** The player's shield, while a stage is on screen and it is up. */
+const fxShield = () => {
+  const s = useGameStore.getState()
+  if (s.shieldMs <= 0 || !(s.gameState === 'playing' || s.gameState === 'paused' || s.gameState === 'bossWarning')) return null
+  fxShieldNow.x = s.playerX
+  fxShieldNow.z = s.playerY
+  fxShieldNow.ms = s.shieldMs
+  fxShieldNow.down = s.down
+  return fxShieldNow
+}
+const fxStage = () => {
+  const s = useGameStore.getState()
+  fxStageNow.id = s.currentStageId
+  fxStageNow.state = s.gameState
+  return fxStageNow
+}
 
 /** World +Z offset so the plane sits slightly above the finger/cursor (screen-up). */
 const POINTER_OFFSET_Z = 1.2
@@ -238,24 +261,27 @@ export function GameScene() {
 
   return (
     <>
-      <Suspense fallback={null}>
-        <Environment />
-        {gameState === 'hangar' && <HangarPreview />}
-        {showActors && (
-          <>
-            {/* The plane loads outside the briefing on a co-op or shortcut start; a failed load must not blank the game */}
-            <ModelBoundary><Player /></ModelBoundary>
-            <Enemies />
-            <Boss />
-            <Bullets />
-            <Pickups />
-            <Explosions />
-            <Coins />
-            {coop && <Teammates />}
-            {coop && <ReviveBeacon />}
-          </>
-        )}
-      </Suspense>
+      <FxRenderer paused={fxPaused} stage={fxStage} shield={fxShield}>
+        <Suspense fallback={null}>
+          <Environment />
+          {gameState === 'hangar' && <HangarPreview />}
+          {showActors && (
+            <>
+              {/* The plane loads outside the briefing on a co-op or shortcut start; a failed load must not blank the game */}
+              <ModelBoundary><Player /></ModelBoundary>
+              <Enemies />
+              <Boss />
+              <Bullets />
+              <Pickups />
+              <Coins />
+              {coop && <Teammates />}
+              {coop && <ReviveBeacon />}
+            </>
+          )}
+        </Suspense>
+        <FxGame />
+      </FxRenderer>
+      {STATS && <StatsProbe />}
       <EffectComposer multisampling={0}>
         <Bloom intensity={0.7} luminanceThreshold={0.7} mipmapBlur levels={5} />
         <Vignette offset={0.3} darkness={0.35} />

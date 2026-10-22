@@ -47,6 +47,8 @@ export interface Bullet {
   pierce?: boolean; hits?: string[]; homing?: boolean
   /** Co-op: drawn from the teammate's fire — no damage, stops on contact. */
   ghost?: boolean
+  /** Visual only: a player bolt's colour (its plane's, see planeBoltColor). Never sent over the network. */
+  color?: string
 }
 export interface Enemy {
   id: string; x: number; y: number; z: number
@@ -84,6 +86,7 @@ export interface RunStats {
   /** Capped drops handed out this run (see game/drops). */
   powerupsDropped: number
   shieldsDropped: number
+  healthDropped: number
   enemiesKilled: number
   pickupsSpawned: number
   pickupsCollected: number
@@ -226,6 +229,7 @@ const emptyRunStats = (): RunStats => ({
   enemiesSpawned: 0,
   powerupsDropped: 0,
   shieldsDropped: 0,
+  healthDropped: 0,
   enemiesKilled: 0,
   pickupsSpawned: 0,
   pickupsCollected: 0,

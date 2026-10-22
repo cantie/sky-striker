@@ -1,7 +1,6 @@
-import { useMemo, useRef } from 'react'
-import { useFrame } from '@react-three/fiber'
+import { useMemo } from 'react'
 import * as THREE from 'three'
-import { useGameStore } from '../../store/gameStore'
+import { useGameStore, type Bullet } from '../../store/gameStore'
 import { sounds } from '../../hooks/useAudio'
 import { ROLE_STATS } from '../../game/roster'
 import { BOSSES } from '../../game/bosses'
@@ -10,17 +9,21 @@ import { onScreen } from '../../game/world'
 import { ORDER } from '../../game/sim/clock'
 import { net } from '../../game/sim/net'
 import { useSimStep } from '../../game/sim/useSimStep'
+import { ENEMY_BULLET_COLOR } from '../../game/fx/color'
+import { emitFx } from '../../game/fx/events'
 import { bossKilled, enemyKilled } from './effects'
+import { BoltsMesh, EnemyBulletsMesh, MissilesMesh } from './fx/BulletMeshes'
 
-const MAX = 512
-/**
- * One enemy-bullet look for every biome: dark rim (pops on snow/sand), hot magenta halo
- * (pops on lava/forest/water — a hue no terrain uses) and a white core.
- */
-export const ENEMY_BULLET_COLOR = '#ff2bd6'
+export { ENEMY_BULLET_COLOR }
 /** Homing missiles: cruise speed and turn rate (rad / game-second). */
 const MISSILE_SPEED = 14
 const MISSILE_TURN = 5
+/** Spark colours of a missile and of a bolt fired without a colour. */
+const MISSILE_SPARK = '#ffa340'
+const BOLT_SPARK = '#7cf9ff'
+
+/** Sparks where a player bullet struck (visual only, a teammate's ghost bolts too). */
+const sparkAt = (b: Bullet) => emitFx({ kind: 'hit', x: b.x, z: b.z, color: b.color ?? (b.homing ? MISSILE_SPARK : BOLT_SPARK) })
 
 /** Nearest on-screen target (enemy or boss) for a homing missile. */
 function nearestTarget(x: number, z: number): { x: number; z: number } | null {
@@ -40,12 +43,7 @@ function nearestTarget(x: number, z: number): { x: number; z: number } | null {
 }
 
 export function Bullets() {
-  const playerRef = useRef<THREE.InstancedMesh>(null)
-  const enemyRef = useRef<THREE.InstancedMesh>(null)
-  const coreRef = useRef<THREE.InstancedMesh>(null)
-  const rimRef = useRef<THREE.InstancedMesh>(null)
-  const missileRef = useRef<THREE.InstancedMesh>(null)
-  const dummy = useMemo(() => new THREE.Object3D(), [])
+  const split = useBulletSplit()
 
   useSimStep(ORDER.bullets, ({ dt }) => {
     const s = useGameStore.getState()
@@ -82,6 +80,7 @@ export function Bullets() {
           // Not hittable until it has actually flown onto the screen
           if (b.hits?.includes(e.id)) continue
           if (e.entered && Math.hypot(b.x - e.x, b.z - e.y) < role.radius + b.radius) {
+            sparkAt(b)
             // Teammate's bolts are only a picture of their fire: they stop on contact, the hit is theirs to report
             if (b.ghost) { hit = true; break }
             sounds.enemyHit()
@@ -102,6 +101,7 @@ export function Bullets() {
         }
         if (!hit && s.boss && s.boss.intro <= 0.5 && Math.hypot(b.x - s.boss.x, b.z - s.boss.y) < bossRadius) {
           const { x, y } = s.boss
+          sparkAt(b)
           if (!b.ghost) {
             sounds.enemyHit()
             if (n) {
@@ -115,6 +115,7 @@ export function Bullets() {
         }
       } else {
         if (!s.down && Math.hypot(b.x - s.playerX, b.z - s.playerY) < 0.55 + b.radius) {
+          if (s.shieldMs > 0) emitFx({ kind: 'shieldHit', x: b.x, z: b.z })
           s.damagePlayer(b.damage)
           hit = true
         }
@@ -124,78 +125,34 @@ export function Bullets() {
     useGameStore.setState({ bullets: next })
   })
 
-  useFrame(() => {
-    const next = useGameStore.getState().bullets
-    const players = next.filter((b) => !b.isEnemy && !b.homing).slice(0, MAX)
-    const missiles = next.filter((b) => b.homing).slice(0, MAX)
-    const enemies = next.filter((b) => b.isEnemy).slice(0, MAX)
-    if (playerRef.current) {
-      playerRef.current.count = players.length
-      players.forEach((b, i) => {
-        // Elongated bolt along its flight path; radius grows with the weapon tier
-        dummy.position.set(b.x, 0.35, b.z)
-        dummy.rotation.set(0, Math.atan2(b.vx, b.vz), 0)
-        dummy.scale.set(b.radius * 2.2, b.radius * 2.2, b.radius * 5.5)
-        dummy.updateMatrix()
-        playerRef.current!.setMatrixAt(i, dummy.matrix)
-      })
-      playerRef.current.instanceMatrix.needsUpdate = true
-    }
-    if (missileRef.current) {
-      missileRef.current.count = missiles.length
-      missiles.forEach((b, i) => {
-        dummy.position.set(b.x, 0.38, b.z)
-        dummy.rotation.set(0, Math.atan2(b.vx, b.vz), 0)
-        dummy.scale.set(0.32, 0.32, 0.9)
-        dummy.updateMatrix()
-        missileRef.current!.setMatrixAt(i, dummy.matrix)
-      })
-      missileRef.current.instanceMatrix.needsUpdate = true
-    }
-    dummy.rotation.set(0, 0, 0)
-    // [mesh, height, scale × radius, lie flat] — the rim is a disc facing the top-down camera
-    const layers: [THREE.InstancedMesh | null, number, number, boolean][] = [
-      [rimRef.current, 0.3, 4.2, true],
-      [enemyRef.current, 0.4, 2.8, false],
-      [coreRef.current, 0.75, 1.35, false],
-    ]
-    for (const [mesh, y, k, flat] of layers) {
-      if (!mesh) continue
-      mesh.count = enemies.length
-      dummy.rotation.set(flat ? -Math.PI / 2 : 0, 0, 0)
-      enemies.forEach((b, i) => {
-        dummy.position.set(b.x, y, b.z)
-        dummy.scale.setScalar(b.radius * k)
-        dummy.updateMatrix()
-        mesh.setMatrixAt(i, dummy.matrix)
-      })
-      mesh.instanceMatrix.needsUpdate = true
-    }
-    dummy.rotation.set(0, 0, 0)
-  })
-
   return (
     <>
-      <instancedMesh ref={playerRef} args={[undefined, undefined, MAX]}>
-        <sphereGeometry args={[0.5, 8, 8]} />
-        <meshBasicMaterial color="#7cf9ff" toneMapped={false} />
-      </instancedMesh>
-      <instancedMesh ref={missileRef} args={[undefined, undefined, MAX]} frustumCulled={false}>
-        <sphereGeometry args={[0.5, 8, 8]} />
-        <meshBasicMaterial color="#ffb02e" toneMapped={false} />
-      </instancedMesh>
-      <instancedMesh ref={rimRef} args={[undefined, undefined, MAX]} frustumCulled={false}>
-        <circleGeometry args={[0.5, 16]} />
-        <meshBasicMaterial color="#1a0016" transparent opacity={0.75} depthWrite={false} toneMapped={false} side={THREE.DoubleSide} />
-      </instancedMesh>
-      <instancedMesh ref={enemyRef} args={[undefined, undefined, MAX]} frustumCulled={false}>
-        <sphereGeometry args={[0.5, 10, 10]} />
-        <meshBasicMaterial color={ENEMY_BULLET_COLOR} toneMapped={false} />
-      </instancedMesh>
-      <instancedMesh ref={coreRef} args={[undefined, undefined, MAX]} frustumCulled={false}>
-        <sphereGeometry args={[0.5, 8, 8]} />
-        <meshBasicMaterial color="#ffffff" toneMapped={false} />
-      </instancedMesh>
+      <BoltsMesh bolts={split.bolts} />
+      <MissilesMesh missiles={split.missiles} />
+      <EnemyBulletsMesh bullets={split.enemy} />
     </>
   )
+}
+
+/**
+ * The store's bullets split by how they are drawn, redone only when the list changes (every sim step
+ * replaces it). No arrays are made per frame.
+ */
+function useBulletSplit() {
+  return useMemo(() => {
+    let seen: readonly Bullet[] | null = null
+    const bolts: Bullet[] = [], missiles: Bullet[] = [], enemy: Bullet[] = []
+    const update = () => {
+      const all = useGameStore.getState().bullets
+      if (all === seen) return
+      seen = all
+      bolts.length = missiles.length = enemy.length = 0
+      for (const b of all) (b.isEnemy ? enemy : b.homing ? missiles : bolts).push(b)
+    }
+    return {
+      bolts: () => { update(); return bolts },
+      missiles: () => { update(); return missiles },
+      enemy: () => { update(); return enemy },
+    }
+  }, [])
 }

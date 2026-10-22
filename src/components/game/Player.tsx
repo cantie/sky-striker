@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useGameStore } from '../../store/gameStore'
@@ -6,6 +6,10 @@ import { ShipModel, useModelDims } from './Model'
 import { gameDt, gameInterval } from '../../game/speed'
 import { PLAYER_BULLET_SPEED, weaponStats } from '../../game/weapon'
 import { getPlane } from '../../game/planes'
+import { planeBoltColor } from '../../game/fx/color'
+import { muzzleShown } from '../../game/fx/emitters'
+import { MuzzleFlash } from './fx/MuzzleFlash'
+import { emitFx } from '../../game/fx/events'
 import { ORDER } from '../../game/sim/clock'
 import { useSimStep } from '../../game/sim/useSimStep'
 
@@ -19,10 +23,19 @@ const AUTO_SHIELD_MS = 5000
 /** Wingman drone slots relative to the plane. */
 const WINGMEN: [number, number][] = [[-1.6, -0.7], [1.6, -0.7]]
 
+const gunXs = new Map<object, number[]>()
+/** The current weapon's gun offsets (x), one list per weapon level. */
+function guns(): readonly number[] {
+  const streams = weaponStats(useGameStore.getState().weaponPower).streams
+  let xs = gunXs.get(streams)
+  if (!xs) { xs = streams.map((s) => s.x); gunXs.set(streams, xs) }
+  return xs
+}
+const muzzle = () => muzzleShown(useGameStore.getState())
+
 export function Player() {
   const group = useRef<THREE.Group>(null)
   const navLights = useRef<THREE.Group>(null)
-  const shieldRing = useRef<THREE.Group>(null)
   const bank = useRef(0)
   /** Real ms since the last volley / wingman volley. */
   const sinceShot = useRef(0)
@@ -31,6 +44,7 @@ export function Player() {
   const skillClock = useRef({ missile: 0, nova: 0, shield: 0 })
   const planeId = useGameStore((s) => s.progress.plane)
   const plane = getPlane(planeId)
+  const bolt = useMemo(() => planeBoltColor(planeId), [planeId])
   const dims = useModelDims(plane.model)
   const wingTip = (dims.x * plane.size) / 2 * 0.92
 
@@ -50,7 +64,7 @@ export function Player() {
     if (sinceShot.current > gameInterval(w.interval * plane.fireRate)) {
       sinceShot.current = 0
       for (const sh of w.streams) {
-        s.addBullet({ x: playerX + sh.x, y: 0.3, z: playerY + 0.6, vx: sh.vx, vy: 0, vz: PLAYER_BULLET_SPEED, isEnemy: false, damage: dmg, radius: w.radius, pierce })
+        s.addBullet({ x: playerX + sh.x, y: 0.3, z: playerY + 0.6, vx: sh.vx, vy: 0, vz: PLAYER_BULLET_SPEED, isEnemy: false, damage: dmg, radius: w.radius, pierce, color: bolt })
       }
       s.setMuzzleFlash(1)
     }
@@ -59,7 +73,7 @@ export function Player() {
     if (plane.skill === 'wingmen' && sinceWing.current > gameInterval(w.interval * 1.3)) {
       sinceWing.current = 0
       for (const [ox, oz] of WINGMEN) {
-        s.addBullet({ x: playerX + ox, y: 0.3, z: playerY + oz + 0.5, vx: 0, vy: 0, vz: PLAYER_BULLET_SPEED, isEnemy: false, damage: dmg * 0.55, radius: 0.1 })
+        s.addBullet({ x: playerX + ox, y: 0.3, z: playerY + oz + 0.5, vx: 0, vy: 0, vz: PLAYER_BULLET_SPEED, isEnemy: false, damage: dmg * 0.55, radius: 0.1, color: bolt })
       }
     }
     if (plane.skill === 'missiles') {
@@ -77,9 +91,10 @@ export function Player() {
         skillClock.current.nova = 0
         for (let i = 0; i < NOVA_BOLTS; i++) {
           const a = (i / NOVA_BOLTS) * Math.PI * 2
-          s.addBullet({ x: playerX, y: 0.3, z: playerY, vx: Math.sin(a) * 16, vy: 0, vz: Math.cos(a) * 16, isEnemy: false, damage: dmg * 1.4, radius: 0.18, pierce: true })
+          s.addBullet({ x: playerX, y: 0.3, z: playerY, vx: Math.sin(a) * 16, vy: 0, vz: Math.cos(a) * 16, isEnemy: false, damage: dmg * 1.4, radius: 0.18, pierce: true, color: bolt })
         }
         s.addShake(0.2)
+        emitFx({ kind: 'nova', x: playerX, z: playerY, color: bolt })
       }
     }
     if (plane.skill === 'autoShield') {
@@ -107,16 +122,6 @@ export function Player() {
     group.current.visible = !blink && !s.down
 
     if (navLights.current) navLights.current.visible = Date.now() % 900 < 160
-    if (shieldRing.current) {
-      // Temporary shield bubble; flickers during its last 1.5 s as a warning
-      const left = s.shieldMs
-      const ending = left > 0 && left < 1500 && Math.floor(Date.now() / 110) % 2 === 0
-      shieldRing.current.visible = left > 0 && !ending
-      shieldRing.current.scale.setScalar(1 + Math.sin(Date.now() * 0.004) * 0.04)
-      const [bubble, rim] = shieldRing.current.children as THREE.Mesh[]
-      ;(bubble.material as THREE.MeshBasicMaterial).opacity = 0.2
-      ;(rim.material as THREE.MeshBasicMaterial).opacity = 0.7
-    }
   })
 
   return (
@@ -139,22 +144,7 @@ export function Player() {
         </mesh>
       </group>
       <pointLight position={[0, 0.1, -0.9]} color={plane.flame} intensity={5} distance={3.5} />
-      <group ref={shieldRing} visible={false}>
-        <mesh scale={[1, 0.45, 1]}>
-          <sphereGeometry args={[1.25, 32, 16]} />
-          <meshBasicMaterial color="#4fc3f7" transparent opacity={0.16} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
-        </mesh>
-        <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[1.18, 1.27, 48]} />
-          <meshBasicMaterial color="#9be7ff" transparent opacity={0.6} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} side={THREE.DoubleSide} />
-        </mesh>
-      </group>
-      {useGameStore.getState().muzzleFlash > 0 && (
-        <mesh position={[0, 0.1, 0.9]}>
-          <sphereGeometry args={[0.2, 8, 8]} />
-          <meshBasicMaterial color="#fff7a0" transparent opacity={0.8} toneMapped={false} />
-        </mesh>
-      )}
+      <MuzzleFlash guns={guns} flash={muzzle} />
     </group>
   )
 }

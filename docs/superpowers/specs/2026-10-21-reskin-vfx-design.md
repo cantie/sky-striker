@@ -1,14 +1,18 @@
 # Reskin, part 2: bullets and aircraft effects — design
 
-Status: **approved in chat by the user (2026-10-21); this document waits for their review.**
+Status: **built on `feat/fx` (2026-10-22).** The user approved the three look batches and the phone check
+(FPS no lower than `main`). Next: the final whole-branch review, then merge or push.
 Follows part 1, [2026-10-20-reskin-aircraft-design.md](2026-10-20-reskin-aircraft-design.md), whose AI aircraft
 are on `main`.
 
 ## How to resume (next session, any machine)
 1. No keys are needed: everything here is drawn in code.
-2. If no plan exists yet in docs/superpowers/plans/, run superpowers:writing-plans for this spec; otherwise
-   follow the plan. Work on branch `feat/fx` off `main`.
-3. The user writes Vietnamese; answer in Vietnamese.
+2. The plan is [2026-10-21-reskin-vfx.md](../plans/2026-10-21-reskin-vfx.md); all its tasks are done on
+   `feat/fx`. If the branch is not merged yet, ask the user whether to merge it into `main` or push it.
+3. Looking at the effects: `npm run dev`, then `/fx-preview.html?fx=puff,bolts,enemy,missiles,muzzle,explosion,`
+   `hits,bossdeath,flames,laser,shield,nova` (`&at=<s>` freezes a cell, `&biome=<name>` swaps the ground).
+   In the game, `?stats` shows FPS and draw calls; `node scripts/fx-bench.mjs <url>` runs the heavy scene.
+4. The user writes Vietnamese; answer in Vietnamese.
 
 ## Intent
 Part 1 put every aircraft, ground unit and boss on semi-realistic AI models (Sky Force Reloaded style). The
@@ -146,3 +150,17 @@ Executor's calls after the builder check (the user checks them while reading):
   0.7, mipmapBlur, 5 levels; then Vignette (`GameScene.tsx`). Tone mapping is ACES at exposure 1.15.
 - **Renderer:** dpr [1, 1.75] with AdaptiveDpr. There are no quality tiers.
 - **Tests:** none cover `Bullets`, `Explosions`, `EngineFlame`, `BossLaser` or the Player skills today.
+
+## Follow-ups after part 2
+- `npm run art:memory` reads the texture count 5 s into each stage, before its models have always loaded,
+  so it passes or fails by load timing on a slow machine (`main` does the same). It should wait for the
+  stage's models, or compare counts once they settle.
+- The headless bench runs on software GL at 2–5 fps: compare builds with each other, never with a phone.
+  The phone with `?stats` is the real FPS check.
+- The laser crossing a shield throws its contact sparks but no ripple: the renderer does not know where the
+  beam meets the rim.
+- The shield bubble no longer blinks during the post-hit invincibility, since it is no longer part of the
+  plane.
+- A missile's smoke trail is faint on light sand.
+- Effects run on real seconds and step at most 0.1 s a frame, so below 10 fps a boss death sequence runs
+  slower than the stage around it and can be cut off by the results screen.

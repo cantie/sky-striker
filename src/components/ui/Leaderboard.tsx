@@ -162,7 +162,7 @@ const overlay: CSSProperties = {
 }
 const panel: CSSProperties = { width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }
 const header: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8 }
-const title: CSSProperties = { color: '#fff', fontWeight: 900, fontSize: 'clamp(1.2rem, 5vw, 1.6rem)', letterSpacing: 2, textShadow: '0 0 18px rgba(78,196,255,0.5)' }
+const title: CSSProperties = { color: '#fff', fontWeight: 900, fontSize: 'clamp(1.2rem, 5cqw, 1.6rem)', letterSpacing: 2, textShadow: '0 0 18px rgba(78,196,255,0.5)' }
 const iconBtn: CSSProperties = {
   width: 40, height: 40, borderRadius: 12, border: '1px solid rgba(78,196,255,0.35)',
   background: 'rgba(20,40,70,0.8)', color: '#fff', fontSize: 18, cursor: 'pointer',

@@ -159,7 +159,7 @@ const panel: CSSProperties = {
 }
 const headerRow: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8 }
 const title: CSSProperties = {
-  color: '#fff', fontWeight: 900, fontSize: 'clamp(1.2rem, 5vw, 1.6rem)',
+  color: '#fff', fontWeight: 900, fontSize: 'clamp(1.2rem, 5cqw, 1.6rem)',
   letterSpacing: 2, textShadow: '0 0 18px rgba(78,196,255,0.5)',
 }
 const subtitle: CSSProperties = { color: '#8eb8d4', fontSize: 12, marginTop: 2 }

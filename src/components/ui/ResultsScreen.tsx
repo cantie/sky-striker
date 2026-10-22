@@ -110,7 +110,7 @@ const panel: CSSProperties = {
   boxShadow: '0 12px 40px rgba(0,0,0,0.45)',
 }
 const banner: CSSProperties = {
-  fontWeight: 900, fontSize: 'clamp(1.4rem, 6vw, 1.9rem)', textAlign: 'center',
+  fontWeight: 900, fontSize: 'clamp(1.4rem, 6cqw, 1.9rem)', textAlign: 'center',
   letterSpacing: 1, textShadow: '0 0 16px currentColor',
 }
 const stageName: CSSProperties = { color: '#7ec8ef', textAlign: 'center', fontWeight: 700, fontSize: 13 }

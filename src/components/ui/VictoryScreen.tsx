@@ -10,7 +10,7 @@ export function VictoryScreen() {
   const play = async (opts?: { skipToBoss?: boolean }) => { sounds.uiSelect(); await onPlayGesture(); startGame(opts) }
   return (
     <div style={box}>
-      <div style={{ color: '#ffd700', fontSize: 'clamp(2rem, 8vw, 3rem)', fontWeight: 900, textShadow: '0 0 20px #ffd700' }}>VICTORY!</div>
+      <div style={{ color: '#ffd700', fontSize: 'clamp(2rem, 8cqw, 3rem)', fontWeight: 900, textShadow: '0 0 20px #ffd700' }}>VICTORY!</div>
       <div style={{ color: '#fff', margin: '12px 0', fontSize: '1.2rem' }}>Score {score.toLocaleString()} · ★ {stars}</div>
       <button onClick={() => void play()} style={btn}>Play Again</button>
       <button onClick={() => void play({ skipToBoss: true })} style={{ ...btn, background: '#7b1fa2' }}>Boss Rematch</button>

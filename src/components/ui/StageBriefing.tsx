@@ -133,7 +133,7 @@ const backBtn: CSSProperties = {
   color: '#9fd6ff', borderRadius: 10, padding: '6px 12px', cursor: 'pointer', fontWeight: 700,
 }
 const stageLabel: CSSProperties = {
-  color: '#fff', fontWeight: 900, fontSize: 'clamp(1.8rem, 7vw, 2.4rem)',
+  color: '#fff', fontWeight: 900, fontSize: 'clamp(1.8rem, 7cqw, 2.4rem)',
   letterSpacing: 2, textAlign: 'center', textShadow: '0 0 24px rgba(78,196,255,0.55)',
 }
 const sub: CSSProperties = { color: '#7ec8ef', textAlign: 'center', fontSize: 14, marginTop: -4 }

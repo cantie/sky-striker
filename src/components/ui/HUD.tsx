@@ -34,7 +34,7 @@ export function HUD() {
     <div style={{ position: 'absolute', inset: 0, padding: 'max(0.5rem, env(safe-area-inset-top)) max(0.5rem, env(safe-area-inset-right)) max(0.5rem, env(safe-area-inset-bottom)) max(0.5rem, env(safe-area-inset-left))', pointerEvents: 'none', zIndex: 5 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
         <div style={{ minWidth: 64 }}>
-          <div style={{ fontSize: 'clamp(1.1rem, 4vw, 1.5rem)', fontWeight: 800, color: '#fff', textShadow: shadow, lineHeight: 1.1 }}>{(coop ? team.score : score).toLocaleString()}</div>
+          <div style={{ fontSize: 'clamp(1.1rem, 4cqw, 1.5rem)', fontWeight: 800, color: '#fff', textShadow: shadow, lineHeight: 1.1 }}>{(coop ? team.score : score).toLocaleString()}</div>
           {coop && <div style={{ color: '#3dff8a', fontWeight: 800, fontSize: 11, textShadow: shadow }}>TEAM · STAGE {(status?.stageIndex ?? 0) + 1}/{status?.stages ?? 10}</div>}
           <div style={{ color: '#ffd700', fontWeight: 800, fontSize: 12, textShadow: shadow }}>
             ★ {stars}{combo > 0 && <span style={{ marginLeft: 6 }}>{combo}x</span>}
@@ -89,7 +89,7 @@ export function HUD() {
 
       {(victoryMs > 0 || flyout) && (
         <div style={{ position: 'absolute', top: '32%', left: 0, right: 0, textAlign: 'center' }}>
-          <div style={{ fontSize: 'clamp(1.6rem, 7vw, 2.4rem)', fontWeight: 900, color: '#ffd23f', textShadow: '0 0 18px #ff9800, 0 2px 0 #7a4a00' }}>
+          <div style={{ fontSize: 'clamp(1.6rem, 7cqw, 2.4rem)', fontWeight: 900, color: '#ffd23f', textShadow: '0 0 18px #ff9800, 0 2px 0 #7a4a00' }}>
             {flyout ? 'STAGE CLEAR' : 'BOSS DOWN!'}
           </div>
           {!flyout && (
@@ -102,12 +102,12 @@ export function HUD() {
 
       {gameState === 'bossWarning' && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ fontSize: 'clamp(1.8rem, 7vw, 3rem)', fontWeight: 900, color: '#ff1744', textShadow: '0 0 20px #ff1744', animation: 'pulse 0.6s infinite' }}>⚠ WARNING ⚠<br />BOSS INCOMING</div>
+          <div style={{ fontSize: 'clamp(1.8rem, 7cqw, 3rem)', fontWeight: 900, color: '#ff1744', textShadow: '0 0 20px #ff1744', animation: 'pulse 0.6s infinite' }}>⚠ WARNING ⚠<br />BOSS INCOMING</div>
         </div>
       )}
       {coop && down && (
         <div style={{ position: 'absolute', bottom: '18%', left: 0, right: 0, textAlign: 'center', pointerEvents: 'none' }}>
-          <div style={{ fontSize: 'clamp(1.3rem, 6vw, 2rem)', fontWeight: 900, color: '#ff5252', textShadow: '0 0 14px #ff1744' }}>SHOT DOWN</div>
+          <div style={{ fontSize: 'clamp(1.3rem, 6cqw, 2rem)', fontWeight: 900, color: '#ff5252', textShadow: '0 0 14px #ff1744' }}>SHOT DOWN</div>
           <div style={{ color: '#fff', fontWeight: 800, fontSize: 13, textShadow: shadow }}>Hang on — your wingmate can revive you at your beacon</div>
         </div>
       )}

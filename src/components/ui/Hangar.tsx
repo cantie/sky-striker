@@ -135,7 +135,7 @@ const overlay: CSSProperties = {
   background: 'radial-gradient(ellipse at 50% 32%, rgba(4,14,28,0) 0%, rgba(4,14,28,0.35) 45%, rgba(4,14,28,0.88) 85%)',
 }
 const topBar: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, pointerEvents: 'auto' }
-const title: CSSProperties = { color: '#fff', fontWeight: 900, fontSize: 'clamp(1.2rem, 5vw, 1.6rem)', letterSpacing: 3, textShadow: '0 0 16px rgba(78,196,255,0.6)' }
+const title: CSSProperties = { color: '#fff', fontWeight: 900, fontSize: 'clamp(1.2rem, 5cqw, 1.6rem)', letterSpacing: 3, textShadow: '0 0 16px rgba(78,196,255,0.6)' }
 const wallet: CSSProperties = {
   color: '#ffd54a', fontWeight: 900, fontSize: 15, padding: '6px 10px', borderRadius: 10,
   background: 'rgba(10,22,40,0.85)', border: '1px solid rgba(255,213,74,0.4)', minWidth: 70, textAlign: 'center',

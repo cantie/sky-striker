@@ -37,7 +37,7 @@ export function CoopResults() {
   return (
     <div style={overlay}>
       <div style={{ width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div style={{ textAlign: 'center', fontSize: 'clamp(1.6rem, 7vw, 2.4rem)', fontWeight: 900, color: won ? '#ffd23f' : '#ff8a80' }}>
+        <div style={{ textAlign: 'center', fontSize: 'clamp(1.6rem, 7cqw, 2.4rem)', fontWeight: 900, color: won ? '#ffd23f' : '#ff8a80' }}>
           {won ? 'CAMPAIGN COMPLETE' : 'SQUAD DOWN'}
         </div>
         <div style={{ textAlign: 'center', color: '#9fd6ff', fontWeight: 700 }}>{summary?.names.join(' & ')}</div>

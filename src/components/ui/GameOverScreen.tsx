@@ -10,7 +10,7 @@ export function GameOverScreen() {
   const retry = async () => { sounds.uiSelect(); await onPlayGesture(); startGame() }
   return (
     <div style={box}>
-      <div style={{ color: '#ff5252', fontSize: 'clamp(2rem, 8vw, 3rem)', fontWeight: 900 }}>GAME OVER</div>
+      <div style={{ color: '#ff5252', fontSize: 'clamp(2rem, 8cqw, 3rem)', fontWeight: 900 }}>GAME OVER</div>
       <div style={{ color: '#fff', margin: '12px 0', fontSize: '1.2rem' }}>Score {score.toLocaleString()} · ★ {stars}</div>
       <button onClick={() => void retry()} style={btn}>Retry</button>
       <button onClick={() => { sounds.uiClick(); setGameState('menu') }} style={{ ...btn, background: '#455a64' }}>Menu</button>

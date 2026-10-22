@@ -21,12 +21,12 @@ export function MainMenu() {
     <div style={overlay}>
       <div style={{ textAlign: 'center', padding: '1rem', maxWidth: 420, width: '100%' }}>
         <div style={{
-          fontSize: 'clamp(2.2rem, 8vw, 3.4rem)', fontWeight: 900, color: '#fff',
+          fontSize: 'clamp(2.2rem, 8cqw, 3.4rem)', fontWeight: 900, color: '#fff',
           textShadow: '0 4px 0 #0a4a7a, 0 0 30px #4ec4ff', letterSpacing: 2,
         }}>
           SKY STRIKER
         </div>
-        <div style={{ color: '#d7f3ff', marginTop: 8, marginBottom: 8, fontSize: 'clamp(0.85rem, 2.5vw, 1rem)' }}>
+        <div style={{ color: '#d7f3ff', marginTop: 8, marginBottom: 8, fontSize: 'clamp(0.85rem, 2.5cqw, 1rem)' }}>
           {STAGES.length}-stage saga · earn stars · clear the sky
         </div>
         <div style={{ color: '#ffd54a', fontWeight: 800, marginBottom: 22, fontSize: 14 }}>

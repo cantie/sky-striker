@@ -124,7 +124,7 @@ const overlay: CSSProperties = {
   padding: 'max(0.75rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right)) max(0.75rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left))',
 }
 const panel: CSSProperties = { width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', gap: 10 }
-const title: CSSProperties = { color: '#fff', fontWeight: 900, fontSize: 'clamp(1.2rem, 5vw, 1.6rem)', letterSpacing: 2, textShadow: '0 0 18px rgba(61,255,138,0.5)' }
+const title: CSSProperties = { color: '#fff', fontWeight: 900, fontSize: 'clamp(1.2rem, 5cqw, 1.6rem)', letterSpacing: 2, textShadow: '0 0 18px rgba(61,255,138,0.5)' }
 const iconBtn: CSSProperties = { width: 40, height: 40, borderRadius: 12, border: '1px solid rgba(78,196,255,0.35)', background: 'rgba(20,40,70,0.8)', color: '#fff', fontSize: 18, cursor: 'pointer' }
 const card: CSSProperties = { background: 'rgba(10,24,44,0.92)', border: '1px solid rgba(78,196,255,0.28)', borderRadius: 16, padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }
 const btnPrimary: CSSProperties = {
@@ -134,7 +134,8 @@ const btnPrimary: CSSProperties = {
 const btnGhost: CSSProperties = { ...btnPrimary, background: 'rgba(255,255,255,0.12)', color: '#fff', boxShadow: 'none', fontSize: '0.9rem' }
 const btnSmall: CSSProperties = { ...btnPrimary, width: 'auto', padding: '0.6rem 1.1rem', fontSize: '0.95rem' }
 const input: CSSProperties = {
-  flex: 1, padding: '0.6rem 0.8rem', borderRadius: 12, border: '1px solid rgba(78,196,255,0.4)', background: 'rgba(5,14,28,0.9)',
+  // An input is about 20 characters wide unless told it may shrink, which pushed JOIN off the card
+  flex: 1, minWidth: 0, padding: '0.6rem 0.8rem', borderRadius: 12, border: '1px solid rgba(78,196,255,0.4)', background: 'rgba(5,14,28,0.9)',
   color: '#fff', fontWeight: 900, fontSize: '1.1rem', letterSpacing: 4, textAlign: 'center',
 }
 const codeBox: CSSProperties = {

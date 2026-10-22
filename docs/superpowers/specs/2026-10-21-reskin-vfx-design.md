@@ -164,3 +164,13 @@ Executor's calls after the builder check (the user checks them while reading):
 - A missile's smoke trail is faint on light sand.
 - Effects run on real seconds and step at most 0.1 s a frame, so below 10 fps a boss death sequence runs
   slower than the stage around it and can be cut off by the results screen.
+- From the final review (minor, deferred):
+  - The InstancedMeshes made as `<primitive>` (bullet meshes, muzzle flash, laser sparks, particle layers)
+    are not `.dispose()`d on unmount, so their instance buffers wait for GC (about 180 KB per stage).
+  - Small per-frame allocations in the glue: `takeNewExplosions`, `drainFx`, and `rippleSlots` while
+    shielded.
+  - Shader time comes from the canvas clock unwrapped; after hours the noise inputs grow large. Wrap it.
+  - Laser contact sparks still fly at a downed co-op player.
+  - The boss wreck hides the boss's stars for their first half second or so (they spawn inside its hull).
+  - FxGame's clear rules are inline and untested; nothing tests that a ghost bolt's hit sparks.
+  - The wreck's shudder and the missile flame flicker keep moving while paused.

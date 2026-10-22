@@ -3,16 +3,17 @@ import { getStage } from './stages'
 import { rand } from './sim/rng'
 import { pickDrop } from './dropRules'
 
-export { MAX_POWERUPS, MAX_SHIELDS, pickDrop, type DropState } from './dropRules'
+export { MAX_HEALTH, MAX_POWERUPS, MAX_SHIELDS, pickDrop, type DropState } from './dropRules'
 
 /** Single-player: roll a drop for the current run and count it against the caps. */
 export function rollDrop(): PickupType | null {
   const s = useGameStore.getState()
-  const { powerupsDropped, shieldsDropped } = s.runStats
+  const { powerupsDropped, shieldsDropped, healthDropped } = s.runStats
   const progress = s.waveIndex / Math.max(1, getStage(s.currentStageId).maxWaves)
-  const type = pickDrop(() => rand('drops'), { powerupsDropped, shieldsDropped, progress })
+  const type = pickDrop(() => rand('drops'), { powerupsDropped, shieldsDropped, healthDropped, progress })
 
   if (type === 'powerup') useGameStore.setState({ runStats: { ...s.runStats, powerupsDropped: powerupsDropped + 1 } })
   if (type === 'shield') useGameStore.setState({ runStats: { ...s.runStats, shieldsDropped: shieldsDropped + 1 } })
+  if (type === 'health') useGameStore.setState({ runStats: { ...s.runStats, healthDropped: healthDropped + 1 } })
   return type
 }

@@ -86,6 +86,7 @@ export interface RunStats {
   /** Capped drops handed out this run (see game/drops). */
   powerupsDropped: number
   shieldsDropped: number
+  healthDropped: number
   enemiesKilled: number
   pickupsSpawned: number
   pickupsCollected: number
@@ -228,6 +229,7 @@ const emptyRunStats = (): RunStats => ({
   enemiesSpawned: 0,
   powerupsDropped: 0,
   shieldsDropped: 0,
+  healthDropped: 0,
   enemiesKilled: 0,
   pickupsSpawned: 0,
   pickupsCollected: 0,

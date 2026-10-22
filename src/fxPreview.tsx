@@ -14,6 +14,7 @@ import { FxRenderer, useFx, type Fx, type ShieldTarget } from './components/game
 import { BossLaser, LASER_CHARGE, LASER_FIRE, type LaserState } from './components/game/BossLaser'
 import { MuzzleFlash } from './components/game/fx/MuzzleFlash'
 import { Pickups } from './components/game/Pickups'
+import { starShape } from './components/game/Coins'
 import { useGameStore } from './store/gameStore'
 import { BIOMES, type Biome } from './game/biomes'
 import { BOSSES } from './game/bosses'
@@ -249,6 +250,31 @@ function CoverPickups() {
   return <Pickups />
 }
 
+/** Pickups cell: the four drops in a row, and stars as kills spray them (Coins) beside the item star. */
+const PICKUP_COLS = [{ x: 5.2, type: 'powerup', text: 'POWER' }, { x: 1.9, type: 'health', text: 'HEALTH' }, { x: -0.9, type: 'shield', text: 'SHIELD' }, { x: -3.8, type: 'star', text: 'STAR' }] as const
+const KILL_STARS: [number, number, number][] = [[-6.2, 1.2, 0.4], [-7.1, -0.4, 1.6], [-6.0, -1.5, 2.6], [-7.4, 1.9, 3.3]]
+
+function PickupRow() {
+  useEffect(() => {
+    useGameStore.setState({ pickups: PICKUP_COLS.map((c) => ({ id: `row:${c.type}`, x: c.x, y: 0.3, z: 0, type: c.type })) })
+    return () => useGameStore.setState({ pickups: [] })
+  }, [])
+  const geos = useMemo(() => ({ rim: starShape(0.52, 0.26), gold: starShape(0.38, 0.17), core: starShape(0.16, 0.07) }), [])
+  return (
+    <>
+      <Pickups />
+      {/* As Coins draws them */}
+      {KILL_STARS.map(([x, z, turn]) => (
+        <group key={x} position={[x, 0.6, z]} rotation={[-Math.PI / 2, 0, turn]}>
+          <mesh geometry={geos.rim}><meshBasicMaterial color="#1e1200" /></mesh>
+          <mesh geometry={geos.gold} position={[0, 0, 0.01]}><meshBasicMaterial color="#ffd23f" toneMapped={false} /></mesh>
+          <mesh geometry={geos.core} position={[0, 0, 0.02]}><meshBasicMaterial color="#fffbe0" toneMapped={false} /></mesh>
+        </group>
+      ))}
+    </>
+  )
+}
+
 const EXPLOSION_COLS = [{ x: 4.5, scale: 1, text: '1 enemy' }, { x: 0, scale: 1.2, text: '1.2 ram' }, { x: -4.5, scale: 1.6, text: '1.6 heavy' }]
 
 function Plane({ id, z }: { id: string; z: number }) {
@@ -361,6 +387,11 @@ const CELLS: Record<string, Cell> = {
         <Suspense fallback={null}><Plane id="nova" z={0} /></Suspense>
       </>
     ),
+  },
+  pickups: {
+    biome: 'jungle',
+    view: () => <PickupRow />,
+    labels: [...PICKUP_COLS.map((c) => ({ x: c.x, text: c.text })), { x: -6.8, text: 'KILL STARS' }],
   },
   cover: {
     biome: 'desert',

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createParticles, type ParticleSpec, type RGB } from './particles'
 import { bossDeathBursts, explosionBurst, fxShouldStep, hitSparks, missilePuff, muzzleShown, novaRing, rippleSlots, takeNewExplosions, wreckAlive } from './emitters'
-import { POOLS } from './layers'
+import { BOLT_LAYER, ENEMY_BULLET_LAYERS, PICKUP_LAYERS, POOLS } from './layers'
 import { drainFx, emitFx, type FxEvent } from './events'
 
 function mulberry32(seed: number) {
@@ -210,10 +210,17 @@ describe('emitters', () => {
   })
 
   it('smoke and debris draw before the pickups', () => {
-    // Pickups, their backing discs and halos draw at the default render order 0
-    expect(POOLS.smoke.renderOrder).toBeLessThan(0)
-    expect(POOLS.debris.renderOrder).toBeLessThan(0)
+    expect(POOLS.smoke.renderOrder).toBeLessThan(PICKUP_LAYERS.shadow)
+    expect(POOLS.debris.renderOrder).toBeLessThan(PICKUP_LAYERS.shadow)
     for (const k of ['rings', 'fire', 'sparks'] as const) expect(POOLS[k].renderOrder).toBeGreaterThan(POOLS.debris.renderOrder)
+  })
+
+  it('a floating pickup draws shadow, halo, its parts, then gloss, all under fire, bolts and enemy bullets', () => {
+    expect(PICKUP_LAYERS.halo).toBeGreaterThan(PICKUP_LAYERS.shadow)
+    expect(PICKUP_LAYERS.piece).toBeGreaterThan(PICKUP_LAYERS.halo)
+    // Room for a piece's parts, a hundredth apart, before the gloss
+    expect(PICKUP_LAYERS.gloss).toBeGreaterThanOrEqual(PICKUP_LAYERS.piece + 0.5)
+    for (const above of [POOLS.rings, POOLS.fire, POOLS.sparks, BOLT_LAYER, ENEMY_BULLET_LAYERS.rim]) expect(above.renderOrder).toBeGreaterThan(PICKUP_LAYERS.gloss)
   })
 
   it('effects step only while playing', () => {

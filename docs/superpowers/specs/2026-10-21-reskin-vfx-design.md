@@ -1,16 +1,18 @@
 # Reskin, part 2: bullets and aircraft effects — design
 
-Status: **built on `feat/fx` (2026-10-22).** The user approved the three look batches and the phone check
-(FPS no lower than `main`). Next: the final whole-branch review, then merge or push.
+Status: **done and merged into `main` (2026-10-22).** The user approved the three look batches, the phone
+check (FPS no lower than before) and the items pass below. The final whole-branch review's Important
+findings are fixed; its minors are listed under the follow-ups.
 Follows part 1, [2026-10-20-reskin-aircraft-design.md](2026-10-20-reskin-aircraft-design.md), whose AI aircraft
 are on `main`.
 
 ## How to resume (next session, any machine)
 1. No keys are needed: everything here is drawn in code.
-2. The plan is [2026-10-21-reskin-vfx.md](../plans/2026-10-21-reskin-vfx.md); all its tasks are done on
-   `feat/fx`. If the branch is not merged yet, ask the user whether to merge it into `main` or push it.
+2. The plan is [2026-10-21-reskin-vfx.md](../plans/2026-10-21-reskin-vfx.md); all its tasks are done and on
+   `main`. What is left is under "Follow-ups after part 2".
 3. Looking at the effects: `npm run dev`, then `/fx-preview.html?fx=puff,bolts,enemy,missiles,muzzle,explosion,`
-   `hits,bossdeath,flames,laser,shield,nova` (`&at=<s>` freezes a cell, `&biome=<name>` swaps the ground).
+   `hits,bossdeath,flames,laser,shield,nova,pickups,cover` (`&at=<s>` freezes a cell, `&biome=<name>` swaps
+   the ground).
    In the game, `?stats` shows FPS and draw calls; `node scripts/fx-bench.mjs <url>` runs the heavy scene.
 4. The user writes Vietnamese; answer in Vietnamese.
 
@@ -151,7 +153,27 @@ Executor's calls after the builder check (the user checks them while reading):
 - **Renderer:** dpr [1, 1.75] with AdaptiveDpr. There are no quality tiers.
 - **Tests:** none cover `Bullets`, `Explosions`, `EngineFlame`, `BossLaser` or the Player skills today.
 
+## Items pass (asked after part 2, 2026-10-22)
+The user asked for three things after the batches: fewer health drops (at most 3 a map), dropping the star
+pod item, and redrawn items, bigger, prettier, easier to read and more real, after Sky Force Reloaded (the
+item they like there is the winged fire-rate badge).
+- **Decided with the user:** mockup direction B (each item its own shape: gold winged badge with a red crest
+  and white chevrons for the power-up, a glossy red heart with a white cross for health, a glass orb with a
+  white shield, a faceted gold star). **The star pod stays** (and is redrawn), so Nakama needs no redeploy.
+- **Health cap:** single-player only. Co-op drops come from the Nakama server, so co-op keeps uncapped
+  health until the server is next deployed: add `healthDropped` / `MAX_HEALTH` to `coopData`, the Lua
+  `pick_drop` and the loopback server then (it changes the co-op data version, so clients and server must
+  update together).
+- **My calls:** health is spread like power-ups (the 2nd after a third of the stage, the 3rd after two
+  thirds); when no drop type is allowed, a kill drops nothing. The pieces are about 1.35× the old badge (the
+  power-up's wings about 2.2 wide); the pick-up radius is unchanged. They draw in the see-through pass with
+  no depth test (`PICKUP_LAYERS`), because the tallest trees reach above them; clouds and enemy bullets
+  still cover them. Each is at most 3 draws (outlines are painted into the vertex colours), with matcap
+  finishes painted on a canvas, not images.
+- **Where:** `src/components/game/pickups/` (shapes, finishes, PickupArt) and the `pickups` preview cell.
+
 ## Follow-ups after part 2
+- Co-op health cap: see "Items pass" above (needs a Nakama deploy).
 - `npm run art:memory` reads the texture count 5 s into each stage, before its models have always loaded,
   so it passes or fails by load timing on a slow machine (`main` does the same). It should wait for the
   stage's models, or compare counts once they settle.

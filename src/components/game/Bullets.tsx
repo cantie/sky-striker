@@ -10,6 +10,7 @@ import { ORDER } from '../../game/sim/clock'
 import { net } from '../../game/sim/net'
 import { useSimStep } from '../../game/sim/useSimStep'
 import { ENEMY_BULLET_COLOR } from '../../game/fx/color'
+import { emitFx } from '../../game/fx/events'
 import { bossKilled, enemyKilled } from './effects'
 import { BoltsMesh, EnemyBulletsMesh, MissilesMesh } from './fx/BulletMeshes'
 
@@ -17,6 +18,12 @@ export { ENEMY_BULLET_COLOR }
 /** Homing missiles: cruise speed and turn rate (rad / game-second). */
 const MISSILE_SPEED = 14
 const MISSILE_TURN = 5
+/** Spark colours of a missile and of a bolt fired without a colour. */
+const MISSILE_SPARK = '#ffa340'
+const BOLT_SPARK = '#7cf9ff'
+
+/** Sparks where a player bullet struck (visual only, a teammate's ghost bolts too). */
+const sparkAt = (b: Bullet) => emitFx({ kind: 'hit', x: b.x, z: b.z, color: b.color ?? (b.homing ? MISSILE_SPARK : BOLT_SPARK) })
 
 /** Nearest on-screen target (enemy or boss) for a homing missile. */
 function nearestTarget(x: number, z: number): { x: number; z: number } | null {
@@ -73,6 +80,7 @@ export function Bullets() {
           // Not hittable until it has actually flown onto the screen
           if (b.hits?.includes(e.id)) continue
           if (e.entered && Math.hypot(b.x - e.x, b.z - e.y) < role.radius + b.radius) {
+            sparkAt(b)
             // Teammate's bolts are only a picture of their fire: they stop on contact, the hit is theirs to report
             if (b.ghost) { hit = true; break }
             sounds.enemyHit()
@@ -93,6 +101,7 @@ export function Bullets() {
         }
         if (!hit && s.boss && s.boss.intro <= 0.5 && Math.hypot(b.x - s.boss.x, b.z - s.boss.y) < bossRadius) {
           const { x, y } = s.boss
+          sparkAt(b)
           if (!b.ghost) {
             sounds.enemyHit()
             if (n) {

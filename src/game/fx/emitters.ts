@@ -5,11 +5,11 @@ export type Rand = () => number
 
 export interface Burst { fire: ParticleSpec[]; sparks: ParticleSpec[]; debris: ParticleSpec[]; smoke: ParticleSpec[]; ring: ParticleSpec }
 
-const FIRE: RGB[] = [[2.4, 1.5, 0.55], [2.2, 0.9, 0.25], [1.8, 0.55, 0.15]]
+const FIRE: RGB[] = [[1.3, 0.75, 0.25], [1.2, 0.42, 0.1], [0.9, 0.22, 0.05]]
 const SPARK: RGB = [2.6, 1.9, 0.9]
 const DEBRIS: RGB = [0.16, 0.12, 0.1]
-const SMOKE: RGB = [0.2, 0.19, 0.18]
-const RING: RGB = [2, 1.4, 0.8]
+const SMOKE: RGB = [0.13, 0.12, 0.11]
+const RING: RGB = [1.4, 0.95, 0.55]
 const FLASH: RGB = [2.5, 2.5, 2.5]
 
 const range = (rand: Rand, a: number, b: number) => a + (b - a) * rand()
@@ -26,7 +26,7 @@ export function explosionBurst(x: number, z: number, scale: number, rand: Rand):
   const n = (per: number, cap: number) => Math.min(cap, Math.round(per * scale))
   const fire = Array.from({ length: n(6, 18) }, () => outward(rand, x, z, 0.45 * scale, range(rand, 0.8, 2.2) * scale, {
     life: range(rand, 0.35, 0.6), size0: range(rand, 0.7, 1.1) * scale, size1: range(rand, 1.6, 2.3) * scale,
-    color: FIRE[Math.floor(rand() * FIRE.length)], alpha: 1,
+    color: FIRE[Math.floor(rand() * FIRE.length)], alpha: 0.85,
   }))
   const sparks = Array.from({ length: n(14, 40) }, () => outward(rand, x, z, 0.2 * scale, range(rand, 7, 15) * Math.sqrt(scale), {
     life: range(rand, 0.25, 0.5), size0: 0.12, size1: 0.04, color: SPARK, alpha: 1,
@@ -35,14 +35,14 @@ export function explosionBurst(x: number, z: number, scale: number, rand: Rand):
     life: range(rand, 0.5, 0.9), size0: range(rand, 0.18, 0.32), size1: 0.1, color: DEBRIS, alpha: 1,
   }))
   const smoke = Array.from({ length: n(4, 12) }, () => outward(rand, x, z, 0.6 * scale, range(rand, 0.3, 0.9), {
-    life: range(rand, 1.2, 2.0), size0: range(rand, 0.9, 1.3) * scale, size1: range(rand, 2.2, 3.0) * scale,
-    color: SMOKE, alpha: range(rand, 0.45, 0.6),
+    life: range(rand, 1.2, 2.0), size0: range(rand, 1.0, 1.4) * scale, size1: range(rand, 2.4, 3.2) * scale,
+    color: SMOKE, alpha: range(rand, 0.65, 0.8),
   }))
   const ring: ParticleSpec = { x, y: 0, z, vx: 0, vy: 0, vz: 0, life: 0.35, size0: 0.3, size1: 2.2 * scale, color: RING, alpha: 0.9 }
   return { fire, sparks, debris, smoke, ring }
 }
 
-/** A bullet hit: 6 sparks in the bullet's colour and one short white flash. */
+/** A bullet hit: 6 sparks in the bullet's colour, then one short white flash (the last entry). */
 export function hitSparks(x: number, z: number, color: RGB, rand: Rand): ParticleSpec[] {
   const out = Array.from({ length: 6 }, () => outward(rand, x, z, 0, range(rand, 4, 9), {
     life: range(rand, 0.15, 0.3), size0: 0.1, size1: 0.03, color, alpha: 1,
@@ -78,6 +78,17 @@ export function bossDeathBursts(x: number, z: number, half: number, rand: Rand):
   out.sort((a, b) => a.at - b.at)
   out.push({ at: 1.4, x, z, scale: 3 })
   return out
+}
+
+/** How long a dead boss's wreck stays: its last burst goes off at 1.4 s. */
+export const WRECK_LIFE = 1.5
+
+/**
+ * A boss wreck is drawn while its sequence runs on the renderer clock `now` (which stops on pause), and
+ * only on the stage it died on, in play: back at the menu or on a new stage it is gone.
+ */
+export function wreckAlive(w: { t0: number; stageId: number }, now: number, stageId: number, gameState: string): boolean {
+  return now - w.t0 < WRECK_LIFE && stageId === w.stageId && (gameState === 'playing' || gameState === 'paused')
 }
 
 /** Particles age only while the game runs: a paused game freezes them mid-air. */

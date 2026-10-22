@@ -3,6 +3,7 @@ import { BOSS_COINS, ROLE_STATS } from '../../game/roster'
 import { rollDrop } from '../../game/drops'
 import { BOSS_SCORE, POD_SCORE, RESCUE_SCORE } from '../../game/scoring'
 import { sounds } from '../../hooks/useAudio'
+import { emitFx } from '../../game/fx/events'
 import { spawnCoins } from './Coins'
 
 /** Shield length from a shield pickup (real ms). */
@@ -29,10 +30,11 @@ export function enemyKilled(e: Enemy, opts: { mine: boolean; rollDrops: boolean 
   }
 }
 
-/** The boss went down at (x, y). */
+/** The boss went down at (x, y): its death sequence plays from the bossDeath event. */
 export function bossKilled(x: number, y: number, opts: { mine: boolean }): void {
   const s = useGameStore.getState()
   s.addExplosion(x, 0.4, y, 3)
+  emitFx({ kind: 'bossDeath', x, z: y })
   if (opts.mine) s.addScore(BOSS_SCORE)
   spawnCoins(x, y, BOSS_COINS)
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createParticles, type ParticleSpec, type RGB } from './particles'
-import { bossDeathBursts, explosionBurst, fxShouldStep, hitSparks, missilePuff, novaRing, takeNewExplosions } from './emitters'
+import { bossDeathBursts, explosionBurst, fxShouldStep, hitSparks, missilePuff, novaRing, takeNewExplosions, wreckAlive } from './emitters'
 import { drainFx, emitFx, type FxEvent } from './events'
 
 function mulberry32(seed: number) {
@@ -178,6 +178,17 @@ describe('emitters', () => {
       expect(b.scale).toBeGreaterThanOrEqual(1)
       expect(b.scale).toBeLessThanOrEqual(1.8)
     }
+  })
+
+  it('a wreck ends after 1.5 s, on a stage change or back at the menu', () => {
+    const w = { t0: 10, stageId: 4 }
+    expect(wreckAlive(w, 10, 4, 'playing')).toBe(true)
+    expect(wreckAlive(w, 11.49, 4, 'playing')).toBe(true)
+    expect(wreckAlive(w, 11.5, 4, 'playing')).toBe(false)
+    // Paused mid-sequence: the renderer clock stops, so the wreck waits
+    expect(wreckAlive(w, 10.7, 4, 'paused')).toBe(true)
+    expect(wreckAlive(w, 10.7, 5, 'playing')).toBe(false)
+    for (const st of ['menu', 'stageSelect', 'briefing', 'results']) expect(wreckAlive(w, 10.7, 4, st)).toBe(false)
   })
 
   it('effects step only while playing', () => {

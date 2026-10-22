@@ -81,8 +81,8 @@ export function glowMaterial({ noise = 0 }: { noise?: number } = {}) {
       float d = length(p) * 2.0 + (n - 0.5) * uNoise;
       if (d > 1.0) discard;
       float fall = (1.0 - d) * (1.0 - d);
-      float core = (1.0 - smoothstep(0.0, 0.55, d)) * (1.0 - vT);
-      vec3 c = mix(vCol.rgb, vCol.rgb * vec3(0.9, 0.4, 0.25), vT) * fall + vec3(core * 0.9);
+      float core = (1.0 - smoothstep(0.0, 0.5, d)) * (1.0 - vT) * (1.0 - vT);
+      vec3 c = mix(vCol.rgb, vCol.rgb * vec3(0.9, 0.4, 0.25), vT) * fall + vec3(1.0, 0.85, 0.6) * core * 0.45;
       float fade = 1.0 - vT;
       gl_FragColor = vec4(c, fade * vCol.a);
       #include <colorspace_fragment>
@@ -111,7 +111,8 @@ export function smokeMaterial({ hard = false }: { hard?: boolean } = {}) {
       vec3 c = vCol.rgb * (0.7 + 0.6 * m);
     #else
       float shape = 1.0 - smoothstep(0.25, 1.0, d + (m - 0.5) * 0.6);
-      float alpha = shape * vCol.a * (1.0 - vT) * smoothstep(0.0, 0.08, vT);
+      // Holds its density for the first half of its life, then thins away
+      float alpha = shape * vCol.a * (1.0 - smoothstep(0.4, 1.0, vT)) * smoothstep(0.0, 0.08, vT);
       vec3 c = vCol.rgb * (0.75 + 0.5 * m) * mix(1.0, 0.65, vT) + vec3(0.55, 0.22, 0.05) * (1.0 - smoothstep(0.0, 0.22, vT));
     #endif
       if (alpha < 0.004) discard;

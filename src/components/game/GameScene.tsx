@@ -15,7 +15,6 @@ import { Enemies } from './Enemies'
 import { Boss } from './Boss'
 import { Bullets } from './Bullets'
 import { Pickups } from './Pickups'
-import { Explosions } from './Explosions'
 import { Coins } from './Coins'
 import { HangarPreview } from './HangarPreview'
 import { GAME_SPEED } from '../../game/speed'
@@ -35,6 +34,13 @@ const HALF_H = (BOUNDS.maxY - BOUNDS.minY) / 2 + 1.4
 const CAMERA_Y = 50
 /** Effects freeze whenever the game is not running (pause, boss warning, results). */
 const fxPaused = () => !fxShouldStep(useGameStore.getState().gameState)
+const fxStageNow = { id: 0, state: 'menu' }
+const fxStage = () => {
+  const s = useGameStore.getState()
+  fxStageNow.id = s.currentStageId
+  fxStageNow.state = s.gameState
+  return fxStageNow
+}
 
 /** World +Z offset so the plane sits slightly above the finger/cursor (screen-up). */
 const POINTER_OFFSET_Z = 1.2
@@ -244,7 +250,7 @@ export function GameScene() {
 
   return (
     <>
-      <FxRenderer paused={fxPaused}>
+      <FxRenderer paused={fxPaused} stage={fxStage}>
         <Suspense fallback={null}>
           <Environment />
           {gameState === 'hangar' && <HangarPreview />}
@@ -256,7 +262,6 @@ export function GameScene() {
               <Boss />
               <Bullets />
               <Pickups />
-              <Explosions />
               <Coins />
               {coop && <Teammates />}
               {coop && <ReviveBeacon />}

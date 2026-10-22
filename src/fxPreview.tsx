@@ -2,7 +2,7 @@
 // the game camera at the game's phone zoom, over a game ground (`&biome=arctic` swaps it for every cell).
 // `&at=1.2` freezes every cell at that time, for screenshots. Sets window.__previewReady once every cell
 // has played a while (or reached `at`).
-import { Suspense, useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing'
@@ -13,6 +13,8 @@ import { BoltsMesh, EnemyBulletsMesh, MissilesMesh, type BoltView } from './comp
 import { FxRenderer, useFx, type Fx } from './components/game/fx/FxRenderer'
 import { MuzzleFlash } from './components/game/fx/MuzzleFlash'
 import { BIOMES, type Biome } from './game/biomes'
+import { BOSSES } from './game/bosses'
+import { models } from './game/assets/modelCache'
 import { planeBoltColor } from './game/fx/color'
 import { getPlane, PLANES } from './game/planes'
 import { GAME_SPEED } from './game/speed'
@@ -38,6 +40,8 @@ interface Cell {
   view?: (clock: Clock) => ReactNode
   /** Column captions along the top, at world x. */
   labels?: { x: number; text: string }[]
+  /** Models to have loaded before the loop starts (a wreck must not pop in late). */
+  preload?: string[]
 }
 
 /** A missile's flight across the cell, as position and velocity at loop time t (seconds). */
@@ -127,6 +131,40 @@ function volleys(clock: Clock, z0: number, color: string) {
   }
 }
 
+/** True on the frame the loop clock passes `at`. */
+const passes = (t: number, dt: number, at: number) => t - dt < at && t >= at
+
+/** Three plane colours firing up into a boss's belly at z = HIT_Z. */
+const HIT_Z = 0.6
+const HIT_COLS = [{ x: 3, id: 'hawk' }, { x: 0, id: 'nova' }, { x: -3, id: 'hornet' }]
+const HIT_Z0 = -4.2
+/** When volley k of the hits cell reaches the boss. */
+const hitTime = (k: number) => k * VOLLEY + (HIT_Z - HIT_Z0) / BOLT_SPEED
+
+function hitBolts(clock: Clock) {
+  const list: BoltView[] = []
+  return () => {
+    const t = clock.t()
+    list.length = 0
+    for (let k = Math.floor(t / VOLLEY); k >= 0 && hitTime(k) > t; k--) {
+      const z = HIT_Z0 + (t - k * VOLLEY) * BOLT_SPEED
+      for (const c of HIT_COLS) list.push({ x: c.x, z, vx: 0, vz: BOLT_SPEED, radius: TOP.radius, color: planeBoltColor(c.id) })
+    }
+    return list
+  }
+}
+
+function Boss({ id, z }: { id: string; z: number }) {
+  const def = BOSSES[id]
+  return (
+    <group position={[0, 0.4, z]} rotation={[0, Math.PI, 0]}>
+      <ShipModel path={def.model!} size={def.size} flame={def.flameColor} flames={def.flames} nozzles={def.nozzles} flameScale={1.3} />
+    </group>
+  )
+}
+
+const EXPLOSION_COLS = [{ x: 4.5, scale: 1, text: '1 enemy' }, { x: 0, scale: 1.2, text: '1.2 ram' }, { x: -4.5, scale: 1.6, text: '1.6 heavy' }]
+
 function Plane({ id, z }: { id: string; z: number }) {
   const p = getPlane(id)
   return (
@@ -160,6 +198,31 @@ const CELLS: Record<string, Cell> = {
       </>
     ),
   },
+  explosion: {
+    biome: 'jungle',
+    play: (fx, t, dt) => { if (passes(t, dt, 0.05)) for (const c of EXPLOSION_COLS) fx.explosion(c.x, 0, c.scale) },
+    labels: EXPLOSION_COLS.map((c) => ({ x: c.x, text: c.text })),
+  },
+  hits: {
+    biome: 'city',
+    play: (fx, t, dt) => {
+      for (let k = 0; hitTime(k) <= t; k++) {
+        if (passes(t, dt, hitTime(k))) for (const c of HIT_COLS) fx.hit(c.x, HIT_Z, planeBoltColor(c.id))
+      }
+    },
+    view: (clock) => (
+      <>
+        <BoltsMesh bolts={hitBolts(clock)} />
+        <Suspense fallback={null}><Boss id="hornet" z={3.6} /></Suspense>
+      </>
+    ),
+    labels: HIT_COLS.map((c) => ({ x: c.x, text: c.id.toUpperCase() })),
+  },
+  bossdeath: {
+    biome: 'autumn',
+    play: (fx, t, dt) => { if (passes(t, dt, 0.05)) fx.bossDeath(0, 0.4, BOSSES.hornet) },
+    preload: [BOSSES.hornet.model!],
+  },
   muzzle: {
     biome: 'ocean',
     view: (clock) => {
@@ -189,11 +252,17 @@ let ready = 0
 const markReady = () => { if (++ready === cells.length) win.__previewReady = true }
 if (!cells.length) win.__previewReady = true
 
-function Player({ cell, elapsed, frozen }: { cell: Cell; elapsed: { current: number }; frozen: { current: boolean } }) {
+/** Mounts once the ground has loaded: the cell's clock waits for it, so a shot never shows a bare canvas. */
+function GroundIn({ ready }: { ready: { current: boolean } }) {
+  useEffect(() => { ready.current = true }, [ready])
+  return null
+}
+
+function Player({ cell, elapsed, frozen, ground }: { cell: Cell; elapsed: { current: number }; frozen: { current: boolean }; ground: { current: boolean } }) {
   const fx = useFx()
   const readyAt = freezeAt || READY_AT
   useFrame((_, delta) => {
-    if (frozen.current) return
+    if (frozen.current || !ground.current) return
     const dt = Math.min(delta, 0.1, freezeAt ? freezeAt - elapsed.current : Infinity)
     const before = elapsed.current
     elapsed.current += dt
@@ -207,6 +276,7 @@ function Player({ cell, elapsed, frozen }: { cell: Cell; elapsed: { current: num
 function CellView({ name }: { name: string }) {
   const cell = CELLS[name]
   const frozen = useRef(false)
+  const ground = useRef(false)
   const elapsed = useRef(0)
   const clock = useMemo<Clock>(() => ({ t: () => elapsed.current % LOOP }), [])
   const view = useMemo(() => cell.view?.(clock), [cell, clock])
@@ -221,10 +291,11 @@ function CellView({ name }: { name: string }) {
       >
         <Suspense fallback={null}>
           <Environment biome={biomeOverride ?? cell.biome} />
+          <GroundIn ready={ground} />
         </Suspense>
-        <FxRenderer paused={() => frozen.current}>
+        <FxRenderer paused={() => frozen.current || !ground.current}>
           {view}
-          <Player cell={cell} elapsed={elapsed} frozen={frozen} />
+          <Player cell={cell} elapsed={elapsed} frozen={frozen} ground={ground} />
         </FxRenderer>
         {/* As GameScene */}
         <EffectComposer multisampling={0}>
@@ -241,7 +312,13 @@ function CellView({ name }: { name: string }) {
 }
 
 function Page() {
-  useEffect(() => { document.title = `FX preview: ${cells.join(', ')}` }, [])
+  const [loaded, setLoaded] = useState(false)
+  useEffect(() => {
+    document.title = `FX preview: ${cells.join(', ')}`
+    const paths = cells.flatMap((n) => CELLS[n].preload ?? [])
+    void Promise.all(paths.map((p) => models.get(p).catch(() => win.__previewErrors!.push(`${p}: failed to load`)))).then(() => setLoaded(true))
+  }, [])
+  if (!loaded) return null
   return <div style={{ width: 540 }}>{cells.map((n) => <CellView key={n} name={n} />)}</div>
 }
 

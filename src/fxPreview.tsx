@@ -13,6 +13,8 @@ import { BoltsMesh, EnemyBulletsMesh, MissilesMesh, type BoltView } from './comp
 import { FxRenderer, useFx, type Fx, type ShieldTarget } from './components/game/fx/FxRenderer'
 import { BossLaser, LASER_CHARGE, LASER_FIRE, type LaserState } from './components/game/BossLaser'
 import { MuzzleFlash } from './components/game/fx/MuzzleFlash'
+import { Pickups } from './components/game/Pickups'
+import { useGameStore } from './store/gameStore'
 import { BIOMES, type Biome } from './game/biomes'
 import { BOSSES } from './game/bosses'
 import { models } from './game/assets/modelCache'
@@ -233,6 +235,20 @@ function novaBolts(clock: Clock) {
   }
 }
 
+/** Cover cell: a heavy kill's smoke over a rescue survivor (left) and a floating pickup (right) must not hide them. */
+function CoverPickups() {
+  useEffect(() => {
+    useGameStore.setState({
+      pickups: [
+        { id: 'cover:rescue', x: 3, y: 0, z: 0, type: 'rescue', progress: 0.6 },
+        { id: 'cover:powerup', x: -3, y: 0.3, z: 0, type: 'powerup' },
+      ],
+    })
+    return () => useGameStore.setState({ pickups: [] })
+  }, [])
+  return <Pickups />
+}
+
 const EXPLOSION_COLS = [{ x: 4.5, scale: 1, text: '1 enemy' }, { x: 0, scale: 1.2, text: '1.2 ram' }, { x: -4.5, scale: 1.6, text: '1.6 heavy' }]
 
 function Plane({ id, z }: { id: string; z: number }) {
@@ -345,6 +361,12 @@ const CELLS: Record<string, Cell> = {
         <Suspense fallback={null}><Plane id="nova" z={0} /></Suspense>
       </>
     ),
+  },
+  cover: {
+    biome: 'desert',
+    play: (fx, t, dt) => { if (passes(t, dt, 0.05)) for (const x of [3, -3]) fx.explosion(x + 0.6, 0.4, 1.6) },
+    view: () => <Suspense fallback={null}><CoverPickups /></Suspense>,
+    labels: [{ x: 3, text: 'SURVIVOR' }, { x: -3, text: 'PICKUP' }],
   },
   muzzle: {
     biome: 'ocean',

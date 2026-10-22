@@ -115,15 +115,19 @@ const ARC_STEPS = 64
 /** Progress ring hugging the (small) survivor; the (invisible) rescue zone is much wider. */
 const RING_IN = 0.62, RING_OUT = 0.8
 
-/** One flat piece of the survivor pictogram, with a dark outline drawn behind it. */
+/**
+ * One flat piece of the survivor pictogram, with a dark outline drawn behind it. Survivor parts are
+ * `transparent` (fully opaque) so they draw in the see-through pass after explosion smoke, which lies
+ * nearer the camera than the ground they stand on and would otherwise cover them.
+ */
 function FigurePart({ shape, size, at, color }: { shape: 'circle' | 'box'; size: [number, number]; at: [number, number]; color: string }) {
   const geo = (pad: number) => (shape === 'circle'
     ? <circleGeometry args={[size[0] + pad, 16]} />
     : <planeGeometry args={[size[0] + pad * 2, size[1] + pad * 2]} />)
   return (
     <group position={[at[0], at[1], 0]}>
-      <mesh>{geo(0.035)}<meshBasicMaterial color="#14101c" /></mesh>
-      <mesh position={[0, 0, 0.01]}>{geo(0)}<meshBasicMaterial color={color} toneMapped={false} /></mesh>
+      <mesh>{geo(0.035)}<meshBasicMaterial color="#14101c" transparent /></mesh>
+      <mesh position={[0, 0, 0.01]}>{geo(0)}<meshBasicMaterial color={color} toneMapped={false} transparent /></mesh>
     </group>
   )
 }
@@ -162,7 +166,7 @@ function Survivor({ pickup }: { pickup: Pickup }) {
         </mesh>
         {arc && (
           <mesh geometry={arc} position={[0, 0, 0.03]}>
-            <meshBasicMaterial color="#3dff8a" toneMapped={false} />
+            <meshBasicMaterial color="#3dff8a" toneMapped={false} transparent />
           </mesh>
         )}
       </group>
@@ -185,7 +189,7 @@ function Survivor({ pickup }: { pickup: Pickup }) {
         ))}
         <mesh ref={beacon} position={[0, 0.66, 0.02]}>
           <circleGeometry args={[0.07, 12]} />
-          <meshBasicMaterial color="#3dff8a" toneMapped={false} />
+          <meshBasicMaterial color="#3dff8a" toneMapped={false} transparent />
         </mesh>
       </group>
     </group>

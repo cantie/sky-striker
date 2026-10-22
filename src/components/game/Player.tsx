@@ -7,6 +7,7 @@ import { gameDt, gameInterval } from '../../game/speed'
 import { PLAYER_BULLET_SPEED, weaponStats } from '../../game/weapon'
 import { getPlane } from '../../game/planes'
 import { planeBoltColor } from '../../game/fx/color'
+import { muzzleShown } from '../../game/fx/emitters'
 import { MuzzleFlash } from './fx/MuzzleFlash'
 import { emitFx } from '../../game/fx/events'
 import { ORDER } from '../../game/sim/clock'
@@ -30,7 +31,7 @@ function guns(): readonly number[] {
   if (!xs) { xs = streams.map((s) => s.x); gunXs.set(streams, xs) }
   return xs
 }
-const muzzle = () => useGameStore.getState().muzzleFlash
+const muzzle = () => muzzleShown(useGameStore.getState())
 
 export function Player() {
   const group = useRef<THREE.Group>(null)

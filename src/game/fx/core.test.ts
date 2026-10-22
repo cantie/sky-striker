@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createParticles, type ParticleSpec, type RGB } from './particles'
-import { bossDeathBursts, explosionBurst, fxShouldStep, hitSparks, missilePuff, novaRing, rippleSlots, takeNewExplosions, wreckAlive } from './emitters'
+import { bossDeathBursts, explosionBurst, fxShouldStep, hitSparks, missilePuff, muzzleShown, novaRing, rippleSlots, takeNewExplosions, wreckAlive } from './emitters'
+import { POOLS } from './layers'
 import { drainFx, emitFx, type FxEvent } from './events'
 
 function mulberry32(seed: number) {
@@ -200,6 +201,19 @@ describe('emitters', () => {
     for (const r of slots) { expect(r.age).toBeGreaterThanOrEqual(0); expect(r.age).toBeLessThan(0.4) }
     expect(rippleSlots(ripples, 10.5)).toEqual([])
     expect(rippleSlots([], 3)).toEqual([])
+  })
+
+  it('the muzzle flash shows only while playing', () => {
+    expect(muzzleShown({ gameState: 'playing', muzzleFlash: 0.9 })).toBe(0.9)
+    // Frozen mid-volley (the last wave dies, the game pauses or ends): no flash hangs on the guns
+    for (const gameState of ['bossWarning', 'paused', 'results', 'menu']) expect(muzzleShown({ gameState, muzzleFlash: 0.9 })).toBe(0)
+  })
+
+  it('smoke and debris draw before the pickups', () => {
+    // Pickups, their backing discs and halos draw at the default render order 0
+    expect(POOLS.smoke.renderOrder).toBeLessThan(0)
+    expect(POOLS.debris.renderOrder).toBeLessThan(0)
+    for (const k of ['rings', 'fire', 'sparks'] as const) expect(POOLS[k].renderOrder).toBeGreaterThan(POOLS.debris.renderOrder)
   })
 
   it('effects step only while playing', () => {

@@ -110,6 +110,14 @@ export function fxShouldStep(gameState: string): boolean {
   return gameState === 'playing'
 }
 
+/**
+ * The muzzle flash to draw: the store's (1 at a volley, decaying) while playing, else none. It only
+ * decays while playing, so a game frozen mid-volley would otherwise leave it lit on the guns.
+ */
+export function muzzleShown(s: { gameState: string; muzzleFlash: number }): number {
+  return fxShouldStep(s.gameState) ? s.muzzleFlash : 0
+}
+
 /** The store explosions not seen before. Ids that left the list are forgotten, so `seen` stays small. */
 export function takeNewExplosions<T extends { id: string }>(seen: Set<string>, list: readonly T[]): T[] {
   const live = new Set<string>()

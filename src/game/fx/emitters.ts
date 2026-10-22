@@ -91,6 +91,20 @@ export function wreckAlive(w: { t0: number; stageId: number }, now: number, stag
   return now - w.t0 < WRECK_LIFE && stageId === w.stageId && (gameState === 'playing' || gameState === 'paused')
 }
 
+/** A shield ripple spreads from its hit point for this long (renderer seconds). */
+export const RIPPLE_LIFE = 0.4
+export const MAX_RIPPLES = 4
+
+/** The ripples a shield draws at renderer time `now`: the newest MAX_RIPPLES still spreading, newest first. */
+export function rippleSlots(ripples: readonly { x: number; z: number; t0: number }[], now: number): { x: number; z: number; age: number }[] {
+  const out: { x: number; z: number; age: number }[] = []
+  for (let i = ripples.length - 1; i >= 0 && out.length < MAX_RIPPLES; i--) {
+    const r = ripples[i], age = now - r.t0
+    if (age >= 0 && age < RIPPLE_LIFE) out.push({ x: r.x, z: r.z, age })
+  }
+  return out
+}
+
 /** Particles age only while the game runs: a paused game freezes them mid-air. */
 export function fxShouldStep(gameState: string): boolean {
   return gameState === 'playing'

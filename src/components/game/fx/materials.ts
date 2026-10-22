@@ -264,3 +264,147 @@ export function streakMaterial() {
     blending: THREE.AdditiveBlending,
   })
 }
+
+/** A plain quad (no instancing): vUv (0..1) with vUv.y = 1 at the quad's +Z edge. */
+const QUAD_VERT = /* glsl */ `
+varying vec2 vUv;
+void main() {
+  vUv = vec2(uv.x, 1.0 - uv.y);
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`
+
+/**
+ * Additive engine flame on a quad from the nozzle (+Z end) to the tail (−Z end): a white-hot core that
+ * cools into `color`, narrowing and thinning to nothing at the tail, flickering with scrolling noise.
+ */
+export function flameMaterial({ color, core = '#ffffff' }: { color: THREE.ColorRepresentation; core?: THREE.ColorRepresentation }) {
+  return new THREE.ShaderMaterial({
+    vertexShader: QUAD_VERT,
+    fragmentShader: /* glsl */ `
+      uniform float uTime;
+      uniform float uSeed;
+      uniform vec3 uColor;
+      uniform vec3 uCore;
+      varying vec2 vUv;
+      ${NOISE}
+      void main() {
+        float u = 1.0 - vUv.y;               // 0 at the nozzle, 1 at the tail
+        float v = abs(vUv.x - 0.5) * 2.0;    // 0 on the axis, 1 at the edge
+        float n = fxNoise(vec2(vUv.x * 3.0 + uSeed, u * 5.0 - uTime * 14.0));
+        float w = mix(0.95, 0.12, u) * (0.85 + 0.3 * n);
+        float body = 1.0 - smoothstep(w * 0.45, w, v);
+        float fade = pow(1.0 - u, 1.4);
+        float hot = (1.0 - smoothstep(0.0, w * 0.45, v)) * (1.0 - smoothstep(0.0, 0.55, u));
+        vec3 c = uColor * body * fade * 1.6 + uCore * hot * 1.4;
+        gl_FragColor = vec4(c, 1.0);
+        #include <colorspace_fragment>
+      }`,
+    uniforms: {
+      uTime: { value: 0 },
+      uSeed: { value: Math.random() * 50 },
+      uColor: { value: new THREE.Color(color) },
+      uCore: { value: new THREE.Color(core) },
+    },
+    transparent: true,
+    depthWrite: false,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+  })
+}
+
+/**
+ * Additive boss laser on a quad from the muzzle (−Z end) out along +Z: a soft outer glow in `color`, a
+ * white-hot core and a flicker running along its length. `uOpen` (0..1) opens and pinches its width.
+ */
+export function beamMaterial({ color }: { color: THREE.ColorRepresentation }) {
+  return new THREE.ShaderMaterial({
+    vertexShader: QUAD_VERT,
+    fragmentShader: /* glsl */ `
+      uniform float uTime;
+      uniform float uOpen;
+      uniform float uLength;
+      uniform vec3 uColor;
+      varying vec2 vUv;
+      ${NOISE}
+      void main() {
+        float along = vUv.y * uLength;       // units from the muzzle
+        float v = abs(vUv.x - 0.5) * 2.0 / max(uOpen, 1e-3);
+        if (v > 1.0) discard;
+        float n = fxNoise(vec2(along * 0.6 - uTime * 30.0, vUv.x * 4.0));
+        float n2 = fxNoise(vec2(along * 2.3 - uTime * 55.0, 7.0));
+        float glow = exp(-v * v * 5.0) * (0.75 + 0.35 * n);
+        float core = (1.0 - smoothstep(0.12, 0.26 + 0.06 * n2, v));
+        // Bright where it leaves the muzzle
+        float start = smoothstep(0.0, 0.4, along) * (1.0 + 1.2 * exp(-along * 0.8));
+        vec3 c = (uColor * glow * 2.0 + vec3(1.0) * core * 2.2) * start;
+        gl_FragColor = vec4(c, 1.0);
+        #include <colorspace_fragment>
+      }`,
+    uniforms: {
+      uTime: { value: 0 },
+      uOpen: { value: 1 },
+      uLength: { value: 1 },
+      uColor: { value: new THREE.Color(color) },
+    },
+    transparent: true,
+    depthWrite: false,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+  })
+}
+
+/** Ripple slots a shield draws: (x, z) on the bubble in radii from its centre, and age; age < 0 is empty. */
+export const SHIELD_RIPPLES = 4
+
+/**
+ * Additive energy bubble seen from above, on a quad 2 radii across: faint inside, bright at its rim (a
+ * fresnel on the radius), a slow shimmer, and up to SHIELD_RIPPLES rings spreading from blocked hits.
+ */
+export function shieldMaterial({ color = '#4fc3f7', rim = '#9be7ff', rippleLife }: { color?: THREE.ColorRepresentation; rim?: THREE.ColorRepresentation; rippleLife: number }) {
+  return new THREE.ShaderMaterial({
+    vertexShader: QUAD_VERT,
+    fragmentShader: /* glsl */ `
+      uniform float uTime;
+      uniform vec3 uColor;
+      uniform vec3 uRim;
+      uniform vec3 uRipples[${SHIELD_RIPPLES}];
+      uniform float uRippleLife;
+      varying vec2 vUv;
+      ${NOISE}
+      void main() {
+        vec2 p = (vUv - 0.5) * 2.0;
+        float r = length(p);
+        if (r > 1.0) discard;
+        float edge = 1.0 - smoothstep(0.93, 1.0, r);
+        float fres = pow(r, 5.0);
+        float shimmer = fxNoise(p * 3.0 + vec2(uTime * 0.7, -uTime * 0.5));
+        float a = (0.07 + 0.05 * shimmer) + fres * 0.85;
+        float ring = 0.0;
+        for (int i = 0; i < ${SHIELD_RIPPLES}; i++) {
+          vec3 q = uRipples[i];
+          if (q.z < 0.0) continue;
+          float k = q.z / uRippleLife;
+          float d = distance(p, q.xy);
+          float band = exp(-pow((d - k * 1.1) / 0.09, 2.0));
+          ring += band * (1.0 - k) * (1.0 - k);
+        }
+        vec3 c = uColor * a + uRim * (fres * 0.6 + ring * 1.6);
+        gl_FragColor = vec4(c * edge, 1.0);
+        #include <colorspace_fragment>
+      }`,
+    uniforms: {
+      uTime: { value: 0 },
+      uColor: { value: new THREE.Color(color) },
+      uRim: { value: new THREE.Color(rim) },
+      uRipples: { value: Array.from({ length: SHIELD_RIPPLES }, () => new THREE.Vector3(0, 0, -1)) },
+      uRippleLife: { value: rippleLife },
+    },
+    transparent: true,
+    depthWrite: false,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+  })
+}

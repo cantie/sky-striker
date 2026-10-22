@@ -10,7 +10,8 @@ import * as THREE from 'three'
 import { Environment } from './components/game/Environment'
 import { ShipModel } from './components/game/Model'
 import { BoltsMesh, EnemyBulletsMesh, MissilesMesh, type BoltView } from './components/game/fx/BulletMeshes'
-import { FxRenderer, useFx, type Fx } from './components/game/fx/FxRenderer'
+import { FxRenderer, useFx, type Fx, type ShieldTarget } from './components/game/fx/FxRenderer'
+import { BossLaser, LASER_CHARGE, LASER_FIRE, type LaserState } from './components/game/BossLaser'
 import { MuzzleFlash } from './components/game/fx/MuzzleFlash'
 import { BIOMES, type Biome } from './game/biomes'
 import { BOSSES } from './game/bosses'
@@ -42,6 +43,8 @@ interface Cell {
   labels?: { x: number; text: string }[]
   /** Models to have loaded before the loop starts (a wreck must not pop in late). */
   preload?: string[]
+  /** A shield to draw, fed from the cell's clock. */
+  shield?: (clock: Clock) => () => ShieldTarget | null
 }
 
 /** A missile's flight across the cell, as position and velocity at loop time t (seconds). */
@@ -163,6 +166,73 @@ function Boss({ id, z }: { id: string; z: number }) {
   )
 }
 
+/** The laser cell's boss and player, and its compressed cycle (real seconds): charge, then fire. */
+const LASER_BOSS = BOSSES.vulture
+const LASER_Z = 3.2
+const PLAYER_Z = -3.4
+const CHARGE_S = 1.3, FIRE_S = 1.2
+
+function LaserDriver({ clock, laser }: { clock: Clock; laser: { current: LaserState } }) {
+  useFrame(() => {
+    const t = clock.t()
+    laser.current = t < CHARGE_S ? { stage: 'charge', t: (t / CHARGE_S) * LASER_CHARGE, angle: Math.PI }
+      : t < CHARGE_S + FIRE_S ? { stage: 'fire', t: ((t - CHARGE_S) / FIRE_S) * LASER_FIRE, angle: Math.PI }
+      : { stage: 'idle', t: 0, angle: Math.PI }
+  }, -3)
+  return null
+}
+
+function LaserView({ clock }: { clock: Clock }) {
+  const laser = useRef<LaserState>({ stage: 'idle', t: 0, angle: Math.PI })
+  return (
+    <>
+      <LaserDriver clock={clock} laser={laser} />
+      <group position={[0, 0.4, LASER_Z]}>
+        <group rotation={[0, Math.PI, 0]}>
+          <ShipModel path={LASER_BOSS.model!} size={LASER_BOSS.size} flame={LASER_BOSS.flameColor} flames={LASER_BOSS.flames} nozzles={LASER_BOSS.nozzles} flameScale={1.3} />
+        </group>
+        <BossLaser laser={laser} nose={[0, 0.35, -LASER_BOSS.radius * 0.6]} />
+      </group>
+      <Plane id="aegis" z={PLAYER_Z} />
+    </>
+  )
+}
+
+/** Shield cell: rings of enemy bullets closing in on the plane and stopping on its bubble. */
+const SHIELD_R = 1.3
+function shieldBullets(clock: Clock) {
+  const list: { x: number; z: number; radius: number }[] = []
+  return () => {
+    const t = clock.t()
+    list.length = 0
+    for (let k = 0; k < 6; k++) {
+      const age = (t + k * 0.5) % LOOP
+      const a = k * 1.7
+      const r = 5 - age * 3.5
+      if (r > SHIELD_R) list.push({ x: Math.sin(a) * r, z: Math.cos(a) * r, radius: 0.13 })
+    }
+    return list
+  }
+}
+
+/** Nova cell: the ring of 18 bolts leaving the plane at loop time NOVA_AT. */
+const NOVA_AT = 0.1
+function novaBolts(clock: Clock) {
+  const list: BoltView[] = []
+  const color = planeBoltColor('nova')
+  return () => {
+    const age = clock.t() - NOVA_AT
+    list.length = 0
+    if (age < 0) return list
+    for (let i = 0; i < 18; i++) {
+      const a = (i / 18) * Math.PI * 2
+      const vx = Math.sin(a) * 16, vz = Math.cos(a) * 16
+      list.push({ x: vx * GAME_SPEED * age, z: vz * GAME_SPEED * age, vx, vz, radius: 0.18, color })
+    }
+    return list
+  }
+}
+
 const EXPLOSION_COLS = [{ x: 4.5, scale: 1, text: '1 enemy' }, { x: 0, scale: 1.2, text: '1.2 ram' }, { x: -4.5, scale: 1.6, text: '1.6 heavy' }]
 
 function Plane({ id, z }: { id: string; z: number }) {
@@ -223,6 +293,59 @@ const CELLS: Record<string, Cell> = {
     play: (fx, t, dt) => { if (passes(t, dt, 0.05)) fx.bossDeath(0, 0.4, BOSSES.hornet) },
     preload: [BOSSES.hornet.model!],
   },
+  flames: {
+    biome: 'canyon',
+    view: () => (
+      <Suspense fallback={null}>
+        <group position={[4.2, 0.2, -1]}><ShipModel path={getPlane('hawk').model} size={getPlane('hawk').size * 1.6} flame={getPlane('hawk').flame} core="#ffffff" flames={getPlane('hawk').flames} nozzles={getPlane('hawk').nozzles} flameScale={1.1} /></group>
+        <group position={[-2.6, 0.4, 0]} rotation={[0, Math.PI, 0]}>
+          <ShipModel path={BOSSES.vulture.model!} size={BOSSES.vulture.size} flame={BOSSES.vulture.flameColor} flames={BOSSES.vulture.flames} nozzles={BOSSES.vulture.nozzles} flameScale={1.3} />
+        </group>
+      </Suspense>
+    ),
+    labels: [{ x: 4.2, text: 'HAWK (1.6×)' }, { x: -2.6, text: 'VULTURE' }],
+  },
+  laser: {
+    biome: 'volcano',
+    play: (fx, t, dt) => {
+      // The game's contact sparks: every 0.05 game-s while the beam crosses the plane
+      const every = 0.05 / GAME_SPEED
+      if (t > CHARGE_S + 0.05 && t < CHARGE_S + FIRE_S - 0.1 && Math.floor(t / every) !== Math.floor((t - dt) / every)) fx.laserHit(0, PLAYER_Z)
+    },
+    view: (clock) => <Suspense fallback={null}><LaserView clock={clock} /></Suspense>,
+    preload: [LASER_BOSS.model!],
+  },
+  shield: {
+    biome: 'swamp',
+    play: (fx, t, dt) => {
+      for (let k = 0; k < 6; k++) {
+        // Bullet k reaches the bubble when 5 − age·3.5 = SHIELD_R
+        const hitAt = ((5 - SHIELD_R) / 3.5 - k * 0.5 + LOOP * 2) % LOOP
+        if (passes(t, dt, hitAt)) { const a = k * 1.7; fx.shieldHit(Math.sin(a) * SHIELD_R, Math.cos(a) * SHIELD_R) }
+      }
+    },
+    view: (clock) => (
+      <>
+        <EnemyBulletsMesh bullets={shieldBullets(clock)} />
+        <Suspense fallback={null}><Plane id="aegis" z={0} /></Suspense>
+      </>
+    ),
+    shield: (clock) => {
+      const target = { x: 0, z: 0, ms: 4000, down: false }
+      // Its last 1.5 s flicker in the second half of the loop
+      return () => { target.ms = clock.t() < 1.8 ? 4000 : 1000; return target }
+    },
+  },
+  nova: {
+    biome: 'arctic',
+    play: (fx, t, dt) => { if (passes(t, dt, NOVA_AT)) fx.nova(0, 0, planeBoltColor('nova')) },
+    view: (clock) => (
+      <>
+        <BoltsMesh bolts={novaBolts(clock)} />
+        <Suspense fallback={null}><Plane id="nova" z={0} /></Suspense>
+      </>
+    ),
+  },
   muzzle: {
     biome: 'ocean',
     view: (clock) => {
@@ -280,6 +403,7 @@ function CellView({ name }: { name: string }) {
   const elapsed = useRef(0)
   const clock = useMemo<Clock>(() => ({ t: () => elapsed.current % LOOP }), [])
   const view = useMemo(() => cell.view?.(clock), [cell, clock])
+  const shield = useMemo(() => cell.shield?.(clock), [cell, clock])
   return (
     <div style={{ position: 'relative' }}>
       <Canvas
@@ -293,7 +417,7 @@ function CellView({ name }: { name: string }) {
           <Environment biome={biomeOverride ?? cell.biome} />
           <GroundIn ready={ground} />
         </Suspense>
-        <FxRenderer paused={() => frozen.current || !ground.current}>
+        <FxRenderer paused={() => frozen.current || !ground.current} shield={shield}>
           {view}
           <Player cell={cell} elapsed={elapsed} frozen={frozen} ground={ground} />
         </FxRenderer>

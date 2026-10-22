@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createParticles, type ParticleSpec, type RGB } from './particles'
-import { bossDeathBursts, explosionBurst, fxShouldStep, hitSparks, missilePuff, novaRing, takeNewExplosions, wreckAlive } from './emitters'
+import { bossDeathBursts, explosionBurst, fxShouldStep, hitSparks, missilePuff, novaRing, rippleSlots, takeNewExplosions, wreckAlive } from './emitters'
 import { drainFx, emitFx, type FxEvent } from './events'
 
 function mulberry32(seed: number) {
@@ -189,6 +189,17 @@ describe('emitters', () => {
     expect(wreckAlive(w, 10.7, 4, 'paused')).toBe(true)
     expect(wreckAlive(w, 10.7, 5, 'playing')).toBe(false)
     for (const st of ['menu', 'stageSelect', 'briefing', 'results']) expect(wreckAlive(w, 10.7, 4, st)).toBe(false)
+  })
+
+  it('the shield shows the newest 4 ripples younger than 0.4 s', () => {
+    // At 10: ripple 0 is 0.5 s old and gone; of the 5 young ones (0.25 … 0.05 s), the newest 4 show
+    const ripples = [{ x: 0, z: 0, t0: 9.5 }, ...[1, 2, 3, 4, 5].map((i) => ({ x: i, z: -i, t0: 9.7 + i * 0.05 }))]
+    const slots = rippleSlots(ripples, 10)
+    expect(slots.map((r) => r.x)).toEqual([5, 4, 3, 2])
+    expect(slots[0]).toEqual({ x: 5, z: -5, age: expect.closeTo(0.05, 9) })
+    for (const r of slots) { expect(r.age).toBeGreaterThanOrEqual(0); expect(r.age).toBeLessThan(0.4) }
+    expect(rippleSlots(ripples, 10.5)).toEqual([])
+    expect(rippleSlots([], 3)).toEqual([])
   })
 
   it('effects step only while playing', () => {

@@ -35,6 +35,17 @@ const CAMERA_Y = 50
 /** Effects freeze whenever the game is not running (pause, boss warning, results). */
 const fxPaused = () => !fxShouldStep(useGameStore.getState().gameState)
 const fxStageNow = { id: 0, state: 'menu' }
+const fxShieldNow = { x: 0, z: 0, ms: 0, down: false }
+/** The player's shield, while a stage is on screen and it is up. */
+const fxShield = () => {
+  const s = useGameStore.getState()
+  if (s.shieldMs <= 0 || !(s.gameState === 'playing' || s.gameState === 'paused' || s.gameState === 'bossWarning')) return null
+  fxShieldNow.x = s.playerX
+  fxShieldNow.z = s.playerY
+  fxShieldNow.ms = s.shieldMs
+  fxShieldNow.down = s.down
+  return fxShieldNow
+}
 const fxStage = () => {
   const s = useGameStore.getState()
   fxStageNow.id = s.currentStageId
@@ -250,7 +261,7 @@ export function GameScene() {
 
   return (
     <>
-      <FxRenderer paused={fxPaused} stage={fxStage}>
+      <FxRenderer paused={fxPaused} stage={fxStage} shield={fxShield}>
         <Suspense fallback={null}>
           <Environment />
           {gameState === 'hangar' && <HangarPreview />}

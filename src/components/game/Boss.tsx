@@ -14,12 +14,15 @@ import { applyFlash, captureLooks, type Look } from './materialLook'
 import { Vehicle } from './Vehicles'
 import { gameDt } from '../../game/speed'
 import { sounds } from '../../hooks/useAudio'
+import { emitFx } from '../../game/fx/events'
 import { BossLaser, LASER_CHARGE, LASER_FIRE, LASER_HALF_WIDTH, LASER_LOCK, type LaserState } from './BossLaser'
 
 /** Boss bullets before stage scaling (game units / game-second). */
 const BOSS_BULLET = { speed: 8, radius: 0.15 }
 /** A laser hit costs two hull points (normal bullets cost one). */
 const LASER_HITS = 2
+/** Contact sparks where the beam crosses the player, at most this often (game-seconds). Visual only. */
+const LASER_SPARK_EVERY = 0.05
 const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a))
 
 type Volley = { at: number; fire: () => void }
@@ -137,6 +140,7 @@ export function Boss() {
   const cycle = useRef(0)
   const volleys = useRef<Volley[]>([])
   const laser = useRef<LaserState>({ stage: 'idle', t: 0, angle: Math.PI })
+  const lastSpark = useRef(-Infinity)
 
   if (boss && boss.hp < prevHp.current) flashUntil.current = Date.now() + 90
   prevHp.current = boss?.hp ?? 0
@@ -151,6 +155,7 @@ export function Boss() {
       // First frame of a fresh fight: drop timers/volleys left over from a previous run
       clock.current = 0; fightT.current = 0; nextAttack.current = 0.6; cycle.current = 0; volleys.current = []
       laser.current = { stage: 'idle', t: 0, angle: Math.PI }
+      lastSpark.current = -Infinity
     }
     clock.current += dt
 
@@ -190,7 +195,13 @@ export function Boss() {
         const dx = s.playerX - nx, dz = s.playerY - nz
         const along = dx * Math.sin(L.angle) + dz * Math.cos(L.angle)
         const perp = Math.abs(dx * Math.cos(L.angle) - dz * Math.sin(L.angle))
-        if (along > 0 && perp < LASER_HALF_WIDTH + 0.35) s.damagePlayer(LASER_HITS)
+        if (along > 0 && perp < LASER_HALF_WIDTH + 0.35) {
+          s.damagePlayer(LASER_HITS)
+          if (clock.current - lastSpark.current >= LASER_SPARK_EVERY) {
+            lastSpark.current = clock.current
+            emitFx({ kind: 'laserHit', x: s.playerX, z: s.playerY })
+          }
+        }
         if (L.t >= LASER_FIRE) L.stage = 'idle'
       }
     }

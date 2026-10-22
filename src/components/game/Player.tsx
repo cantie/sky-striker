@@ -8,6 +8,7 @@ import { PLAYER_BULLET_SPEED, weaponStats } from '../../game/weapon'
 import { getPlane } from '../../game/planes'
 import { planeBoltColor } from '../../game/fx/color'
 import { MuzzleFlash } from './fx/MuzzleFlash'
+import { emitFx } from '../../game/fx/events'
 import { ORDER } from '../../game/sim/clock'
 import { useSimStep } from '../../game/sim/useSimStep'
 
@@ -34,7 +35,6 @@ const muzzle = () => useGameStore.getState().muzzleFlash
 export function Player() {
   const group = useRef<THREE.Group>(null)
   const navLights = useRef<THREE.Group>(null)
-  const shieldRing = useRef<THREE.Group>(null)
   const bank = useRef(0)
   /** Real ms since the last volley / wingman volley. */
   const sinceShot = useRef(0)
@@ -93,6 +93,7 @@ export function Player() {
           s.addBullet({ x: playerX, y: 0.3, z: playerY, vx: Math.sin(a) * 16, vy: 0, vz: Math.cos(a) * 16, isEnemy: false, damage: dmg * 1.4, radius: 0.18, pierce: true, color: bolt })
         }
         s.addShake(0.2)
+        emitFx({ kind: 'nova', x: playerX, z: playerY, color: bolt })
       }
     }
     if (plane.skill === 'autoShield') {
@@ -120,16 +121,6 @@ export function Player() {
     group.current.visible = !blink && !s.down
 
     if (navLights.current) navLights.current.visible = Date.now() % 900 < 160
-    if (shieldRing.current) {
-      // Temporary shield bubble; flickers during its last 1.5 s as a warning
-      const left = s.shieldMs
-      const ending = left > 0 && left < 1500 && Math.floor(Date.now() / 110) % 2 === 0
-      shieldRing.current.visible = left > 0 && !ending
-      shieldRing.current.scale.setScalar(1 + Math.sin(Date.now() * 0.004) * 0.04)
-      const [bubble, rim] = shieldRing.current.children as THREE.Mesh[]
-      ;(bubble.material as THREE.MeshBasicMaterial).opacity = 0.2
-      ;(rim.material as THREE.MeshBasicMaterial).opacity = 0.7
-    }
   })
 
   return (
@@ -152,16 +143,6 @@ export function Player() {
         </mesh>
       </group>
       <pointLight position={[0, 0.1, -0.9]} color={plane.flame} intensity={5} distance={3.5} />
-      <group ref={shieldRing} visible={false}>
-        <mesh scale={[1, 0.45, 1]}>
-          <sphereGeometry args={[1.25, 32, 16]} />
-          <meshBasicMaterial color="#4fc3f7" transparent opacity={0.16} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
-        </mesh>
-        <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[1.18, 1.27, 48]} />
-          <meshBasicMaterial color="#9be7ff" transparent opacity={0.6} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} side={THREE.DoubleSide} />
-        </mesh>
-      </group>
       <MuzzleFlash guns={guns} flash={muzzle} />
     </group>
   )

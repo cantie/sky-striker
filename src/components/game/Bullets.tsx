@@ -115,6 +115,7 @@ export function Bullets() {
         }
       } else {
         if (!s.down && Math.hypot(b.x - s.playerX, b.z - s.playerY) < 0.55 + b.radius) {
+          if (s.shieldMs > 0) emitFx({ kind: 'shieldHit', x: b.x, z: b.z })
           s.damagePlayer(b.damage)
           hit = true
         }

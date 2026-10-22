@@ -2,12 +2,13 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, type R
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { BossDef } from '../../../game/bosses'
-import { bossDeathBursts, explosionBurst, hitSparks, missilePuff, wreckAlive } from '../../../game/fx/emitters'
+import { bossDeathBursts, explosionBurst, hitSparks, missilePuff, novaRing, wreckAlive } from '../../../game/fx/emitters'
 import { POOLS, type PoolName } from '../../../game/fx/layers'
 import { createParticles, type Particles, type RGB } from '../../../game/fx/particles'
 import { BossWreck, type Wreck } from './BossWreck'
 import { glowMaterial, ringMaterial, smokeMaterial, sparkMaterial } from './materials'
 import { ParticleLayer } from './ParticleLayer'
+import { ShieldBubble, type Ripple } from './ShieldBubble'
 
 /** What gameplay glue (or the preview page) asks the effects for. Visual only. */
 export interface Fx {
@@ -40,9 +41,15 @@ const POOL_NAMES = Object.keys(POOLS) as PoolName[]
 /** Hit sparks glow a little past their bullet's colour, so the bloom picks them up. */
 const SPARK_GAIN = 1.8
 const ALWAYS: FxStage = { id: 0, state: 'playing' }
+/** Where the boss laser crosses the player: hot magenta-white sparks. */
+const LASER_SPARK: RGB = [2.4, 1.3, 2.2]
+const SHIELD_SPARK = '#9be7ff'
+/** Ripples kept for the shield to pick its newest from. */
+const KEEP_RIPPLES = 8
 
 const sparkTints = new Map<string, RGB>()
 function sparkTint(hex: string): RGB {
+  // Linear RGB, brightened
   let c = sparkTints.get(hex)
   if (!c) {
     const l = new THREE.Color(hex)
@@ -58,7 +65,7 @@ function sparkTint(hex: string): RGB {
  * while it steps, so a boss death sequence waits through a pause too.
  */
 export function FxRenderer(props: { paused: () => boolean; stage?: () => FxStage; shield?: () => ShieldTarget | null; children?: ReactNode }) {
-  const { paused, children } = props
+  const { paused, shield, children } = props
   const stage = props.stage ?? (() => ALWAYS)
   const stageRef = useRef(stage)
   stageRef.current = stage
@@ -85,6 +92,7 @@ export function FxRenderer(props: { paused: () => boolean; stage?: () => FxStage
   const wrecks = useRef<Wreck[]>([])
   const [shownWrecks, setShownWrecks] = useState<Wreck[]>([])
   const nextWreck = useRef(0)
+  const ripples = useRef<Ripple[]>([])
 
   const fx = useMemo<Fx>(() => {
     const spawnAll = (pool: Particles, list: Parameters<Particles['spawn']>[0][]) => { for (const p of list) pool.spawn(p) }
@@ -105,7 +113,11 @@ export function FxRenderer(props: { paused: () => boolean; stage?: () => FxStage
         pools.fire.spawn(out[out.length - 1])
       },
       puff(x, z, vx, vz) { pools.smoke.spawn(missilePuff(x, z, vx, vz, Math.random)) },
-      nova() {},
+      nova(x, z, color) {
+        const c = sparkTint(color)
+        pools.rings.spawn(novaRing(x, z, c))
+        pools.fire.spawn({ x, y: 0, z, vx: 0, vy: 0, vz: 0, life: 0.22, size0: 2.2, size1: 3.6, color: c, alpha: 0.9 })
+      },
       bossDeath(x, z, boss) {
         const w: Wreck = {
           id: nextWreck.current++, x, z, boss, t0: clock.current, stageId: stageRef.current().id,
@@ -114,10 +126,20 @@ export function FxRenderer(props: { paused: () => boolean; stage?: () => FxStage
         wrecks.current = [...wrecks.current, w]
         setShownWrecks(wrecks.current)
       },
-      laserHit() {},
-      shieldHit() {},
+      laserHit(x, z) {
+        const out = hitSparks(x, z, LASER_SPARK, Math.random)
+        for (let i = 0; i < out.length - 1; i++) pools.sparks.spawn(out[i])
+        pools.fire.spawn(out[out.length - 1])
+      },
+      shieldHit(x, z) {
+        ripples.current.push({ x, z, t0: clock.current })
+        if (ripples.current.length > KEEP_RIPPLES) ripples.current.splice(0, ripples.current.length - KEEP_RIPPLES)
+        const out = hitSparks(x, z, sparkTint(SHIELD_SPARK), Math.random)
+        for (let i = 0; i < out.length - 1; i++) pools.sparks.spawn(out[i])
+      },
       clear() {
         for (const k of POOL_NAMES) pools[k].clear()
+        ripples.current = []
         if (wrecks.current.length) { wrecks.current = []; setShownWrecks([]) }
       },
     }
@@ -148,6 +170,7 @@ export function FxRenderer(props: { paused: () => boolean; stage?: () => FxStage
     <FxContext.Provider value={fx}>
       {children}
       {shownWrecks.map((w) => <BossWreck key={w.id} wreck={w} now={() => clock.current} />)}
+      {shield && <ShieldBubble target={shield} ripples={() => ripples.current} now={() => clock.current} />}
       {POOL_NAMES.map((k) => (
         <ParticleLayer key={k} particles={pools[k]} material={materials[k]} y={POOLS[k].y} renderOrder={POOLS[k].renderOrder} />
       ))}

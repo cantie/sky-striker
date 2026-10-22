@@ -41,6 +41,9 @@ export function FxGame() {
     for (const e of events) {
       if (e.kind === 'hit') fx.hit(e.x, e.z, e.color)
       else if (e.kind === 'bossDeath') fx.bossDeath(e.x, e.z, BOSSES[getStage(s.currentStageId).boss])
+      else if (e.kind === 'nova') fx.nova(e.x, e.z, e.color)
+      else if (e.kind === 'shieldHit') fx.shieldHit(e.x, e.z)
+      else fx.laserHit(e.x, e.z)
     }
 
     if (s.gameState !== 'playing') return

@@ -2,6 +2,7 @@
 // mapping (bright values feed the bloom) and never write depth. Each has a `uTime` its owner sets per frame.
 import * as THREE from 'three'
 import { boltQuad } from '../../../game/fx/bulletLook'
+import { MAX_RIPPLES } from '../../../game/fx/emitters'
 
 /** The unit quad every effect draws on: XZ in [−0.5, 0.5], facing up. */
 export const fxQuad = () => new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)
@@ -356,7 +357,7 @@ export function beamMaterial({ color }: { color: THREE.ColorRepresentation }) {
 }
 
 /** Ripple slots a shield draws: (x, z) on the bubble in radii from its centre, and age; age < 0 is empty. */
-export const SHIELD_RIPPLES = 4
+export const SHIELD_RIPPLES = MAX_RIPPLES
 
 /**
  * Additive energy bubble seen from above, on a quad 2 radii across: faint inside, bright at its rim (a

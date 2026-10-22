@@ -8,6 +8,9 @@ import { Environment } from './Environment'
 import { Player } from './Player'
 import { ModelBoundary } from './ModelBoundary'
 import { STATS, StatsProbe } from './StatsProbe'
+import { FxRenderer } from './fx/FxRenderer'
+import { FxGame } from './fx/FxGame'
+import { fxShouldStep } from '../../game/fx/emitters'
 import { Enemies } from './Enemies'
 import { Boss } from './Boss'
 import { Bullets } from './Bullets'
@@ -30,6 +33,8 @@ import { activeSession } from '../../net/coop/active'
 const HALF_W = (BOUNDS.maxX - BOUNDS.minX) / 2 + 1.1
 const HALF_H = (BOUNDS.maxY - BOUNDS.minY) / 2 + 1.4
 const CAMERA_Y = 50
+/** Effects freeze whenever the game is not running (pause, boss warning, results). */
+const fxPaused = () => !fxShouldStep(useGameStore.getState().gameState)
 
 /** World +Z offset so the plane sits slightly above the finger/cursor (screen-up). */
 const POINTER_OFFSET_Z = 1.2
@@ -239,24 +244,27 @@ export function GameScene() {
 
   return (
     <>
-      <Suspense fallback={null}>
-        <Environment />
-        {gameState === 'hangar' && <HangarPreview />}
-        {showActors && (
-          <>
-            {/* The plane loads outside the briefing on a co-op or shortcut start; a failed load must not blank the game */}
-            <ModelBoundary><Player /></ModelBoundary>
-            <Enemies />
-            <Boss />
-            <Bullets />
-            <Pickups />
-            <Explosions />
-            <Coins />
-            {coop && <Teammates />}
-            {coop && <ReviveBeacon />}
-          </>
-        )}
-      </Suspense>
+      <FxRenderer paused={fxPaused}>
+        <Suspense fallback={null}>
+          <Environment />
+          {gameState === 'hangar' && <HangarPreview />}
+          {showActors && (
+            <>
+              {/* The plane loads outside the briefing on a co-op or shortcut start; a failed load must not blank the game */}
+              <ModelBoundary><Player /></ModelBoundary>
+              <Enemies />
+              <Boss />
+              <Bullets />
+              <Pickups />
+              <Explosions />
+              <Coins />
+              {coop && <Teammates />}
+              {coop && <ReviveBeacon />}
+            </>
+          )}
+        </Suspense>
+        <FxGame />
+      </FxRenderer>
       {STATS && <StatsProbe />}
       <EffectComposer multisampling={0}>
         <Bloom intensity={0.7} luminanceThreshold={0.7} mipmapBlur levels={5} />

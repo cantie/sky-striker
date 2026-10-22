@@ -47,6 +47,8 @@ export interface Bullet {
   pierce?: boolean; hits?: string[]; homing?: boolean
   /** Co-op: drawn from the teammate's fire — no damage, stops on contact. */
   ghost?: boolean
+  /** Visual only: a player bolt's colour (its plane's, see planeBoltColor). Never sent over the network. */
+  color?: string
 }
 export interface Enemy {
   id: string; x: number; y: number; z: number

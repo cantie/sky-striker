@@ -37,5 +37,11 @@ export function boltColor(flame: string): string {
   return `#${new THREE.Color().setHSL(h / 360, c.s, c.l, THREE.SRGBColorSpace).getHexString(THREE.SRGBColorSpace)}`
 }
 
+const byPlane = new Map<string, string>()
+
 /** The bolt colour of a plane: its own bolts, wingmen, nova, and a teammate's ghost bolts. */
-export const planeBoltColor = (planeId: string) => boltColor(getPlane(planeId).flame)
+export function planeBoltColor(planeId: string): string {
+  let c = byPlane.get(planeId)
+  if (c === undefined) { c = boltColor(getPlane(planeId).flame); byPlane.set(planeId, c) }
+  return c
+}

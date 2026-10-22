@@ -153,6 +153,73 @@ export function sparkMaterial() {
     }`, { additive: true, defines: { STRETCH: 1 } })
 }
 
+/** A quad placed by instanceMatrix, tinted by instanceColor when the mesh has one. */
+const INSTANCED_VERT = /* glsl */ `
+uniform float uTime;
+varying vec2 vUv;
+varying vec3 vColor;
+void main() {
+  // (0..1) across the quad, y = 1 at its +Z edge; from uv, so a pre-scaled geometry keeps it
+  vUv = vec2(uv.x, 1.0 - uv.y);
+  vec4 p = vec4(position, 1.0);
+#ifdef USE_INSTANCING
+  p = instanceMatrix * p;
+#endif
+#ifdef USE_INSTANCING_COLOR
+  vColor = instanceColor;
+#else
+  vColor = vec3(1.0);
+#endif
+  gl_Position = projectionMatrix * modelViewMatrix * p;
+}`
+
+/**
+ * Additive round glow placed by instanceMatrix: bullet halos and cores, missile glows, muzzle flashes.
+ * Solid out to `body` (a fraction of the radius), then a soft falloff; `hot` adds a white centre and
+ * `star` four rays. Colour × instanceColor.
+ */
+export function spriteMaterial({ color = '#ffffff', intensity = 1, body = 0, hot = 0, star = false }: { color?: THREE.ColorRepresentation; intensity?: number; body?: number; hot?: number; star?: boolean } = {}) {
+  return new THREE.ShaderMaterial({
+    vertexShader: INSTANCED_VERT,
+    fragmentShader: /* glsl */ `
+      uniform float uTime;
+      uniform vec3 uColor;
+      uniform float uIntensity;
+      uniform float uBody;
+      uniform float uHot;
+      varying vec2 vUv;
+      varying vec3 vColor;
+      void main() {
+        vec2 p = vUv - 0.5;
+        float d = length(p) * 2.0;
+        if (d > 1.0) discard;
+        float soft = 1.0 - max(d - uBody, 0.0) / max(1.0 - uBody, 1e-3);
+        float a = soft * soft;
+      #ifdef STAR
+        float ang = atan(p.y, p.x);
+        float rays = pow(abs(cos(ang * 2.0)), 24.0) * (1.0 - d);
+        a = max(a * (1.0 - smoothstep(0.15, 0.6, d)), rays);
+      #endif
+        float hot = (1.0 - smoothstep(0.0, 0.45, d)) * uHot;
+        gl_FragColor = vec4(uColor * vColor * a * uIntensity + vec3(hot), 1.0);
+        #include <colorspace_fragment>
+      }`,
+    uniforms: {
+      uTime: { value: 0 },
+      uColor: { value: new THREE.Color(color) },
+      uIntensity: { value: intensity },
+      uBody: { value: body },
+      uHot: { value: hot },
+    },
+    defines: star ? { STAR: 1 } : {},
+    transparent: true,
+    depthWrite: false,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+  })
+}
+
 /**
  * Additive plasma bolt on an InstancedMesh (instanceMatrix + instanceColor): a capsule with a white-hot
  * core and a halo in the instance colour at the hit point, and a tail fading toward the quad's −Z end.
@@ -161,23 +228,7 @@ export function sparkMaterial() {
 export function streakMaterial() {
   const q = boltQuad(1)
   return new THREE.ShaderMaterial({
-    vertexShader: /* glsl */ `
-      uniform float uTime;
-      varying vec2 vUv;
-      varying vec3 vColor;
-      void main() {
-        vUv = position.xz + 0.5;
-        vec4 p = vec4(position, 1.0);
-      #ifdef USE_INSTANCING
-        p = instanceMatrix * p;
-      #endif
-      #ifdef USE_INSTANCING_COLOR
-        vColor = instanceColor;
-      #else
-        vColor = vec3(1.0);
-      #endif
-        gl_Position = projectionMatrix * modelViewMatrix * p;
-      }`,
+    vertexShader: INSTANCED_VERT,
     fragmentShader: /* glsl */ `
       uniform float uTime;
       uniform float uHead;

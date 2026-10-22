@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useGameStore } from '../../store/gameStore'
@@ -6,6 +6,8 @@ import { ShipModel, useModelDims } from './Model'
 import { gameDt, gameInterval } from '../../game/speed'
 import { PLAYER_BULLET_SPEED, weaponStats } from '../../game/weapon'
 import { getPlane } from '../../game/planes'
+import { planeBoltColor } from '../../game/fx/color'
+import { MuzzleFlash } from './fx/MuzzleFlash'
 import { ORDER } from '../../game/sim/clock'
 import { useSimStep } from '../../game/sim/useSimStep'
 
@@ -19,6 +21,16 @@ const AUTO_SHIELD_MS = 5000
 /** Wingman drone slots relative to the plane. */
 const WINGMEN: [number, number][] = [[-1.6, -0.7], [1.6, -0.7]]
 
+const gunXs = new Map<object, number[]>()
+/** The current weapon's gun offsets (x), one list per weapon level. */
+function guns(): readonly number[] {
+  const streams = weaponStats(useGameStore.getState().weaponPower).streams
+  let xs = gunXs.get(streams)
+  if (!xs) { xs = streams.map((s) => s.x); gunXs.set(streams, xs) }
+  return xs
+}
+const muzzle = () => useGameStore.getState().muzzleFlash
+
 export function Player() {
   const group = useRef<THREE.Group>(null)
   const navLights = useRef<THREE.Group>(null)
@@ -31,6 +43,7 @@ export function Player() {
   const skillClock = useRef({ missile: 0, nova: 0, shield: 0 })
   const planeId = useGameStore((s) => s.progress.plane)
   const plane = getPlane(planeId)
+  const bolt = useMemo(() => planeBoltColor(planeId), [planeId])
   const dims = useModelDims(plane.model)
   const wingTip = (dims.x * plane.size) / 2 * 0.92
 
@@ -50,7 +63,7 @@ export function Player() {
     if (sinceShot.current > gameInterval(w.interval * plane.fireRate)) {
       sinceShot.current = 0
       for (const sh of w.streams) {
-        s.addBullet({ x: playerX + sh.x, y: 0.3, z: playerY + 0.6, vx: sh.vx, vy: 0, vz: PLAYER_BULLET_SPEED, isEnemy: false, damage: dmg, radius: w.radius, pierce })
+        s.addBullet({ x: playerX + sh.x, y: 0.3, z: playerY + 0.6, vx: sh.vx, vy: 0, vz: PLAYER_BULLET_SPEED, isEnemy: false, damage: dmg, radius: w.radius, pierce, color: bolt })
       }
       s.setMuzzleFlash(1)
     }
@@ -59,7 +72,7 @@ export function Player() {
     if (plane.skill === 'wingmen' && sinceWing.current > gameInterval(w.interval * 1.3)) {
       sinceWing.current = 0
       for (const [ox, oz] of WINGMEN) {
-        s.addBullet({ x: playerX + ox, y: 0.3, z: playerY + oz + 0.5, vx: 0, vy: 0, vz: PLAYER_BULLET_SPEED, isEnemy: false, damage: dmg * 0.55, radius: 0.1 })
+        s.addBullet({ x: playerX + ox, y: 0.3, z: playerY + oz + 0.5, vx: 0, vy: 0, vz: PLAYER_BULLET_SPEED, isEnemy: false, damage: dmg * 0.55, radius: 0.1, color: bolt })
       }
     }
     if (plane.skill === 'missiles') {
@@ -77,7 +90,7 @@ export function Player() {
         skillClock.current.nova = 0
         for (let i = 0; i < NOVA_BOLTS; i++) {
           const a = (i / NOVA_BOLTS) * Math.PI * 2
-          s.addBullet({ x: playerX, y: 0.3, z: playerY, vx: Math.sin(a) * 16, vy: 0, vz: Math.cos(a) * 16, isEnemy: false, damage: dmg * 1.4, radius: 0.18, pierce: true })
+          s.addBullet({ x: playerX, y: 0.3, z: playerY, vx: Math.sin(a) * 16, vy: 0, vz: Math.cos(a) * 16, isEnemy: false, damage: dmg * 1.4, radius: 0.18, pierce: true, color: bolt })
         }
         s.addShake(0.2)
       }
@@ -149,12 +162,7 @@ export function Player() {
           <meshBasicMaterial color="#9be7ff" transparent opacity={0.6} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} side={THREE.DoubleSide} />
         </mesh>
       </group>
-      {useGameStore.getState().muzzleFlash > 0 && (
-        <mesh position={[0, 0.1, 0.9]}>
-          <sphereGeometry args={[0.2, 8, 8]} />
-          <meshBasicMaterial color="#fff7a0" transparent opacity={0.8} toneMapped={false} />
-        </mesh>
-      )}
+      <MuzzleFlash guns={guns} flash={muzzle} />
     </group>
   )
 }

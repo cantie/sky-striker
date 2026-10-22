@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { Particles } from '../../../game/fx/particles'
 import { fxQuad } from './materials'
+import { useWarmUp } from './warm'
 
 /** One draw call for a whole pool: its typed arrays are the instance attributes, no copies. */
 export function buildParticleMesh(p: Particles, material: THREE.Material): THREE.InstancedMesh {
@@ -46,6 +47,7 @@ export function syncParticleMesh(mesh: THREE.InstancedMesh, p: Particles): void 
 export function ParticleLayer({ particles, material, y, renderOrder }: { particles: Particles; material: THREE.Material; y: number; renderOrder: number }) {
   const mesh = useMemo(() => buildParticleMesh(particles, material), [particles, material])
   useEffect(() => () => mesh.geometry.dispose(), [mesh])
+  useWarmUp(mesh)
   useFrame(() => syncParticleMesh(mesh, particles), -1)
   return <primitive object={mesh} position-y={y} renderOrder={renderOrder} />
 }
